@@ -28,9 +28,11 @@ export type RecoverLoad = {
  * Viewer keeps placed, imported, and the balance (the placed card already
  * prints it) and zeros assigned and unassigned, matching the previous
  * projection. Arrangement, paid, recalled, and closed are omitted.
- * Agent receives only their own assignedCount, plus imported. Balance is 0
- * and is not a workspace total. placedCount is that same assigned count so
- * older cards cannot show the whole book.
+ * Agent receives only their scoped assignedCount, plus imported.
+ * placedBalanceCents stays null so Accounts can sum the agent's own rows
+ * and a failed or hidden balance cannot render as R 0,00.
+ * placedCount is that same assigned count so older cards cannot show the whole book.
+ * The Accounts page does not read this object for an agent.
  */
 export function projectBookStats(
   role: RecoverRole,
@@ -63,7 +65,7 @@ export function projectBookStats(
   if (role === 'agent') {
     return {
       placedCount: stats.assignedCount,
-      placedBalanceCents: 0,
+      placedBalanceCents: null,
       assignedCount: stats.assignedCount,
       unassignedCount: 0,
       imported: stats.imported,

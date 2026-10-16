@@ -4,6 +4,8 @@
 import assert from 'node:assert/strict';
 import { accountStateFromQuery } from './href';
 import { recovergraphNavSteps } from './nav';
+import { capabilitiesFor } from './roles';
+import { sampleDesk } from './sample-desk';
 import {
   FLOW_FOUNDATION,
   FLOW_GUARDRAILS,
@@ -12,6 +14,7 @@ import {
   FLOW_RUNS,
   FLOW_STEPS,
   flowSrSummary,
+  resolveProcessFlow,
   stepAriaLabel,
 } from './process-flow';
 
@@ -78,6 +81,44 @@ assert.equal(
 assert.match(FLOW_STEPS[4].title, /section 129 notice where the NCA applies/);
 assert.equal(FLOW_STEPS[4].href, null);
 const contactCopy = `${FLOW_STEPS[4].title} ${FLOW_STEPS[4].desc} ${FLOW_STEPS[4].soonNote || ''}`;
-assert.doesNotMatch(contactCopy, /\b\d+\s*days?\b|registered mail|hand delivery|business day/i);
+assert.doesNotMatch(contactCopy, /\b\d+\s*days?\b|registered mail|hand delivery|business day|delivery proof/i);
+assert.equal(/can be stored/i.test(`${FLOW_STEPS[5].desc} ${FLOW_STEPS[6].desc}`), false);
+assert.match(FLOW_STEPS[5].desc, /not open yet/);
+assert.match(FLOW_STEPS[6].desc, /not recorded yet/);
+
+const sample = sampleDesk('owner');
+const illustrated = resolveProcessFlow({
+  role: 'owner',
+  capabilities: sample.capabilities,
+  counts: sample.counts,
+  mandates: sample.mandates,
+  book: sample.book,
+  ready: true,
+  sample: true,
+  preview: 'illustration',
+});
+const mandateChips = illustrated.nodes.find((node) => node.id === 'mandate')?.chips.map((chip) => chip.text).join(' ') || '';
+assert.match(mandateChips, /2 mandates/);
+assert.equal(mandateChips.includes('NCA-regulated'), false);
+const placementChips = illustrated.nodes.find((node) => node.id === 'placement')?.chips.map((chip) => chip.text) || [];
+assert.equal(placementChips.includes('—'), false);
+assert.equal(placementChips.includes('Counts unavailable'), false);
+assert.equal(placementChips.some((text) => text.includes('Nothing placed')), false);
+
+const failed = resolveProcessFlow({
+  role: 'owner',
+  capabilities: capabilitiesFor('owner'),
+  counts: { creditors: 2, mandates: 1, staff: 1 },
+  mandates: [],
+  book: null,
+  ready: true,
+  sample: false,
+  preview: 'live',
+});
+assert.equal(failed.nodes.find((node) => node.id === 'placement')?.chips[0]?.text, 'Counts unavailable');
+assert.equal(
+  failed.nodes.some((node) => node.chips.some((chip) => chip.text === 'Nothing placed yet')),
+  false
+);
 
 console.log('brief117-process-flow.test.ts ok');

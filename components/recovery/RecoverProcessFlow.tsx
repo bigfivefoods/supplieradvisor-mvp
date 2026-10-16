@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Archive,
@@ -69,6 +69,9 @@ export function RecoverProcessFlow({ desk, defaultCollapsed }: Props) {
   });
   const collapsed = defaultCollapsed ?? view.defaultCollapsed;
   const [open, setOpen] = useState(!collapsed);
+  useEffect(() => {
+    setOpen(!collapsed);
+  }, [desk.role, collapsed]);
   const demo =
     preview === 'harbour'
       ? 'Demo data. No messages are sent.'
@@ -110,7 +113,7 @@ export function RecoverProcessFlow({ desk, defaultCollapsed }: Props) {
             type="button"
             className="recover-focus inline-flex min-h-11 shrink-0 items-center justify-center gap-1 self-start rounded-full bg-white px-3 text-sm font-bold text-[#0f172a]"
             aria-expanded={open}
-            aria-controls="recover-process-flow-body"
+            {...(open ? { 'aria-controls': 'recover-process-flow-body' } : {})}
             data-testid="recover-flow-toggle"
             onClick={() => setOpen((value) => !value)}
           >
@@ -150,7 +153,7 @@ export function RecoverProcessFlow({ desk, defaultCollapsed }: Props) {
               </ol>
             </div>
           ))}
-          <RunsCard node={quiet(view.runs, links)} />
+          <RunsCard node={quiet(view.runs, links)} allowInstalled={desk.ready && desk.reason !== 'migration_pending'} />
           <div>
             <h3 className="text-sm font-black text-[#0f172a]">Guardrails</h3>
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -207,11 +210,12 @@ function ExtraCard({ node }: { node: FlowNodeView }) {
   );
 }
 
-function RunsCard({ node }: { node: FlowNodeView }) {
+function RunsCard({ node, allowInstalled }: { node: FlowNodeView; allowInstalled: boolean }) {
   const base = useRecoverHrefBase();
-  const installed = base
-    ? `${base.split('?')[0]}/installed${base.includes('?') ? `?${base.slice(base.indexOf('?') + 1)}` : ''}`
-    : null;
+  const installed =
+    allowInstalled && base
+      ? `${base.split('?')[0]}/installed${base.includes('?') ? `?${base.slice(base.indexOf('?') + 1)}` : ''}`
+      : null;
   return (
     <div data-testid="recover-flow-runs" className="min-w-0">
       <StepSurface node={node} />
@@ -275,7 +279,7 @@ function StepSurface({ node }: { node: FlowNodeView }) {
     );
   }
   return (
-    <StepLink href={node.linkHref} className={className} label={node.ariaLabel}>
+    <StepLink href={node.linkHref} className={className}>
       {body}
     </StepLink>
   );

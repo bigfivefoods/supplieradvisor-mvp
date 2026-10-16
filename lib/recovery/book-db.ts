@@ -349,16 +349,40 @@ export async function loadBookStats(companyId: number, client?: BookStatsClient)
   return assembleBookStats(source);
 }
 
-/** Exact count of accounts assigned to one staff row. Null when the table is not ready. */
-export async function countAssignedToStaff(companyId: number, staffId: string): Promise<number | null> {
+const STAFF_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Exact count of accounts the agent read would return: assigned to this
+ * active staff row, or placed on that row's team. Company is always filtered.
+ * Null when the table is not ready or the count query fails.
+ */
+export async function countAccountsForAgent(companyId: number, staffId: string): Promise<number | null> {
+  if (!STAFF_UUID.test(staffId)) return 0;
   const supabase = getSupabaseServer();
-  const result = await supabase
-    .from('recover_accounts')
-    .select('id', { count: 'exact', head: true })
+  const staff = await supabase
+    .from('recover_staff')
+    .select('id, team_id, status')
     .eq('company_id', companyId)
-    .eq('assigned_to', staffId);
+    .eq('id', staffId)
+    .maybeSingle();
+  if (isMigrationPending(staff.error) || staff.error) return null;
+  const teamId = staff.data?.status === 'active' && staff.data.team_id ? String(staff.data.team_id) : null;
+  if (!staff.data || staff.data.status !== 'active') return 0;
+  let query = supabase.from('recover_accounts').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
+  if (teamId && STAFF_UUID.test(teamId)) {
+    query = query.or(`assigned_to.eq.${staffId},team_id.eq.${teamId}`);
+  } else {
+    query = query.eq('assigned_to', staffId);
+  }
+  const result = await query;
   if (isMigrationPending(result.error) || result.error) return null;
-  return result.count ?? 0;
+  if (result.count == null) return null;
+  return result.count;
+}
+
+/** @deprecated Use countAccountsForAgent. Kept so callers share the agent-read scope. */
+export async function countAssignedToStaff(companyId: number, staffId: string): Promise<number | null> {
+  return countAccountsForAgent(companyId, staffId);
 }
 
 async function loadAccountLabels(companyId: number, rows: Record<string, unknown>[]) {

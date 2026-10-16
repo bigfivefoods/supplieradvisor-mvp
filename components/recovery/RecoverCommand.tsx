@@ -231,7 +231,9 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
                 picture
                   ? 'Illustration · sample data'
                   : desk.book && desk.book.placedCount > 0
-                    ? `${formatRecoverMoney(desk.book.placedBalanceCents)}. Placed balance; payments are not recorded yet.`
+                    ? desk.book.placedBalanceCents == null
+                      ? 'Balance unavailable'
+                      : `${formatRecoverMoney(desk.book.placedBalanceCents)}. Placed balance; payments are not recorded yet.`
                     : 'No accounts placed yet'
               }
               icon={Scale}

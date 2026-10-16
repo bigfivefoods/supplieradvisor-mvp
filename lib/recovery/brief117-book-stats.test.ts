@@ -45,7 +45,7 @@ assert.equal(rows.filter((row) => row.state === 'prescribed' || row.state === 's
 const agent = bookStats(fixture, 'agent');
 assert.ok(agent);
 assert.equal(agent.assignedCount, fixture.accounts.filter((row) => row.assignee === 'pieter').length);
-assert.equal(agent.placedBalanceCents, 0);
+assert.equal(agent.placedBalanceCents, null);
 assert.equal(agent.unassignedCount, 0);
 assert.equal(agent.arrangementCount, undefined);
 assert.equal(agent.paidCount, undefined);
@@ -107,7 +107,7 @@ expectRole('viewer', (stats) => {
 expectRole('agent', (stats) => {
   assert.equal(stats?.assignedCount, 11);
   assert.equal(stats?.placedCount, 11);
-  assert.equal(stats?.placedBalanceCents, 0);
+  assert.equal(stats?.placedBalanceCents, null);
   assert.equal(stats?.arrangementCount, undefined);
   assert.equal(stats?.imported, true);
 });
@@ -148,6 +148,29 @@ const pending = await assembleBookStats({
   },
 });
 assert.equal(pending, null);
+
+const missingCount = await assembleBookStats({
+  async count() {
+    return { count: null, error: null };
+  },
+  async balance() {
+    return { data: [{ balance_cents: 50, state: 'active' }], error: null };
+  },
+});
+assert.equal(missingCount, null);
+
+const balanceFailed = await assembleBookStats({
+  async count(filter) {
+    const counts = { placed: 4, assigned: 1, unassigned: 1, arrangement: 0, paid: 0, recalled: 0, closed: 0 };
+    return { count: counts[filter], error: null };
+  },
+  async balance() {
+    return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } };
+  },
+});
+assert.ok(balanceFailed);
+assert.equal(balanceFailed.placedCount, 4);
+assert.equal(balanceFailed.placedBalanceCents, null);
 
 console.log('brief117-book-stats.test.ts ok');
 }

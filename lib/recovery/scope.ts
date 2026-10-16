@@ -7,6 +7,20 @@ export type AccountScope =
   | { kind: 'counts' }
   | { kind: 'none' };
 
+/**
+ * Same rows `recover_accounts_for_agent` returns: assigned to this staff
+ * member, or placed on their team. A missing staff row matches nothing.
+ */
+export function accountInAgentScope(
+  account: { assigned_to?: string | null; team_id?: string | null },
+  staff: { id: string; teamId: string | null } | null
+): boolean {
+  if (!staff?.id) return false;
+  if (account.assigned_to && account.assigned_to === staff.id) return true;
+  if (staff.teamId && account.team_id && account.team_id === staff.teamId) return true;
+  return false;
+}
+
 export function scopeAccountsFor(
   role: RecoverRole,
   staff: { id: string; team_id: string | null } | null

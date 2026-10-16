@@ -22,6 +22,7 @@ export default function RecoverAccountsPage() {
   const live = useLiveAccounts({ ...filters, after: cursor.after, afterId: cursor.afterId });
   const phase = loading ? 'loading' : error ? 'error' : live.phase;
   const role = desk?.role || 'viewer';
+  const agent = role === 'agent';
   const canAssign = role === 'owner' || role === 'manager';
   const collectors = (desk?.staff || []).filter((row) => row.status === 'active' && row.role === 'collector');
   return (
@@ -30,8 +31,8 @@ export default function RecoverAccountsPage() {
       book={live.book}
       role={role}
       caps={desk?.capabilities || capabilitiesFor(role)}
-      placedCount={desk?.book?.placedCount ?? live.placedCount}
-      stats={desk?.book ?? null}
+      placedCount={agent ? live.placedCount : desk?.book?.placedCount ?? live.placedCount}
+      stats={agent ? null : desk?.book ?? null}
       initialState={initialState}
       assignees={collectors.map((row) => ({ id: row.id, label: row.email }))}
       serverQuery

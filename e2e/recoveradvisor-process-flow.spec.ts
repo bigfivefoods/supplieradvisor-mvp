@@ -75,12 +75,12 @@ test.describe('RecoverAdvisor process flow preview', () => {
 
     await page.setViewportSize({ width: 1280, height: 800 });
     await openFlow(page, '/preview/recovergraph?book=harbour&role=owner');
-    await page.getByRole('link', { name: /Step 3,/ }).click();
+    await page.getByRole('link', { name: /Import and placement of accounts/ }).click();
     await expect(page).toHaveURL(/\/preview\/recovergraph\/imports\?/);
     expect(page.url()).toContain('role=owner');
     expect(page.url()).toContain('book=harbour');
     await openFlow(page, '/preview/recovergraph?book=harbour&role=owner');
-    await page.getByRole('link', { name: /Step 6,/ }).click();
+    await page.getByRole('link', { name: /Promise to pay and payment arrangement/ }).click();
     await expect(page).toHaveURL(/\/preview\/recovergraph\/accounts\?/);
     expect(page.url()).toContain('state=arrangement');
     expect(page.url()).toContain('book=harbour');

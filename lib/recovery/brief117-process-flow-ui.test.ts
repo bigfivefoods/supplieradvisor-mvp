@@ -6,7 +6,10 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AccountsView } from '@/components/recovery/book-views';
 import { RecoverProcessFlow } from '@/components/recovery/RecoverProcessFlow';
-import { harbourMemory } from './preview-memory';
+import { RecoverPreviewProvider } from '@/components/recovery/useRecoverDesk';
+import { formatRecoverMoney } from './money';
+import { harbourMemory, type MemoryAccount, type MemoryBook } from './preview-memory';
+import { blankDesk } from './sample-desk';
 import { capabilitiesFor } from './roles';
 import type { RecoverDeskPayload, RecoverRole, RecoverWorkspace } from './types';
 
@@ -79,6 +82,9 @@ function step(markup: string, id: string) {
 const owner = html(createElement(RecoverProcessFlow, { desk: desk('owner', book) }));
 assert.match(owner, /id="recover-process-flow"/);
 assert.match(owner, /aria-expanded="true"/);
+assert.match(owner, /background-color:#00b4d8;color:#0f172a/);
+assert.doesNotMatch(owner, /color:#fff|color:#ffffff|color:white|text-white/i);
+assert.equal(owner.includes('aria-label="Step '), false);
 assert.match(owner, /sr-only/);
 assert.match(owner, /This process has ten steps in four phases/);
 const order = ['creditor', 'mandate', 'placement', 'trace', 'contact', 'arrangement', 'payment', 'escalate', 'remit', 'report'];
@@ -119,5 +125,68 @@ const filtered = html(
 );
 assert.match(filtered, /arrangement/);
 assert.match(filtered, /selected/);
+
+const shut = html(createElement(RecoverProcessFlow, { desk: desk('viewer', book) }));
+assert.match(shut, /aria-expanded="false"/);
+assert.equal(shut.includes('aria-controls'), false);
+assert.equal(shut.includes('recover-process-flow-body'), false);
+
+const pendingDesk = blankDesk('pending', 'owner');
+const pending = html(
+  createElement(
+    RecoverPreviewProvider,
+    { desk: pendingDesk, illustration: null, hrefBase: '/preview/recovergraph?book=pending&role=owner' },
+    createElement(RecoverProcessFlow, { desk: pendingDesk })
+  )
+);
+assert.equal(pending.includes('Open the install preview'), false);
+
+function agentRow(cents: number, id: string): MemoryAccount {
+  return {
+    id,
+    ref: id,
+    creditor_id: 'c',
+    creditor_name: 'Northline',
+    debtor_name: 'Cedar',
+    id_masked: '••••',
+    balance_cents: cents,
+    principal_cents: cents,
+    interest_cents: 0,
+    fees_cents: 0,
+    costs_cents: 0,
+    adjustment_cents: 0,
+    original_cents: cents,
+    state: 'active',
+    flags: [],
+    assignee: 'pieter',
+    assignee_name: 'Pieter',
+    placed_at: '2026-04-15',
+    batch_id: 'b',
+    creditor_account_ref: id,
+    debtor_id: id,
+    contacts: [],
+    notes: [],
+    events: [],
+    nca_regulated: false,
+    product_type: 'trade',
+  };
+}
+const agentBook: MemoryBook = { accounts: [agentRow(5000000, 'a'), agentRow(4880704, 'b')], batches: [], next: 3 };
+const agentAccounts = html(
+  createElement(AccountsView, {
+    phase: 'ready',
+    book: agentBook,
+    role: 'agent',
+    caps: capabilitiesFor('agent'),
+    serverQuery: true,
+    placedCount: 999,
+    stats: { placedCount: 999, placedBalanceCents: 0, assignedCount: 999, unassignedCount: 0, imported: true },
+  })
+);
+assert.match(agentAccounts, new RegExp(formatRecoverMoney(9880704).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+assert.equal(agentAccounts.includes(formatRecoverMoney(0)), false);
+const placed = agentAccounts.slice(agentAccounts.indexOf('recover-kpi-book-placed'));
+assert.match(placed, />2</);
+assert.equal(placed.slice(0, 400).includes('>999<'), false);
 
 console.log('brief117-process-flow-ui.test.ts ok');

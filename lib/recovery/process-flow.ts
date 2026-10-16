@@ -162,12 +162,12 @@ export const FLOW_STEPS: readonly FlowStepDef[] = [
     n: 5,
     phase: 'reach',
     title: 'First contact and letter of demand (section 129 notice where the NCA applies)',
-    desc: 'Letters, notices and delivery proof arrive with the workflow and templates. Nothing in RecoverAdvisor® contacts a debtor yet.',
+    desc: 'Letters and notices are not open yet. Nothing in RecoverAdvisor® contacts a debtor yet.',
     who: 'Agent / Manager',
     roles: ['agent', 'manager'],
     href: null,
     status: 'soon',
-    soonNote: 'Letters, notices and delivery proof arrive with the workflow and templates. Nothing in RecoverAdvisor® contacts a debtor yet.',
+    soonNote: 'Letters and notices are not open yet. Nothing in RecoverAdvisor® contacts a debtor yet.',
     icon: 'Mail',
   },
   {
@@ -175,7 +175,7 @@ export const FLOW_STEPS: readonly FlowStepDef[] = [
     n: 6,
     phase: 'collect',
     title: 'Promise to pay and payment arrangement',
-    desc: 'An arrangement can be stored on the account. A schedule is not open yet.',
+    desc: 'Promises and schedules are not open yet.',
     who: 'Agent / Manager',
     roles: ['agent', 'manager'],
     href: '/dashboard/recovergraph/accounts?state=arrangement',
@@ -189,7 +189,7 @@ export const FLOW_STEPS: readonly FlowStepDef[] = [
     n: 7,
     phase: 'collect',
     title: 'Payments and reconciliation',
-    desc: 'A paid state can be stored on the account. Payments are not recorded yet.',
+    desc: 'Payments are not recorded yet.',
     who: 'Finance / Manager',
     roles: ['finance', 'manager'],
     href: '/dashboard/recovergraph/accounts?state=paid',
@@ -416,6 +416,11 @@ function holdNote(role: RecoverRole): string {
 }
 
 const DASH: FlowChip = { text: '—', tone: 'note', ariaLabel: 'not available' };
+const UNAVAILABLE: FlowChip = { text: 'Counts unavailable', tone: 'note' };
+
+function unavailableBook(): { chips: FlowChip[]; empty: boolean } {
+  return { chips: [UNAVAILABLE], empty: false };
+}
 
 export type FlowPreviewKind = 'live' | 'illustration' | 'harbour';
 
@@ -505,8 +510,15 @@ function nodeFor(
   if (step.status === 'soon') chips.push({ text: 'Launching soon', tone: 'soon' });
   else if (step.soonNote) chips.push({ text: step.soonNote, tone: 'soon' });
   if (input.ready && !linkHref && step.status !== 'soon') chips.push({ text: holdNote(input.role), tone: 'note' });
-  if (input.ready && preview === 'illustration' && chips.some((chip) => chip.tone === 'count')) {
-    chips.push({ text: 'Illustration · sample data', tone: 'sample' });
+  if (preview === 'illustration') {
+    const visible = chips.filter(
+      (chip) => chip.text !== '—' && chip.text !== 'Counts unavailable' && !chip.text.includes('NCA-regulated')
+    );
+    chips.length = 0;
+    chips.push(...visible);
+    if (!chips.some((chip) => chip.tone === 'sample')) {
+      chips.push({ text: 'Illustration · sample data', tone: 'sample' });
+    }
   }
   const state: FlowNodeView['state'] =
     step.status === 'soon' ? 'soon' : !input.ready ? 'empty' : !allowed ? 'not_yours' : empty ? 'empty' : 'ready';
@@ -566,14 +578,14 @@ function countsFor(
   }
   if (step.id === 'placement') {
     if (role === 'agent') {
-      if (!book || !finite(book.assignedCount)) return { chips: [DASH], empty: false };
+      if (!book || !finite(book.assignedCount)) return unavailableBook();
       return {
         chips: [{ text: `${noun(book.assignedCount, 'assigned to you', 'assigned to you')}`, tone: 'count' }],
         empty: book.assignedCount === 0,
       };
     }
     if (!seesWorkspaceCounts(role)) return { chips, empty: false };
-    if (!book || !finite(book.placedCount)) return { chips: [DASH], empty: false };
+    if (!book || !finite(book.placedCount)) return unavailableBook();
     if (book.placedCount === 0) return { chips: [{ text: 'Nothing placed yet', tone: 'note' }], empty: true };
     chips.push({ text: noun(book.placedCount, 'placed', 'placed'), tone: 'count' });
     if (seesSplit(role) && finite(book.assignedCount) && finite(book.unassignedCount)) {
@@ -585,14 +597,15 @@ function countsFor(
     return { chips, empty: false };
   }
   if (step.id === 'arrangement') {
-    return stateCount(role, book?.arrangementCount, 'in arrangement');
+    return stateCount(role, book, book?.arrangementCount, 'in arrangement');
   }
   if (step.id === 'payment') {
-    return stateCount(role, book?.paidCount, 'paid');
+    return stateCount(role, book, book?.paidCount, 'paid');
   }
   if (step.id === 'escalate') {
     if (!seesStateCounts(role)) return { chips, empty: false };
-    if (!book || !finite(book.recalledCount) || !finite(book.closedCount)) return { chips: [DASH], empty: false };
+    if (!book) return unavailableBook();
+    if (!finite(book.recalledCount) || !finite(book.closedCount)) return { chips: [DASH], empty: false };
     return {
       chips: [
         { text: noun(book.recalledCount, 'recalled', 'recalled'), tone: 'count' },
@@ -604,8 +617,14 @@ function countsFor(
   return { chips, empty: false };
 }
 
-function stateCount(role: RecoverRole, value: number | undefined, label: string): { chips: FlowChip[]; empty: boolean } {
+function stateCount(
+  role: RecoverRole,
+  book: RecoverBookStats | null | undefined,
+  value: number | undefined,
+  label: string
+): { chips: FlowChip[]; empty: boolean } {
   if (!seesStateCounts(role)) return { chips: [], empty: false };
+  if (!book) return unavailableBook();
   if (!finite(value)) return { chips: [DASH], empty: false };
   return { chips: [{ text: `${formatFlowCount(value)} ${label}`, tone: 'count' }], empty: value === 0 };
 }

@@ -58,7 +58,7 @@ An agent can add a note only on an account assigned to them or to their team. An
 
 ## Process flow
 
-The Command page shows the ten-step diagram described in `docs/recoveradvisor-process-flow.md`. `recalledCount` is accounts in state `recalled`. `closedCount` is accounts in state `closed` only, not `prescribed` or `stopped`. Placed, assigned, unassigned, arrangement, paid, recalled, and closed counts are exact. `placedBalanceCents` is still the sum of the first 2,000 balance rows. The diagram does not display it.
+The Command page shows the ten-step diagram described in `docs/recoveradvisor-process-flow.md`. `recalledCount` is accounts in state `recalled`. `closedCount` is accounts in state `closed` only, not `prescribed` or `stopped`. Placed, assigned, unassigned, arrangement, paid, recalled, and closed counts are exact. `placedBalanceCents` is still the sum of the first 2,000 balance rows. A failed balance query stays null and is shown as unavailable, not as zero. The diagram does not display it. An agent's Accounts page sums that agent's own rows. The agent count includes accounts assigned to them and accounts on their team.
 
 No migration.
 

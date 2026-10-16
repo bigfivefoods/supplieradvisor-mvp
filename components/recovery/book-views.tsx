@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Building2, Flag, HandCoins, ListChecks, ShieldCheck, Upload, Users } from 'lucide-react';
+import { accountKpiFigures } from '@/lib/recovery/account-kpis';
 import { HARBOUR_BANNER, HARBOUR_CREDITORS, HARBOUR_TODAY } from '@/lib/recovery/harbour-seed';
 import { fileSha256, parseBookCsv, suggestMapping, validateBook, type BookIssue } from '@/lib/recovery/import-book';
 import { formatRecoverMoney } from '@/lib/recovery/money';
@@ -190,23 +191,26 @@ function AccountKpis({
   stats,
   placedCount,
   serverQuery,
+  role,
 }: {
   rows: MemoryAccount[];
   stats?: RecoverBookStats | null;
   placedCount?: number;
   serverQuery: boolean;
+  role: RecoverRole;
 }) {
-  const placed = stats?.placedCount ?? (serverQuery ? placedCount ?? rows.length : rows.length);
-  const balance = stats?.placedBalanceCents ?? rows.reduce((sum, row) => sum + (row.state === 'active' ? row.balance_cents : 0), 0);
-  const assigned = stats?.assignedCount ?? rows.filter((row) => row.assignee).length;
-  const unassigned = stats?.unassignedCount ?? rows.filter((row) => !row.assignee && row.state === 'active').length;
-  const arrangement = stats?.arrangementCount ?? rows.filter((row) => row.state === 'arrangement').length;
-  const paid = stats?.paidCount ?? rows.filter((row) => row.state === 'paid').length;
+  const figures = accountKpiFigures({ role, rows, stats, placedCount, serverQuery });
+  const placed = figures.placed;
+  const balance = figures.balanceCents;
+  const assigned = figures.assigned;
+  const unassigned = figures.unassigned;
+  const arrangement = figures.arrangement;
+  const paid = figures.paid;
   if (placed <= 0 && rows.length === 0) return null;
   return (
     <div data-testid="recover-account-kpis" className="grid grid-cols-2 gap-2 lg:grid-cols-4">
       <RecoverKpi testId="recover-kpi-book-placed" label="Placed" value={String(placed)} sub="Accounts on this book" icon={ListChecks} tint="border-sky-100 bg-sky-50" />
-      <RecoverKpi testId="recover-kpi-book-balance" label="Balance" value={formatRecoverMoney(balance)} sub="Placed balance. Payments are not recorded yet." icon={HandCoins} tint="border-cyan-100 bg-cyan-50" />
+      <RecoverKpi testId="recover-kpi-book-balance" label="Balance" value={formatRecoverMoney(balance)} sub={balance == null ? 'Balance unavailable' : 'Placed balance. Payments are not recorded yet.'} icon={HandCoins} tint="border-cyan-100 bg-cyan-50" />
       <RecoverKpi testId="recover-kpi-book-assigned" label="Assigned" value={String(assigned)} sub="With a collector" icon={Users} tint="border-sky-100 bg-sky-50" />
       <RecoverKpi testId="recover-kpi-book-open" label="Unassigned" value={String(unassigned)} sub="Active and not assigned" icon={ShieldCheck} tint="border-cyan-100 bg-cyan-50" />
       {arrangement > 0 ? <RecoverKpi testId="recover-kpi-book-arrangement" label="In arrangement" value={String(arrangement)} sub="Recorded on the account" icon={ListChecks} tint="border-cyan-100 bg-cyan-50" /> : null}
@@ -315,7 +319,7 @@ export function AccountsView({
       ) : null}
       {phase === 'ready' && role !== 'viewer' ? (
         <div data-testid="recover-accounts-list" className="grid gap-3">
-          <AccountKpis rows={rows} stats={stats} placedCount={placedCount} serverQuery={serverQuery} />
+          <AccountKpis rows={rows} stats={stats} placedCount={placedCount} serverQuery={serverQuery} role={role} />
           <form
             className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_9rem_auto]"
             onSubmit={(event) => {

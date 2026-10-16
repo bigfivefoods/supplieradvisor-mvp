@@ -49,15 +49,15 @@ export async function GET(request: NextRequest) {
     const role = resolveRecoverRole(gate.role, load.self);
     const projected = projectDesk(role, load);
     if (load.ready && role !== 'none') {
-      const { countAssignedToStaff, loadBookStats } = await import('@/lib/recovery/book-db');
+      const { countAccountsForAgent, loadBookStats } = await import('@/lib/recovery/book-db');
       if (role === 'agent') {
-        const assigned = load.self?.id ? await countAssignedToStaff(member.member.companyId, load.self.id) : 0;
+        const assigned = load.self?.id ? await countAccountsForAgent(member.member.companyId, load.self.id) : 0;
         projected.book =
           assigned == null
             ? null
             : projectBookStats('agent', {
                 placedCount: assigned,
-                placedBalanceCents: 0,
+                placedBalanceCents: null,
                 assignedCount: assigned,
                 unassignedCount: 0,
                 imported: assigned > 0,

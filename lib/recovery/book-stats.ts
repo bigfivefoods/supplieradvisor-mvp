@@ -61,12 +61,15 @@ export async function assembleBookStats(source: BookStatsClient): Promise<Recove
     Promise.all(filters.map((filter) => source.count(filter))),
     source.balance(),
   ]);
-  if (counts.some((row) => isBookStatsPending(row.error) || row.error)) return null;
+  if (counts.some((row) => isBookStatsPending(row.error))) return null;
+  if (counts.some((row) => row.error || row.count == null)) return null;
   if (isBookStatsPending(balance.error)) return null;
   const value = (filter: BookCountFilter) => counts[filters.indexOf(filter)]?.count ?? 0;
-  const rows = balance.error ? [] : balance.data || [];
-  const active = rows.filter((row) => row.state === 'active' || !row.state);
-  const placedBalanceCents = active.reduce((sum, row) => sum + Number(row.balance_cents || 0), 0);
+  const placedBalanceCents = balance.error
+    ? null
+    : (balance.data || [])
+        .filter((row) => row.state === 'active' || !row.state)
+        .reduce((sum, row) => sum + Number(row.balance_cents || 0), 0);
   return bookStatsFromCounts({
     placed: value('placed'),
     assigned: value('assigned'),
@@ -88,7 +91,7 @@ export function bookStatsFromCounts(input: {
   paid: number;
   recalled: number;
   closed: number;
-  placedBalanceCents: number;
+  placedBalanceCents: number | null;
   imported?: boolean;
 }): RecoverBookStats {
   return {
