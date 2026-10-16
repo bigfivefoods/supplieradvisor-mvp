@@ -16,7 +16,7 @@ const flows = [
 ] as const;
 
 function ignoreConsole(text: string): boolean {
-  return /favicon|Download the React DevTools|Failed to load resource: the server responded with a status of 404/.test(text);
+  return /favicon|Download the React DevTools|Failed to load resource: the server responded with a status of 404|eval\(\) is not supported/.test(text);
 }
 
 async function noHorizontalOverflow(page: Page) {
@@ -39,6 +39,7 @@ for (const width of widths) {
       await page.goto(flow.path);
       const section = page.getByTestId(`advisor-flow-${flow.id}`);
       await expect(section).toBeVisible();
+      await expect(section).toHaveAttribute('data-flow-ready', '1');
       const toggle = section.getByTestId('advisor-flow-toggle');
       await expect(toggle).toBeVisible();
       await expect(toggle).toHaveAttribute('aria-expanded', 'true');

@@ -228,6 +228,10 @@ export function AdvisorProcessFlow(props: Props) {
   const desiredOpen = props.defaultCollapsed == null ? Boolean(model?.open) : !props.defaultCollapsed;
   const [open, setOpen] = useState(desiredOpen);
   const [touched, setTouched] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
   useEffect(() => {
     if (!touched) setOpen(desiredOpen);
   }, [desiredOpen, touched]);
@@ -239,6 +243,7 @@ export function AdvisorProcessFlow(props: Props) {
       id={model.anchorId}
       aria-labelledby={titleId}
       data-testid={`advisor-flow-${model.module}`}
+      data-flow-ready={hydrated ? '1' : '0'}
       className="max-w-full rounded-3xl border border-slate-200 bg-white"
     >
       <div
