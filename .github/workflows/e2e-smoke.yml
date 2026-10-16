@@ -133,7 +133,7 @@ jobs:
           fi
           write_target "$BASE"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.smoke.outputs.skip != 'true'
         with:
           ref: ${{ github.event.deployment.sha || github.sha }}
