@@ -16,7 +16,7 @@ const flows = [
 ] as const;
 
 function ignoreConsole(text: string): boolean {
-  return /favicon|Download the React DevTools|Failed to load resource: the server responded with a status of 404|eval\(\) is not supported/.test(text);
+  return /favicon|Download the React DevTools|Failed to load resource: the server responded with a status of 404|eval\(\) is not supported|_vercel\/(?:speed-insights|insights)\/script\.js/.test(text);
 }
 
 async function noHorizontalOverflow(page: Page) {
