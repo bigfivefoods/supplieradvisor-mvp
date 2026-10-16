@@ -39,6 +39,7 @@ import {
   RecoveryFunnel,
   WorkloadStrip,
 } from './RecoverPreviews';
+import { RecoverProcessFlow } from './RecoverProcessFlow';
 import { useRecoverDesk, useRecoverHref, useRecoverIllustration, useRecoverLinks } from './useRecoverDesk';
 
 function todayIso() {
@@ -113,6 +114,7 @@ function CommandBody({ desk }: { desk: RecoverDeskPayload }) {
           body="Set up the workspace after approval. Add the operator, the team, and the first creditor book. Accounts appear here once that book is imported."
           art={<PendingArt />}
         />
+        {desk.role !== 'none' ? <RecoverProcessFlow desk={desk} /> : null}
       </div>
     );
   }
@@ -336,6 +338,8 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
         </RecoverPanel>
       </div>
 
+      {desk.role !== 'none' ? <RecoverProcessFlow desk={desk} /> : null}
+
       <h2 className="mb-4 text-sm font-black uppercase tracking-widest text-[#0077b6]">Workbenches</h2>
       <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <RecoverModuleCard
@@ -454,6 +458,7 @@ function AgentHome({ desk }: { desk: RecoverDeskPayload }) {
             </p>
           ) : null}
         </RecoverPanel>
+        <RecoverProcessFlow desk={desk} />
       </div>
     </div>
   );

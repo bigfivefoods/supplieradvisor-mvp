@@ -233,6 +233,7 @@ export function AccountsView({
   nextCursor = null,
   hasPrevious = false,
   onQuery,
+  initialState = '',
 }: {
   phase: BookPhase;
   book: MemoryBook;
@@ -251,6 +252,8 @@ export function AccountsView({
   nextCursor?: { placed_at: string; id: string } | null;
   hasPrevious?: boolean;
   onQuery?: (next: { q: string; state: string; assigned: string; after?: string | null; afterId?: string | null; back?: boolean }) => void;
+  /** First value of the state filter. Later edits stay in this view. */
+  initialState?: string;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [staffId, setStaffId] = useState('');
@@ -260,7 +263,7 @@ export function AccountsView({
   const [mergeTarget, setMergeTarget] = useState('');
   const [confirm, setConfirm] = useState<string>('');
   const [q, setQ] = useState('');
-  const [stateFilter, setStateFilter] = useState('');
+  const [stateFilter, setStateFilter] = useState(initialState);
   const [assignedFilter, setAssignedFilter] = useState('');
   const allRows = visibleAccounts(book, role);
   const rows = serverQuery
@@ -324,8 +327,14 @@ export function AccountsView({
             <select aria-label="State" className={recoverField} value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}>
               <option value="">Any state</option>
               <option value="active">Active</option>
+              <option value="arrangement">Arrangement</option>
+              <option value="dispute">Dispute</option>
+              <option value="legal">Legal</option>
+              <option value="paid">Paid</option>
               <option value="recalled">Recalled</option>
               <option value="closed">Closed</option>
+              <option value="prescribed">Prescribed</option>
+              <option value="stopped">Stopped</option>
             </select>
             <select aria-label="Assigned" className={recoverField} value={assignedFilter} onChange={(event) => setAssignedFilter(event.target.value)}>
               <option value="">Anyone</option>

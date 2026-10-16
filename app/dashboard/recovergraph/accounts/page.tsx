@@ -1,16 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AccountsView } from '@/components/recovery/book-views';
 import { useLiveAccounts } from '@/components/recovery/live-book';
 import { useRecoverDesk } from '@/components/recovery/useRecoverDesk';
+import { accountStateFromQuery } from '@/lib/recovery/href';
 import { capabilitiesFor } from '@/lib/recovery/roles';
 
 export default function RecoverAccountsPage() {
   const router = useRouter();
+  const initialState = accountStateFromQuery(useSearchParams().get('state'));
   const { desk, loading, error, save } = useRecoverDesk();
-  const [filters, setFilters] = useState({ q: '', state: '', assigned: '' });
+  const [filters, setFilters] = useState<{ q: string; state: string; assigned: string }>({
+    q: '',
+    state: initialState,
+    assigned: '',
+  });
   const [history, setHistory] = useState<{ after: string; afterId: string }[]>([{ after: '', afterId: '' }]);
   const cursor = history[history.length - 1];
   const live = useLiveAccounts({ ...filters, after: cursor.after, afterId: cursor.afterId });
@@ -26,6 +32,7 @@ export default function RecoverAccountsPage() {
       caps={desk?.capabilities || capabilitiesFor(role)}
       placedCount={desk?.book?.placedCount ?? live.placedCount}
       stats={desk?.book ?? null}
+      initialState={initialState}
       assignees={collectors.map((row) => ({ id: row.id, label: row.email }))}
       serverQuery
       duplicates={live.duplicates}

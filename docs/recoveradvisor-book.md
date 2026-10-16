@@ -56,6 +56,12 @@ A dry run returns a hash of the file that was sent. Commit sends that same file 
 
 An agent can add a note only on an account assigned to them or to their team. An adjustment replaces the stored adjustment figure. It is not added on top, it needs a reason, and it is refused if the balance would go below zero.
 
+## Process flow
+
+The Command page shows the ten-step diagram described in `docs/recoveradvisor-process-flow.md`. `recalledCount` is accounts in state `recalled`. `closedCount` is accounts in state `closed` only, not `prescribed` or `stopped`. Placed, assigned, unassigned, arrangement, paid, recalled, and closed counts are exact. `placedBalanceCents` is still the sum of the first 2,000 balance rows. The diagram does not display it.
+
+No migration.
+
 ## Installable apps
 
 | App | Route | This brief | Later |
