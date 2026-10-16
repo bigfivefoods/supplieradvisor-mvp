@@ -41,6 +41,8 @@ import {
 } from './RecoverPreviews';
 import { RecoverProcessFlow } from './RecoverProcessFlow';
 import { useRecoverDesk, useRecoverHref, useRecoverIllustration, useRecoverLinks } from './useRecoverDesk';
+import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { catalogueForModule } from '@/lib/catalogues';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -83,7 +85,12 @@ export function RecoverCommand() {
       testId="recover-command"
       title={RECOVER_PRODUCT_NAME}
       description={desk ? deskDescription(desk.role, desk.book?.placedCount ?? 0) : 'Opening the collections desk.'}
-      action={desk ? <RecoverRoleChip role={desk.role} /> : null}
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <CatalogueDownloadButton id={catalogueForModule('recovergraph')?.id} variant="secondary" />
+          {desk ? <RecoverRoleChip role={desk.role} /> : null}
+        </div>
+      }
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
       {loading || !desk ? (

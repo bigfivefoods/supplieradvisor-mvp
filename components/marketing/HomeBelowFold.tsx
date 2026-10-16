@@ -71,6 +71,7 @@ const RoiCalculator = dynamic(() => import('@/components/marketing/RoiCalculator
 const SecurityStrip = dynamic(() => import('@/components/marketing/SecurityStrip'), { ssr: false });
 const SuperCubeStory = dynamic(() => import('@/components/marketing/SuperCubeStory'), { ssr: false });
 const IndustriesStrip = dynamic(() => import('@/components/marketing/IndustriesStrip'), { ssr: false });
+import HomeCatalogues from '@/components/marketing/HomeCatalogues';
 import {
   OpsMock,
   SrmMock,
@@ -1952,6 +1953,8 @@ export default function HomeBelowFold() {
       <RoiCalculator />
 
       <IndustriesStrip />
+
+      <HomeCatalogues />
 
       {/* ═══════════ AUDIENCES ═══════════ */}
       <section id="audiences" className="sa-anchor border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">

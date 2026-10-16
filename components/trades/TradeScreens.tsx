@@ -22,6 +22,8 @@ import { useTradeBook } from '@/components/trades/TradeBook';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { HubTelemetryGrid, TelemetryCard } from '@/components/chrome/CommandHubChrome';
 import { AlertList, AvatarStack, DayTimeline, JobFaceMeta, MoneyBars, PageHead, StatusPill, bookToday, jobFace, moneyRows, officeAlerts, prettyDay } from '@/components/trades/TradeOffice';
+import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { catalogueForModule } from '@/lib/catalogues';
 import { TradeEmpty, TradeHeading, TradeStat, tradeChipOff, tradeChipOn } from '@/components/trades/TradeUi';
 import { CalendarDays, FilePenLine, HardHat, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
 
@@ -121,6 +123,7 @@ export function TradeCommand({ base }: { base: string }) {
             <Link href="/customer/tradegraph/demo" className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#0f172a]/10 px-4 text-sm font-black text-[#0f172a]">
               Customer app
             </Link>
+            <CatalogueDownloadButton id={catalogueForModule('tradegraph')?.id} variant="quiet" tone="cyan" />
           </div>
         </div>
       </section>

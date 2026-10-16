@@ -41,6 +41,7 @@ import { isFixturePath } from '@/lib/preview/fixture-href';
 import { osDashboardHome } from '@/lib/preview/os-fixtures';
 import FirstRunChecklist from '@/components/onboarding/FirstRunChecklist';
 import { TradeHomeWidget } from '@/components/trades/TradeHomeWidget';
+import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
 
 type CompanyData = {
   id: number;
@@ -715,6 +716,9 @@ export default function DashboardCommandCenter() {
 
       {isCompanyModuleEnabled('tradegraph') ? <TradeHomeWidget /> : null}
 
+      <div className="empty:hidden mb-3 flex justify-end">
+        <CatalogueDownloadButton id="system" variant="secondary" />
+      </div>
       <HubHero
         pill="Live command"
         title="One company. Zero blind spots."

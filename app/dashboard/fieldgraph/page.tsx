@@ -30,6 +30,8 @@ import {
 } from '@/components/agri/FieldgraphShell';
 import FieldgraphSystemFlow from '@/components/agri/FieldgraphSystemFlow';
 import FieldgraphProcessPdfButtons from '@/components/agri/FieldgraphProcessPdfButtons';
+import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { catalogueForModule } from '@/lib/catalogues';
 import {
   RelationshipHeader,
 } from '@/components/relationship/RelationshipChrome';
@@ -217,6 +219,7 @@ function HubInner() {
         action={
           <div className="flex flex-wrap gap-2">
             <FieldgraphProcessPdfButtons variant="header" />
+            <CatalogueDownloadButton id={catalogueForModule('fieldgraph')?.id} variant="secondary" />
             <Link
               href="/dashboard/fieldgraph/fields"
               className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"

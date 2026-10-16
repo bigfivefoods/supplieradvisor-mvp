@@ -24,6 +24,8 @@ import {
 import { nextMonth, periodFor, type PeriodId } from '@/lib/fleet/periods';
 import { fleetProcessRole, type FleetCapabilities } from '@/lib/fleet/roles';
 import type { FleetBook, FleetOp, FleetReadiness, FleetRole } from '@/lib/fleet/types';
+import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { catalogueForModule } from '@/lib/catalogues';
 import { ComplianceView, DriverDetailView, ImportView, RemindersPanel, VehicleDetailView } from './ComplianceViews';
 import { CpkWaterfallArt, DispatchArt, ExpiryStripArt, FleetRegisterArt, MapSketchArt, PodArt } from './Illustrations';
 import {
@@ -180,6 +182,7 @@ function CommandView(props: FleetDeskProps) {
           title="Command"
           detail="Vehicles, drivers, open jobs, expiries and fleet cost per kilometre."
           illustration={props.illustrate}
+          actions={<CatalogueDownloadButton id={catalogueForModule('fleetgraph')?.id} variant="quiet" />}
         />
       ) : null}
       <Banners {...props} />
@@ -236,6 +239,7 @@ function CommandView(props: FleetDeskProps) {
             </div>
             <div className="flex flex-wrap gap-2 px-5 py-3">
               <Link className={`${fleetBtn} ${fleetFocus}`} href={`${props.hrefBase}/jobs`}>Open jobs</Link>
+              <CatalogueDownloadButton id={catalogueForModule('fleetgraph')?.id} variant="quiet" tone="inverse" />
               <Link className={`${fleetBtn} ${fleetFocus}`} href={`${props.hrefBase}/vehicles`}>Vehicles</Link>
               {props.caps.seesCosts ? (
                 <Link className={`${fleetBtn} ${fleetFocus}`} href={`${props.hrefBase}/cpk`}>Cost per kilometre</Link>

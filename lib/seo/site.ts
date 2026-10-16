@@ -37,6 +37,7 @@ export const STATIC_SEO_ROUTES: Array<{
   { path: '/pricing', changeFrequency: 'weekly', priority: 0.85 },
   { path: '/demo', changeFrequency: 'weekly', priority: 0.85 },
   { path: '/industries', changeFrequency: 'weekly', priority: 0.88 },
+  { path: '/catalogues', changeFrequency: 'monthly', priority: 0.7 },
   ...industrySlugs().map((slug) => ({
     path: `/industries/${slug}`,
     changeFrequency: 'monthly' as const,
