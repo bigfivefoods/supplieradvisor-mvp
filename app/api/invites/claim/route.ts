@@ -15,6 +15,7 @@ import {
   assignReferrerIfEmpty,
   referredByInsertField,
 } from '@/lib/billing/supply-chain-referral';
+import { ensureTrialForClaimedProfile, trialWindow } from '@/lib/onboarding/profile-writes';
 
 /** Stuck claiming lease — only same-user restore after this age (matches design reaper window). */
 const CLAIMING_STALE_MS = 5 * 60 * 1000;
@@ -233,6 +234,19 @@ export async function POST(request: NextRequest) {
         { error: 'This invitation has already been claimed.' },
         { status: 409 }
       );
+    }
+
+    const businessTrial = await ensureTrialForClaimedProfile(
+      supabase,
+      Number(profile.id),
+      trialWindow(now)
+    );
+    if (businessTrial.error) {
+      console.error('[invites/claim] TRIAL_WRITE_FAILED', {
+        profileId: profile.id,
+        code: businessTrial.error.code,
+        message: businessTrial.error.message,
+      });
     }
 
     // Create or update ownership membership
@@ -893,6 +907,19 @@ async function claimCustomerInvite(opts: {
             },
             { status: 500 }
           );
+        }
+
+        const buyerTrial = await ensureTrialForClaimedProfile(
+          supabase,
+          createdProfileId,
+          trialWindow(now)
+        );
+        if (buyerTrial.error) {
+          console.error('[invites/claim] TRIAL_WRITE_FAILED', {
+            profileId: createdProfileId,
+            code: buyerTrial.error.code,
+            message: buyerTrial.error.message,
+          });
         }
       }
     }

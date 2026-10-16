@@ -4,10 +4,18 @@ import { getCanonicalUserId } from '@/lib/auth/identity';
 import { requireVerifiedUser } from '@/lib/auth/api-auth';
 import {
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
-  COMPANY_SUBSCRIPTION_PLAN,
   COMPANY_TRIAL_DAYS,
   addDays,
 } from '@/lib/billing/company-subscription';
+import {
+  PROFILE_SUBSCRIPTION_COLUMNS,
+  buildSubscriptionPatch,
+  ensureTrialForClaimedProfile,
+  insertProfileTolerant,
+  trialWindow,
+  updateProfileTolerant,
+  writeRegistrationAfterCreate,
+} from '@/lib/onboarding/profile-writes';
 import {
   FOUNDING_FREE_COMPANY_LIMIT,
   isFounderLifetimeCompany,
@@ -194,7 +202,44 @@ export async function POST(request: NextRequest) {
         if (Array.isArray(value) && value.length === 0) continue;
         claimPatch[key] = value;
       }
-      await supabaseClaim.from('profiles').update(claimPatch).eq('id', claimId);
+      const claimWindow = trialWindow(nowClaim);
+      const claimWrite = await updateProfileTolerant(
+        supabaseClaim,
+        claimId,
+        claimPatch,
+        { protect: [] }
+      );
+      const claimWarnings: string[] = [];
+      if (claimWrite.dropped.length) {
+        console.warn('[register-business] profile columns skipped', {
+          profileId: claimId,
+          columns: claimWrite.dropped,
+        });
+        claimWarnings.push(
+          `profile_columns_skipped:${claimWrite.dropped.join(',')}`
+        );
+      }
+      if (!claimWrite.ok) {
+        console.error('[register-business] claim profile update failed', {
+          profileId: claimId,
+          code: claimWrite.error?.code,
+          message: claimWrite.error?.message,
+        });
+        claimWarnings.push('claim_profile_not_updated');
+      }
+      const claimTrial = await ensureTrialForClaimedProfile(
+        supabaseClaim,
+        claimId,
+        claimWindow
+      );
+      if (claimTrial.error) {
+        console.error('[register-business] TRIAL_WRITE_FAILED', {
+          profileId: claimId,
+          code: claimTrial.error.code,
+          message: claimTrial.error.message,
+        });
+        claimWarnings.push('trial_not_started');
+      }
 
       return NextResponse.json({
         success: true,
@@ -203,7 +248,16 @@ export async function POST(request: NextRequest) {
         tradingName: trading_name || existing.trading_name,
         message: 'Listing claimed — you own this company workspace.',
         lifetime: null,
-        trial: null,
+        trial: claimTrial.started
+          ? {
+              status: 'trial',
+              days: COMPANY_TRIAL_DAYS,
+              endsAt: claimWindow.trialEnds,
+              monthlyZarAfterTrial: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+            }
+          : null,
+        trialPersisted: claimTrial.started,
+        warnings: claimWarnings,
       });
     }
 
@@ -285,6 +339,12 @@ export async function POST(request: NextRequest) {
       ? industry_modules.map(String)
       : [];
 
+    const subscriptionPatch = buildSubscriptionPatch({
+      lifetimePlan,
+      now,
+      trialEnds,
+    });
+
     const facts = registrationProfileFacts({
       catalogueIndustries: catalogue_industries,
       subIndustries: sub_industries,
@@ -358,28 +418,19 @@ export async function POST(request: NextRequest) {
             referral_source: refRaw ? 'ref_link' : 'default_root',
           }
         : {}),
-      ...(lifetimePlan
-        ? {
-            subscription_status: 'lifetime',
-            subscription_starts_at: now,
-            subscription_ends_at: null,
-            subscription_trial_ends_at: null,
-            subscription_plan: lifetimePlan,
-            subscription_amount_zar: 0,
-          }
-        : {
-            // 30-day free trial starts on registration
-            subscription_status: 'trial',
-            subscription_trial_ends_at: trialEnds,
-            subscription_starts_at: now,
-            subscription_plan: COMPANY_SUBSCRIPTION_PLAN,
-            subscription_amount_zar: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
-          }),
+      ...subscriptionPatch,
     };
 
+    const detailsPatch: Record<string, unknown> = { ...baseInsert };
+    delete detailsPatch.user_id;
+    delete detailsPatch.created_at;
+    for (const key of PROFILE_SUBSCRIPTION_COLUMNS) delete detailsPatch[key];
+
     let profile: { id: number; trading_name: string } | null = null;
-    let profileError: { message?: string } | null = null;
     let createdViaRpc = false;
+    let registrationWrite: Awaited<
+      ReturnType<typeof writeRegistrationAfterCreate>
+    > | null = null;
 
     const rpc = await supabase.rpc('sa_register_company_with_owner', {
       p_user_id: userId,
@@ -406,25 +457,10 @@ export async function POST(request: NextRequest) {
       if (Number.isFinite(pid) && pid > 0) {
         createdViaRpc = true;
         profile = { id: pid, trading_name: tradingNameTrim };
-        const extraPatch = { ...baseInsert };
-        delete extraPatch.user_id;
-        delete extraPatch.created_at;
-        const { error: patchErr } = await supabase
-          .from('profiles')
-          .update(extraPatch)
-          .eq('id', pid);
-        if (patchErr && /column|subscription_|schema cache/i.test(patchErr.message || '')) {
-          const {
-            subscription_status: _s,
-            subscription_trial_ends_at: _t,
-            subscription_starts_at: _st,
-            subscription_ends_at: _e,
-            subscription_plan: _p,
-            subscription_amount_zar: _a,
-            ...withoutSub
-          } = extraPatch;
-          await supabase.from('profiles').update(withoutSub).eq('id', pid);
-        }
+        registrationWrite = await writeRegistrationAfterCreate(supabase, pid, {
+          subscriptionPatch,
+          detailsPatch,
+        });
       }
     } else if (rpc.error && !isMissingRelation(rpc.error)) {
       console.error('Register business RPC error:', rpc.error);
@@ -438,44 +474,55 @@ export async function POST(request: NextRequest) {
     }
 
     if (!profile) {
-      const res = await supabase
-        .from('profiles')
-        .insert(baseInsert)
-        .select('id, trading_name')
-        .single();
-      profile = res.data;
-      profileError = res.error;
-    }
-
-    // If subscription columns not migrated yet, retry without them
-    if (profileError && /column|subscription_/i.test(String(profileError.message || ''))) {
-      const {
-        subscription_status: _s,
-        subscription_trial_ends_at: _t,
-        subscription_starts_at: _st,
-        subscription_ends_at: _e,
-        subscription_plan: _p,
-        subscription_amount_zar: _a,
-        ...withoutSub
-      } = baseInsert;
-      const res = await supabase
-        .from('profiles')
-        .insert(withoutSub)
-        .select('id, trading_name')
-        .single();
-      profile = res.data;
-      profileError = res.error;
-    }
-
-    if (profileError || !profile) {
-      console.error('Register business profile error:', profileError);
-      return NextResponse.json(
-        {
-          error: 'Failed to create company profile.',
-          details: profileError?.message,
-        },
-        { status: 500 }
+      const coreInsert: Record<string, unknown> = { ...baseInsert };
+      for (const key of PROFILE_SUBSCRIPTION_COLUMNS) delete coreInsert[key];
+      const inserted = await insertProfileTolerant(supabase, coreInsert, {
+        protect: PROFILE_SUBSCRIPTION_COLUMNS,
+      });
+      if (!inserted.ok || !inserted.data?.id) {
+        console.error('[register-business] profile insert failed', {
+          code: inserted.error?.code,
+          message: inserted.error?.message,
+        });
+        return NextResponse.json(
+          {
+            error: 'Failed to create company profile.',
+            details: inserted.error?.message,
+          },
+          { status: 500 }
+        );
+      }
+      profile = {
+        id: Number(inserted.data.id),
+        trading_name: String(inserted.data.trading_name || tradingNameTrim),
+      };
+      registrationWrite = await writeRegistrationAfterCreate(
+        supabase,
+        profile.id,
+        { subscriptionPatch, detailsPatch }
       );
+      if (inserted.dropped.length) {
+        console.warn('[register-business] profile columns skipped', {
+          profileId: profile.id,
+          columns: inserted.dropped,
+        });
+        const already = new Set(registrationWrite.dropped);
+        const mergedDropped = [
+          ...inserted.dropped.filter((column) => !already.has(column)),
+          ...registrationWrite.dropped,
+        ];
+        const warnings = registrationWrite.warnings.filter(
+          (warning) => !warning.startsWith('profile_columns_skipped:')
+        );
+        if (mergedDropped.length) {
+          warnings.unshift(`profile_columns_skipped:${mergedDropped.join(',')}`);
+        }
+        registrationWrite = {
+          ...registrationWrite,
+          dropped: mergedDropped,
+          warnings,
+        };
+      }
     }
 
     // Immutable attribution log (first-touch) when referrer was set
@@ -682,6 +729,10 @@ export async function POST(request: NextRequest) {
       )
       .catch((e) => console.warn('new company notify soft-fail', e));
 
+    const subscriptionPersisted = registrationWrite?.persisted === true;
+    const trialPersisted = !lifetimePlan && subscriptionPersisted;
+    const warnings = registrationWrite?.warnings ?? ['trial_not_started'];
+
     return NextResponse.json({
       success: true,
       profileId: profile.id,
@@ -701,20 +752,23 @@ export async function POST(request: NextRequest) {
           ? 'Request received — a SupplierAdvisor admin must approve this government workspace.'
           : setupStatus === 'contact_required'
             ? 'Thanks — a specialist will contact you to complete setup.'
-            : lifetimePlan
-            ? 'Organisation registered with complimentary lifetime access.'
-            : 'Organisation registered successfully.',
-      trial: lifetimePlan
-        ? null
-        : {
+            : lifetimePlan && subscriptionPersisted
+              ? 'Organisation registered with complimentary lifetime access.'
+              : 'Organisation registered successfully.',
+      trial: trialPersisted
+        ? {
             status: 'trial',
             days: COMPANY_TRIAL_DAYS,
             endsAt: trialEnds,
             monthlyZarAfterTrial: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
-          },
-      lifetime: lifetimePlan
-        ? { status: 'lifetime', plan: lifetimePlan }
+          }
         : null,
+      trialPersisted,
+      lifetime:
+        lifetimePlan && subscriptionPersisted
+          ? { status: 'lifetime', plan: lifetimePlan }
+          : null,
+      warnings,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Registration failed';

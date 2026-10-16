@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { requireVerifiedUser, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { COMPANY_SUBSCRIPTION_MONTHLY_ZAR, COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
+import {
+  ensureTrialForClaimedProfile,
+  trialWindow,
+} from '@/lib/onboarding/profile-writes';
 
 /**
  * POST { claimProfileId, privyUserId?, contact_name?, contact_email?, contact_phone? }
@@ -156,12 +161,29 @@ export async function POST(request: NextRequest) {
       .update(patch)
       .eq('id', claimProfileId);
 
-    if (upErr && /column|schema/i.test(upErr.message || '')) {
-      // Minimal patch
-      await supabase
-        .from('profiles')
-        .update({ user_id: userId, updated_at: now })
-        .eq('id', claimProfileId);
+    const warnings: string[] = [];
+    if (upErr) {
+      console.error('[claim-listing] profile update failed', {
+        profileId: claimProfileId,
+        code: upErr.code,
+        message: upErr.message,
+      });
+      warnings.push('claim_profile_not_updated');
+    }
+
+    const claimWindow = trialWindow(now);
+    const trialWrite = await ensureTrialForClaimedProfile(
+      supabase,
+      claimProfileId,
+      claimWindow
+    );
+    if (trialWrite.error) {
+      console.error('[claim-listing] TRIAL_WRITE_FAILED', {
+        profileId: claimProfileId,
+        code: trialWrite.error.code,
+        message: trialWrite.error.message,
+      });
+      warnings.push('trial_not_started');
     }
 
     void supabase.from('activity_log').insert({
@@ -180,6 +202,16 @@ export async function POST(request: NextRequest) {
       profileId: claimProfileId,
       tradingName: profile.trading_name,
       message: 'Listing claimed — you are now the owner.',
+      trialPersisted: trialWrite.started,
+      trial: trialWrite.started
+        ? {
+            status: 'trial',
+            days: COMPANY_TRIAL_DAYS,
+            endsAt: claimWindow.trialEnds,
+            monthlyZarAfterTrial: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+          }
+        : null,
+      warnings,
     });
   } catch (e: unknown) {
     return NextResponse.json(

@@ -204,7 +204,12 @@ async function ensureLifetimeIfEligible(
 async function ensureTrialStarted(
   companyId: number,
   row: ProfileSubRow
-): Promise<{ row: ProfileSubRow; subscription: CompanySubscriptionInfo; started: boolean }> {
+): Promise<{
+  row: ProfileSubRow;
+  subscription: CompanySubscriptionInfo;
+  started: boolean;
+  error?: { code: string; message: string };
+}> {
   // Lifetime first
   const life = await ensureLifetimeIfEligible(companyId, row);
   if (life.subscription.isLifetime || life.granted) {
@@ -243,8 +248,19 @@ async function ensureTrialStarted(
     .single();
 
   if (error || !data) {
-    // Columns missing or race — return computed none
-    return { row, subscription: current, started: false };
+    const code = error?.code || 'empty';
+    const message = error?.message || 'no row';
+    console.error('[subscription] TRIAL_START_FAILED', {
+      companyId,
+      code,
+      message,
+    });
+    return {
+      row,
+      subscription: current,
+      started: false,
+      error: { code, message },
+    };
   }
 
   const next = data as ProfileSubRow;
@@ -287,6 +303,7 @@ export async function GET(request: NextRequest) {
     let subscription = computeCompanySubscription(row);
     let trialJustStarted = false;
     let lifetimeJustGranted = false;
+    let trialError = false;
 
     // Always try lifetime eligibility (founder + founding 25)
     if (!subscription.isLifetime) {
@@ -312,6 +329,7 @@ export async function GET(request: NextRequest) {
       row = ensured.row;
       subscription = ensured.subscription;
       trialJustStarted = ensured.started;
+      if (ensured.error) trialError = true;
       if (ensured.started) {
         void logActivity({
           profile_id: companyId,
@@ -462,11 +480,19 @@ export async function GET(request: NextRequest) {
       /* soft */
     }
 
+    const membership = await getCompanyMembership(gate.userId, companyId);
+    const billingRole = membership.ok
+      ? String(membership.role || '').toLowerCase()
+      : '';
+    const canManageBilling = ['owner', 'admin', 'finance'].includes(billingRole);
+
     return NextResponse.json({
       success: true,
       companyId,
       companyName: row.trading_name || 'Your company',
       billingEmail: row.email || null,
+      canManageBilling,
+      trialError,
       subscription,
       pricing: pricingPayload(),
       packaging: packagingBilling,
@@ -563,6 +589,12 @@ export async function POST(request: NextRequest) {
       }
       row = life.row;
       const ensured = await ensureTrialStarted(companyId, row);
+      if (ensured.error) {
+        return NextResponse.json(
+          { error: 'Could not start your trial. Please try again.' },
+          { status: 500 }
+        );
+      }
       if (ensured.started) {
         void logActivity({
           profile_id: companyId,
