@@ -75,7 +75,8 @@ test('vendored axe-core matches its provenance note', () => {
   expect(note).toContain('4.10.2');
   expect(note).toContain(AXE_SHA256);
   expect(note).toContain('MPL-2.0');
-  expect(vendoredAxe()?.length).toBe(AXE_BYTES);
+  expect(readFileSync(AXE_FILE).length).toBe(AXE_BYTES);
+  expect(vendoredAxe()).toContain('axe v4.10.2');
 });
 
 async function getAxeSource() {
