@@ -129,6 +129,22 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
+      // Same rule as claim-listing: a profile already linked to another account
+      // cannot be claimed again, and must not gain a trial that way.
+      if (
+        existing.user_id &&
+        String(existing.user_id) !== String(userId) &&
+        String(existing.user_id).length > 5
+      ) {
+        return NextResponse.json(
+          {
+            error: 'This company is linked to another account.',
+            code: 'ALREADY_CLAIMED',
+            profileId: claimId,
+          },
+          { status: 409 }
+        );
+      }
       const emailClaim = String(contact_email || '')
         .toLowerCase()
         .trim();
@@ -227,17 +243,23 @@ export async function POST(request: NextRequest) {
         });
         claimWarnings.push('claim_profile_not_updated');
       }
-      const claimTrial = await ensureTrialForClaimedProfile(
-        supabaseClaim,
-        claimId,
-        claimWindow
-      );
-      if (claimTrial.error) {
-        console.error('[register-business] TRIAL_WRITE_FAILED', {
-          profileId: claimId,
-          code: claimTrial.error.code,
-          message: claimTrial.error.message,
-        });
+      let claimTrialStarted = false;
+      if (claimWrite.ok) {
+        const claimTrial = await ensureTrialForClaimedProfile(
+          supabaseClaim,
+          claimId,
+          claimWindow
+        );
+        if (claimTrial.error) {
+          console.error('[register-business] TRIAL_WRITE_FAILED', {
+            profileId: claimId,
+            code: claimTrial.error.code,
+            message: claimTrial.error.message,
+          });
+          claimWarnings.push('trial_not_started');
+        }
+        claimTrialStarted = claimTrial.started;
+      } else {
         claimWarnings.push('trial_not_started');
       }
 
@@ -248,7 +270,7 @@ export async function POST(request: NextRequest) {
         tradingName: trading_name || existing.trading_name,
         message: 'Listing claimed — you own this company workspace.',
         lifetime: null,
-        trial: claimTrial.started
+        trial: claimTrialStarted
           ? {
               status: 'trial',
               days: COMPANY_TRIAL_DAYS,
@@ -256,7 +278,7 @@ export async function POST(request: NextRequest) {
               monthlyZarAfterTrial: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
             }
           : null,
-        trialPersisted: claimTrial.started,
+        trialPersisted: claimTrialStarted,
         warnings: claimWarnings,
       });
     }

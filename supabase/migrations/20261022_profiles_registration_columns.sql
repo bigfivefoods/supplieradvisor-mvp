@@ -1,6 +1,7 @@
 -- Brief 118: re-assert the six public.profiles columns that supabase/migrations/20260710_company_profile_docs.sql
 -- declares (and registration, company profile and the customer-invite claim write) but live is missing.
 -- Additive and idempotent: nullable, no default, IF NOT EXISTS. No data is changed.
+-- SET LOCAL lock_timeout needs a transaction (Supabase CLI and the SQL editor are fine; plain psql -f is not).
 SET LOCAL lock_timeout = '5s';
 
 ALTER TABLE public.profiles

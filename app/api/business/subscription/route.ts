@@ -14,7 +14,6 @@ import {
   COMPANY_SUBSCRIPTION_PRODUCT,
   COMPANY_TRIAL_DAYS,
   SUBSCRIPTION_SELECT_FIELDS,
-  addDays,
   addMonths,
   computeCompanySubscription,
   formatZar,
@@ -34,6 +33,11 @@ import {
   isInFoundingCohort,
 } from '@/lib/billing/lifetime-server';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
+import {
+  buildSubscriptionPatch,
+  ensureTrialForClaimedProfile,
+  trialWindow,
+} from '@/lib/onboarding/profile-writes';
 import {
   creditSubscriptionReferralFees,
   ensureReferralCode,
@@ -229,41 +233,45 @@ async function ensureTrialStarted(
     return { row, subscription: current, started: false };
   }
 
-  const now = new Date();
-  const trialEnds = addDays(now, COMPANY_TRIAL_DAYS);
-  const updates = {
-    subscription_status: 'trial',
-    subscription_trial_ends_at: trialEnds.toISOString(),
-    subscription_starts_at: now.toISOString(),
-    subscription_plan: COMPANY_SUBSCRIPTION_PLAN,
-    subscription_amount_zar: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
-  };
-
-  const supabase = getSupabaseServer();
-  const { data, error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', companyId)
-    .select(SUBSCRIPTION_SELECT_FIELDS)
-    .single();
-
-  if (error || !data) {
-    const code = error?.code || 'empty';
-    const message = error?.message || 'no row';
+  const opened = trialWindow(new Date());
+  const ensured = await ensureTrialForClaimedProfile(
+    getSupabaseServer(),
+    companyId,
+    opened
+  );
+  if (ensured.error) {
     console.error('[subscription] TRIAL_START_FAILED', {
       companyId,
-      code,
-      message,
+      code: ensured.error.code,
+      message: ensured.error.message,
     });
     return {
       row,
       subscription: current,
       started: false,
-      error: { code, message },
+      error: ensured.error,
+    };
+  }
+  // Zero rows is a race the filters already lost. Not a failure.
+  if (!ensured.started) {
+    return { row, subscription: current, started: false };
+  }
+
+  const reloaded = await loadProfile(companyId);
+  if (reloaded.ok) {
+    return {
+      row: reloaded.row,
+      subscription: computeCompanySubscription(reloaded.row),
+      started: true,
     };
   }
 
-  const next = data as ProfileSubRow;
+  const patch = buildSubscriptionPatch({
+    lifetimePlan: null,
+    now: opened.now,
+    trialEnds: opened.trialEnds,
+  });
+  const next = { ...row, ...patch } as ProfileSubRow;
   return {
     row: next,
     subscription: computeCompanySubscription(next),

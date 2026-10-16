@@ -110,5 +110,13 @@ assert.ok(subscriptionRoute.includes('trialError'));
 assert.ok(
   subscriptionRoute.includes("error: 'Could not start your trial. Please try again.'")
 );
+const trialStart = subscriptionRoute.slice(
+  subscriptionRoute.indexOf('async function ensureTrialStarted'),
+  subscriptionRoute.indexOf('export async function GET')
+);
+assert.ok(trialStart.includes('ensureTrialForClaimedProfile('));
+assert.ok(trialStart.includes('[subscription] TRIAL_START_FAILED'));
+assert.equal(trialStart.includes('.update('), false);
+assert.equal(trialStart.includes('.single()'), false);
 
 console.log('billing/brief118-access.test.ts ok');

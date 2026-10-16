@@ -136,7 +136,8 @@ jobs:
                 npx --yes tsx "$file"
               fi
             else
-              echo "Skipping missing test: $file"
+              echo "::error::Missing test file: $file"
+              exit 1
             fi
           done
       - name: ConstructionAdvisor portal tests

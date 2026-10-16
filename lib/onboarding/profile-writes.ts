@@ -166,6 +166,18 @@ function isProtectedColumn(key: string, protect: readonly string[]): boolean {
   return protect.includes(key) || key.startsWith('subscription_');
 }
 
+/**
+ * An insert that drops one of these and still reports success would persist a
+ * row the app treats as created. Optional columns (region, coordinates) may
+ * still be stripped; these may not.
+ */
+const REQUIRED_PROFILE_INSERT_COLUMNS = new Set<string>([
+  'user_id',
+  'trading_name',
+  'email',
+  'created_at',
+]);
+
 export async function writeSubscriptionChecked(
   db: Db,
   profileId: number,
@@ -290,6 +302,7 @@ export async function insertProfileTolerant(
       if (
         missing &&
         Object.prototype.hasOwnProperty.call(current, missing) &&
+        !REQUIRED_PROFILE_INSERT_COLUMNS.has(missing) &&
         !isProtectedColumn(missing, protect)
       ) {
         delete current[missing];
@@ -320,9 +333,15 @@ export async function insertProfileTolerant(
   };
 }
 
+function claimedUserId(value: unknown): boolean {
+  return value != null && String(value).trim().length > 0;
+}
+
 /**
- * Idempotent claim-time trial. The filters make this a no-op when the row
- * already has a status other than none/empty, or already has trial/end dates.
+ * Idempotent claim-time trial. No-op unless the profile is claimed (user_id
+ * set, or an active owner/admin link) and the row still has status
+ * null/none/'' with both trial and end dates null. The filters are the write
+ * guard: a concurrent start cannot overwrite a trial or paid row.
  */
 export async function ensureTrialForClaimedProfile(
   db: Db,
@@ -335,6 +354,28 @@ export async function ensureTrialForClaimedProfile(
     trialEnds: opts.trialEnds,
   });
   try {
+    const { data: profile, error: readError } = await db
+      .from('profiles')
+      .select('id, user_id')
+      .eq('id', profileId)
+      .maybeSingle();
+    if (readError) return { started: false, error: errorInfo(readError) };
+
+    let claimed = claimedUserId(profile?.user_id);
+    if (!claimed) {
+      const { data: owner, error: ownerError } = await db
+        .from('business_users')
+        .select('user_id')
+        .eq('profile_id', profileId)
+        .eq('status', 'active')
+        .in('role', ['owner', 'admin'])
+        .limit(1)
+        .maybeSingle();
+      if (ownerError) return { started: false, error: errorInfo(ownerError) };
+      claimed = Boolean(owner);
+    }
+    if (!claimed) return { started: false };
+
     const { data, error } = await db
       .from('profiles')
       .update(patch)

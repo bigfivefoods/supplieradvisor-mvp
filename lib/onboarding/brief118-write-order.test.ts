@@ -9,10 +9,12 @@ import {
   addDays,
 } from '../billing/company-subscription';
 import {
+  PROFILE_SUBSCRIPTION_COLUMNS,
   buildSubscriptionPatch,
   ensureTrialForClaimedProfile,
   insertProfileTolerant,
   missingColumnFromError,
+  trialWindow,
   updateProfileTolerant,
   writeRegistrationAfterCreate,
   type Db,
@@ -45,14 +47,21 @@ assert.equal(missingColumnFromError({ code: '23505', message: 'duplicate key' })
 const NOW = '2026-10-16T00:00:00.000Z';
 const TRIAL_ENDS = addDays(NOW, COMPANY_TRIAL_DAYS).toISOString();
 assert.equal(TRIAL_ENDS, '2026-11-15T00:00:00.000Z');
+const opened = trialWindow(NOW);
+assert.equal(opened.now, NOW);
+assert.equal(opened.trialEnds, '2026-11-15T00:00:00.000Z');
+
+const TRIAL_STATUS_OR =
+  'subscription_status.is.null,subscription_status.eq.none,subscription_status.eq.';
 
 type Row = Record<string, unknown> & { id: number };
 type Filter =
   | { type: 'eq'; col: string; val: unknown }
   | { type: 'is'; col: string; val: unknown }
+  | { type: 'in'; col: string; val: readonly unknown[] }
   | { type: 'or'; expr: string };
 
-function matches(row: Row, filters: Filter[]): boolean {
+function matches(row: Record<string, unknown>, filters: Filter[]): boolean {
   for (const filter of filters) {
     if (filter.type === 'eq' && row[filter.col] !== filter.val) return false;
     if (filter.type === 'is') {
@@ -60,7 +69,9 @@ function matches(row: Row, filters: Filter[]): boolean {
         if (row[filter.col] != null) return false;
       } else if (row[filter.col] !== filter.val) return false;
     }
+    if (filter.type === 'in' && !filter.val.includes(row[filter.col])) return false;
     if (filter.type === 'or') {
+      if (filter.expr !== TRIAL_STATUS_OR) return false;
       const status = row.subscription_status;
       if (!(status == null || status === 'none' || status === '')) return false;
     }
@@ -74,9 +85,11 @@ function createDb(
     subscriptionFailures?: number;
     detailsMode?: 'ok' | 'missing-optional' | 'other';
     rejectColumn?: string;
+    memberships?: Record<string, unknown>[];
   }
 ) {
   const rows = initial.map((row) => ({ ...row }));
+  const memberships = (behavior?.memberships ?? []).map((row) => ({ ...row }));
   const calls: { op: string; payload: Record<string, unknown> }[] = [];
   let subscriptionFailures = behavior?.subscriptionFailures ?? 0;
 
@@ -147,12 +160,22 @@ function createDb(
     return { data: { ...matched[0] }, error: null };
   }
 
+  function read(table: string, filters: Filter[], limit: number | null) {
+    const source = table === 'business_users' ? memberships : rows;
+    const matched = source.filter((row) => matches(row, filters));
+    const limited = limit == null ? matched : matched.slice(0, limit);
+    return { data: limited[0] ? { ...limited[0] } : null, error: null };
+  }
+
   const db: Db = {
     from(table: string) {
-      if (table !== 'profiles') throw new Error(`unexpected table ${table}`);
-      let op = 'update';
+      if (table !== 'profiles' && table !== 'business_users') {
+        throw new Error(`unexpected table ${table}`);
+      }
+      let op = 'select';
       let payload: Record<string, unknown> = {};
       const filters: Filter[] = [];
+      let limit: number | null = null;
       const chain = {
         update(next: Record<string, unknown>) {
           op = 'update';
@@ -168,6 +191,10 @@ function createDb(
           filters.push({ type: 'eq', col, val });
           return chain;
         },
+        in(col: string, val: readonly unknown[]) {
+          filters.push({ type: 'in', col, val });
+          return chain;
+        },
         or(expr: string) {
           filters.push({ type: 'or', expr });
           return chain;
@@ -176,20 +203,40 @@ function createDb(
           filters.push({ type: 'is', col, val });
           return chain;
         },
+        limit(n: number) {
+          limit = n;
+          return chain;
+        },
         select() {
           return chain;
         },
         maybeSingle() {
-          return Promise.resolve(resultFor(op, payload, filters));
+          const value =
+            op === 'select' ? read(table, filters, limit) : resultFor(op, payload, filters);
+          return Promise.resolve(value);
         },
         then(onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) {
-          return Promise.resolve(resultFor(op, payload, filters)).then(onFulfilled, onRejected);
+          const value =
+            op === 'select' ? read(table, filters, limit) : resultFor(op, payload, filters);
+          return Promise.resolve(value).then(onFulfilled, onRejected);
         },
       };
       return chain;
     },
   };
   return { db, rows, calls };
+}
+
+function invocationCount(source: string, name: string): number {
+  return source.match(new RegExp(`\\b${name}\\s*\\(`, 'g'))?.length ?? 0;
+}
+
+function between(source: string, start: string, end: string): string {
+  const from = source.indexOf(start);
+  assert.ok(from >= 0, `missing ${start}`);
+  const to = source.indexOf(end, from + start.length);
+  assert.ok(to > from, `missing ${end} after ${start}`);
+  return source.slice(from, to);
 }
 
 function silence() {
@@ -399,8 +446,44 @@ async function main() {
     assert.equal(blockedInsert.rows.length, 0);
     assert.equal(blockedInsert.calls[0].payload.subscription_status, 'trial');
 
-    async function claim(row: Row) {
-      const db = createDb([row]);
+    for (const column of ['user_id', 'trading_name', 'email', 'created_at'] as const) {
+      const required = createDb([], { rejectColumn: column });
+      const payload = {
+        user_id: 'user-1',
+        trading_name: 'Example Co',
+        email: 'a@b.co',
+        created_at: NOW,
+      };
+      const failedRequired = await insertProfileTolerant(required.db, payload, {
+        protect: [],
+      });
+      assert.equal(failedRequired.ok, false, column);
+      assert.deepEqual(failedRequired.dropped, [], column);
+      assert.equal(required.rows.length, 0, column);
+      assert.equal(required.calls.at(-1)?.payload[column], payload[column], column);
+    }
+
+    const helperSource = readFileSync('lib/onboarding/profile-writes.ts', 'utf8');
+    const trialSource = helperSource.slice(
+      helperSource.indexOf('export async function ensureTrialForClaimedProfile'),
+      helperSource.indexOf('export async function writeRegistrationAfterCreate')
+    );
+    const orCall = `.or('${TRIAL_STATUS_OR}')`;
+    assert.ok(trialSource.includes(orCall), `missing ${orCall}`);
+    assert.ok(
+      trialSource.includes(".is('subscription_trial_ends_at', null)"),
+      'missing trial_ends_at guard'
+    );
+    assert.ok(
+      trialSource.includes(".is('subscription_ends_at', null)"),
+      'missing subscription_ends_at guard'
+    );
+
+    async function claim(
+      row: Row,
+      memberships?: Record<string, unknown>[]
+    ) {
+      const db = createDb([row], { memberships });
       const result = await ensureTrialForClaimedProfile(db.db, row.id, {
         now: NOW,
         trialEnds: TRIAL_ENDS,
@@ -410,6 +493,7 @@ async function main() {
     for (const status of ['trial', 'active', 'lifetime']) {
       const existing = await claim({
         id: 20,
+        user_id: 'owner-1',
         subscription_status: status,
         subscription_trial_ends_at: null,
         subscription_ends_at: null,
@@ -419,6 +503,7 @@ async function main() {
     }
     const withEnd = await claim({
       id: 21,
+      user_id: 'owner-1',
       subscription_status: 'none',
       subscription_trial_ends_at: null,
       subscription_ends_at: '2027-01-01T00:00:00.000Z',
@@ -426,10 +511,65 @@ async function main() {
     assert.equal(withEnd.result.started, false);
     assert.equal(withEnd.row.subscription_ends_at, '2027-01-01T00:00:00.000Z');
     assert.equal(withEnd.row.subscription_status, 'none');
+    const withTrialEnd = await claim({
+      id: 24,
+      user_id: 'owner-1',
+      subscription_status: 'none',
+      subscription_trial_ends_at: '2026-12-01T00:00:00.000Z',
+      subscription_ends_at: null,
+    });
+    assert.equal(withTrialEnd.result.started, false, 'trial_ends_at guard');
+    assert.equal(withTrialEnd.row.subscription_trial_ends_at, '2026-12-01T00:00:00.000Z');
+    assert.equal(withTrialEnd.row.subscription_status, 'none');
+
+    const unclaimed = await claim({
+      id: 25,
+      subscription_status: 'none',
+      subscription_trial_ends_at: null,
+      subscription_ends_at: null,
+    });
+    assert.equal(unclaimed.result.started, false);
+    assert.equal(unclaimed.result.error, undefined);
+    assert.equal(unclaimed.row.subscription_status, 'none');
+    const viewer = await claim(
+      {
+        id: 26,
+        subscription_status: 'none',
+        subscription_trial_ends_at: null,
+        subscription_ends_at: null,
+      },
+      [{ profile_id: 26, user_id: 'viewer-1', role: 'viewer', status: 'active' }]
+    );
+    assert.equal(viewer.result.started, false);
+    assert.equal(viewer.row.subscription_status, 'none');
+    const inactiveOwner = await claim(
+      {
+        id: 27,
+        subscription_status: 'none',
+        subscription_trial_ends_at: null,
+        subscription_ends_at: null,
+      },
+      [{ profile_id: 27, user_id: 'owner-old', role: 'owner', status: 'removed' }]
+    );
+    assert.equal(inactiveOwner.result.started, false);
+    assert.equal(inactiveOwner.row.subscription_status, 'none');
+    const ownerLink = await claim(
+      {
+        id: 28,
+        subscription_status: 'none',
+        subscription_trial_ends_at: null,
+        subscription_ends_at: null,
+      },
+      [{ profile_id: 28, user_id: 'owner-2', role: 'owner', status: 'active' }]
+    );
+    assert.equal(ownerLink.result.started, true);
+    assert.equal(ownerLink.row.subscription_status, 'trial');
+    assert.equal(ownerLink.row.subscription_trial_ends_at, TRIAL_ENDS);
 
     const fresh = createDb([
       {
         id: 22,
+        user_id: 'owner-1',
         subscription_status: 'none',
         subscription_trial_ends_at: null,
         subscription_ends_at: null,
@@ -459,6 +599,35 @@ async function main() {
     const claimUpdate = route.indexOf('updateProfileTolerant', claimAt);
     const claimTrial = route.indexOf('ensureTrialForClaimedProfile', claimUpdate);
     assert.ok(claimUpdate > claimAt && claimTrial > claimUpdate);
+    assert.match(
+      route,
+      /if\s*\(\s*claimWrite\.ok\s*\)\s*\{[\s\S]*?ensureTrialForClaimedProfile\s*\(/
+    );
+    const claimBranch = route.slice(
+      route.indexOf('Claim existing directory listing'),
+      route.indexOf('if (!trading_name')
+    );
+    const linkedAt = claimBranch.indexOf('existing.user_id');
+    const membershipInsertAt = claimBranch.indexOf('profile_id: claimId');
+    assert.ok(linkedAt > 0);
+    assert.ok(membershipInsertAt > linkedAt);
+    assert.ok(claimBranch.includes('This company is linked to another account.'));
+    const detailsBlock = between(route, 'const detailsPatch', 'let profile');
+    assert.match(
+      detailsBlock,
+      /for\s*\(\s*const key of PROFILE_SUBSCRIPTION_COLUMNS\s*\)\s*delete detailsPatch\[key\]/
+    );
+    assert.equal(/detailsPatch\.subscription_/.test(detailsBlock), false);
+    const coreBlock = between(route, 'const coreInsert', 'insertProfileTolerant');
+    assert.match(
+      coreBlock,
+      /for\s*\(\s*const key of PROFILE_SUBSCRIPTION_COLUMNS\s*\)\s*delete coreInsert\[key\]/
+    );
+    assert.equal(/coreInsert\.subscription_/.test(coreBlock), false);
+    assert.equal(/insertProfileTolerant\(\s*supabase\s*,\s*baseInsert\b/.test(route), false);
+    for (const column of PROFILE_SUBSCRIPTION_COLUMNS) {
+      assert.equal(column.startsWith('subscription_'), true, column);
+    }
     const helper = readFileSync('lib/onboarding/profile-writes.ts', 'utf8');
     const fn = helper.slice(helper.indexOf('export async function writeRegistrationAfterCreate'));
     assert.ok(fn.indexOf('writeSubscriptionChecked') < fn.indexOf('updateProfileTolerant'));
@@ -466,8 +635,18 @@ async function main() {
     assert.equal(listing.includes('Minimal patch'), false);
     assert.equal(/\/column\|schema\//.test(listing), false);
     assert.ok(listing.includes('trialPersisted'));
+    assert.equal(
+      invocationCount(listing, 'ensureTrialForClaimedProfile'),
+      1,
+      'claim-listing ensureTrialForClaimedProfile'
+    );
+    assert.match(listing, /if\s*\(\s*!upErr\s*\)\s*\{[\s\S]*?ensureTrialForClaimedProfile\s*\(/);
     const invites = readFileSync('app/api/invites/claim/route.ts', 'utf8');
-    assert.ok(invites.includes('ensureTrialForClaimedProfile'));
+    assert.equal(
+      invocationCount(invites, 'ensureTrialForClaimedProfile'),
+      2,
+      'invites ensureTrialForClaimedProfile'
+    );
   } finally {
     quiet.restore();
   }

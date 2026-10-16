@@ -171,18 +171,26 @@ export async function POST(request: NextRequest) {
       warnings.push('claim_profile_not_updated');
     }
 
-    const claimWindow = trialWindow(now);
-    const trialWrite = await ensureTrialForClaimedProfile(
-      supabase,
-      claimProfileId,
-      claimWindow
-    );
-    if (trialWrite.error) {
-      console.error('[claim-listing] TRIAL_WRITE_FAILED', {
-        profileId: claimProfileId,
-        code: trialWrite.error.code,
-        message: trialWrite.error.message,
-      });
+    let trialStarted = false;
+    let trialEndsAt: string | null = null;
+    if (!upErr) {
+      const claimWindow = trialWindow(now);
+      trialEndsAt = claimWindow.trialEnds;
+      const trialWrite = await ensureTrialForClaimedProfile(
+        supabase,
+        claimProfileId,
+        claimWindow
+      );
+      if (trialWrite.error) {
+        console.error('[claim-listing] TRIAL_WRITE_FAILED', {
+          profileId: claimProfileId,
+          code: trialWrite.error.code,
+          message: trialWrite.error.message,
+        });
+        warnings.push('trial_not_started');
+      }
+      trialStarted = trialWrite.started;
+    } else {
       warnings.push('trial_not_started');
     }
 
@@ -202,12 +210,12 @@ export async function POST(request: NextRequest) {
       profileId: claimProfileId,
       tradingName: profile.trading_name,
       message: 'Listing claimed — you are now the owner.',
-      trialPersisted: trialWrite.started,
-      trial: trialWrite.started
+      trialPersisted: trialStarted,
+      trial: trialStarted
         ? {
             status: 'trial',
             days: COMPANY_TRIAL_DAYS,
-            endsAt: claimWindow.trialEnds,
+            endsAt: trialEndsAt,
             monthlyZarAfterTrial: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
           }
         : null,
