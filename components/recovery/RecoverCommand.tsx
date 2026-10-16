@@ -39,6 +39,7 @@ import {
   RecoveryFunnel,
   WorkloadStrip,
 } from './RecoverPreviews';
+import { RecoverProcessFlow } from './RecoverProcessFlow';
 import { useRecoverDesk, useRecoverHref, useRecoverIllustration, useRecoverLinks } from './useRecoverDesk';
 import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
 import { catalogueForModule } from '@/lib/catalogues';
@@ -120,6 +121,7 @@ function CommandBody({ desk }: { desk: RecoverDeskPayload }) {
           body="Set up the workspace after approval. Add the operator, the team, and the first creditor book. Accounts appear here once that book is imported."
           art={<PendingArt />}
         />
+        {desk.role !== 'none' ? <RecoverProcessFlow desk={desk} /> : null}
       </div>
     );
   }
@@ -236,7 +238,9 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
                 picture
                   ? 'Illustration · sample data'
                   : desk.book && desk.book.placedCount > 0
-                    ? `${formatRecoverMoney(desk.book.placedBalanceCents)}. Placed balance; payments are not recorded yet.`
+                    ? desk.book.placedBalanceCents == null
+                      ? 'Balance unavailable'
+                      : `${formatRecoverMoney(desk.book.placedBalanceCents)}. Placed balance; payments are not recorded yet.`
                     : 'No accounts placed yet'
               }
               icon={Scale}
@@ -342,6 +346,8 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
           </RecoverButton>
         </RecoverPanel>
       </div>
+
+      {desk.role !== 'none' ? <RecoverProcessFlow desk={desk} /> : null}
 
       <h2 className="mb-4 text-sm font-black uppercase tracking-widest text-[#0077b6]">Workbenches</h2>
       <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -461,6 +467,7 @@ function AgentHome({ desk }: { desk: RecoverDeskPayload }) {
             </p>
           ) : null}
         </RecoverPanel>
+        <RecoverProcessFlow desk={desk} />
       </div>
     </div>
   );
