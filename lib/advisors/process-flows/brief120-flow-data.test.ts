@@ -188,6 +188,71 @@ const diary = construction.guardrails.find((item) => item.title.toLowerCase().in
 assert.ok(diary);
 assert.equal(diary.body.toLowerCase().includes('addendum'), false);
 
+const fleet = flows.find((flow) => flow.module === 'fleetgraph');
+assert.ok(fleet);
+const fleetStep = (id: string) => {
+  const step = fleet.steps.find((item) => item.id === id);
+  assert.ok(step, id);
+  return step;
+};
+assert.equal(fleetStep('jobs').status, 'partial');
+assert.match(fleetStep('jobs').note || '', /not switched on/);
+assert.equal(fleetStep('map').status, 'partial');
+assert.match(fleetStep('map').note || '', /Live positions launching soon/);
+assert.equal(fleetStep('dispatch').status, 'soon');
+assert.equal(fleetStep('dispatch').to, null);
+assert.equal(fleetStep('invoicing').status, 'soon');
+assert.equal(fleetStep('invoicing').to, null);
+assert.deepEqual([...fleetStep('costs').roles], ['owner', 'manager']);
+assert.equal(fleetStep('costs').to?.needs, 'seesCosts');
+assert.equal(fleetStep('cpk').to?.needs, 'seesCosts');
+assert.deepEqual([...fleetStep('cpk').roles], ['owner', 'manager', 'office']);
+assert.equal(fleetStep('vehicles').secondary?.find((target) => target.path === 'import')?.needs, 'canImportCsv');
+for (const role of fleet.roles) {
+  const open = role.id === 'owner' || role.id === 'manager';
+  assert.equal(role.openByDefault, open, role.id);
+}
+const dispatcherCosts = fleet.guardrails.find((item) => item.title.toLowerCase().includes('dispatcher'));
+assert.ok(dispatcherCosts);
+assert.match(dispatcherCosts.body, /do not see cost per kilometre/);
+assert.match(dispatcherCosts.body, /job prices only when the owner turns that switch on/);
+assert.match(dispatcherCosts.body, /does not reveal costs/);
+assert.equal(/cost per kilometre unless/.test(dispatcherCosts.body), false);
+const costWrite = fleet.guardrails.find((item) => item.source.endsWith('fleetgraph/route.ts'));
+assert.ok(costWrite);
+assert.match(costWrite.body, /owner or manager can add a running cost/);
+assert.match(costWrite.body, /refuses the write/);
+const pay = fleet.guardrails.find((item) => item.body.toLowerCase().includes('driver pay'));
+assert.ok(pay);
+assert.match(pay.body, /leaves driver pay out/);
+
+const apparel = flows.find((flow) => flow.module === 'apparelgraph');
+assert.ok(apparel);
+const apparelStep = (id: string) => {
+  const step = apparel.steps.find((item) => item.id === id);
+  assert.ok(step, id);
+  return step;
+};
+for (const id of ['samples', 'capacity', 'floor', 'quality', 'ship']) assert.equal(apparelStep(id).status, 'partial', id);
+for (const id of ['range', 'styles', 'costing', 'path', 'wholesale']) assert.equal(apparelStep(id).status, 'live', id);
+for (const step of apparel.steps) {
+  assert.equal(step.roles.length, 0, step.id);
+  assert.equal(['Brand', 'Factory', 'Brand / Factory'].includes(step.who), true, step.who);
+  const targets = [step.to, ...(step.secondary || [])].filter((target) => target != null);
+  for (const target of targets) assert.equal(target.needs, undefined, step.id);
+}
+for (const role of apparel.roles) {
+  const open = role.id === 'owner' || role.id === 'admin';
+  assert.equal(role.openByDefault, open, role.id);
+}
+const release = apparel.guardrails.find((item) => item.source.endsWith('apparelgraph.ts') && item.body.includes('blocked'));
+assert.ok(release);
+assert.match(release.body, /four-point/);
+assert.match(release.body, /NBC date is past/);
+assert.match(release.body, /QA hold is open/);
+assert.equal(apparel.previewRoot, null);
+assert.equal(apparel.previewPaths.length, 0);
+
 const component = read('components/advisors/AdvisorProcessFlow.tsx');
 for (const name of FLOW_ICON_NAMES) {
   const quoted = component.includes(`'${name}':`) || component.includes(`"${name}":`);

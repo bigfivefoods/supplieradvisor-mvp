@@ -32,6 +32,8 @@ const SHARED_MOUNTED: Record<string, { file: string; moduleAttr: string }> = {
     file: 'components/construction/views/CommandView.tsx',
     moduleAttr: 'module="constructiongraph"',
   },
+  fleetgraph: { file: 'components/fleet/FleetViews.tsx', moduleAttr: 'module="fleetgraph"' },
+  apparelgraph: { file: 'app/dashboard/apparelgraph/page.tsx', moduleAttr: 'module="apparelgraph"' },
 };
 
 const later = ADVISOR_OS_MODULE_IDS.filter((id) => !(id in OWN) && !(id in SHARED_MOUNTED));
@@ -63,5 +65,32 @@ assert.equal((construction.match(/<AdvisorProcessFlow\b/g) || []).length, 1);
 for (const id of later) {
   assert.equal(ADVISOR_FLOWS[id as keyof typeof ADVISOR_FLOWS], undefined, id);
 }
+
+const fleet = readFileSync('components/fleet/FleetViews.tsx', 'utf8');
+assert.equal(fleet.includes('useCompanyRole'), false);
+assert.equal((fleet.match(/module="fleetgraph"/g) || []).length, 1);
+assert.match(fleet, /function FleetFlow\(props: FleetDeskProps\) \{\s*if \(props\.role === 'none'\) return null;/);
+assert.match(fleet, /<AdvisorProcessFlow module="fleetgraph" role=\{props\.role\} caps=\{props\.caps\} hrefBase=\{props\.hrefBase\} \/>/);
+const commandStart = fleet.indexOf('function CommandView');
+const commandEnd = fleet.indexOf('function fleetRollup');
+const command = fleet.slice(commandStart, commandEnd);
+assert.equal((command.match(/<FleetFlow\b/g) || []).length, 2);
+const emptyAt = command.indexOf('fleet-command-empty');
+const setupAt = command.indexOf('title="Setup"');
+assert.ok(emptyAt >= 0 && setupAt > emptyAt);
+const flowAfterEmpty = command.indexOf('<FleetFlow', emptyAt);
+const flowAfterSetup = command.indexOf('<FleetFlow', setupAt);
+assert.ok(flowAfterEmpty > emptyAt && flowAfterEmpty < setupAt);
+assert.ok(flowAfterSetup > setupAt);
+
+const apparel = readFileSync('app/dashboard/apparelgraph/page.tsx', 'utf8');
+assert.match(apparel, /useCompanyRole\(/);
+assert.match(apparel, /hrefBase="\/dashboard\/apparelgraph"/);
+assert.equal((apparel.match(/module="apparelgraph"/g) || []).length, 1);
+assert.equal(/<AdvisorProcessFlow[^>]*\bcaps=/.test(apparel), false);
+const branch = apparel.slice(apparel.indexOf('loading || !summary'));
+const loading = branch.slice(0, branch.indexOf(') : ('));
+assert.equal(loading.includes('ApparelFlow'), false);
+assert.equal(branch.includes('<ApparelFlow'), true);
 
 console.log('brief120-flow-mounts.test.ts ok');

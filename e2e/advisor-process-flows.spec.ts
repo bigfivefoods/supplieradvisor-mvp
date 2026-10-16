@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 const widths = [375, 768, 1280] as const;
@@ -14,6 +16,12 @@ const flows = [
     path: '/preview/constructiongraph?role=owner',
     live: /\/preview\/constructiongraph\/clients\?role=owner$/,
     step: /Clients/,
+  },
+  {
+    id: 'fleetgraph',
+    path: '/preview/fleetgraph?role=owner',
+    live: /\/preview\/fleetgraph\/vehicles\?role=owner$/,
+    step: /Vehicles/,
   },
 ] as const;
 
@@ -41,9 +49,17 @@ async function noHorizontalOverflow(page: Page) {
 
 let axeSourcePromise: Promise<string> | null = null;
 
+const AXE_FILE = join(process.cwd(), 'e2e/vendor/axe-core-4.10.2.min.js');
+
 async function getAxeSource() {
   if (!axeSourcePromise) {
     axeSourcePromise = (async () => {
+      try {
+        const local = readFileSync(AXE_FILE, 'utf8');
+        if (local.length > 0) return local;
+      } catch {
+        // The vendored file is the normal source. A mirror is only a fallback.
+      }
       const urls = [
         'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js',
         'https://cdn.jsdelivr.net/npm/axe-core@4.10.2/axe.min.js',
