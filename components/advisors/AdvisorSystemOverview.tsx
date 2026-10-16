@@ -12,6 +12,8 @@ import {
   advisorSystemOverviewPdfUrl,
   type AdvisorOverviewModule,
 } from '@/lib/advisors/system-overview';
+import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { catalogueForModule } from '@/lib/catalogues';
 
 const ACCENT: Record<
   AdvisorOverviewModule,
@@ -82,6 +84,7 @@ export default function AdvisorSystemOverview({
   const copy = advisorSystemOverview(module);
   const a = ACCENT[module];
   const pdfHref = advisorSystemOverviewPdfUrl(module, { download: true });
+  const catalogueId = catalogueForModule(module)?.id;
   const [open, setOpen] = useState(!defaultCollapsed);
 
   return (
@@ -117,6 +120,7 @@ export default function AdvisorSystemOverview({
               <Download className="w-3.5 h-3.5" />
               One-pager PDF
             </a>
+            <CatalogueDownloadButton id={catalogueId} variant="secondary" />
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}

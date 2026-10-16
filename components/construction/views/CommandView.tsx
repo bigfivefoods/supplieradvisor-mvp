@@ -15,6 +15,8 @@ import {
   ConstructionUnavailable,
 } from '@/components/construction/ConstructionUi';
 import { deskHref, ScreenState, type DeskProps } from '@/components/construction/desk';
+import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { catalogueForModule } from '@/lib/catalogues';
 
 export const commandTestIds = ['command-view', 'command-loading', 'command-empty', 'command-error', 'command-kpi', 'site-action-bar'];
 
@@ -42,11 +44,14 @@ export function CommandView(props: DeskProps) {
               : 'Projects on site, the programme, and what needs a decision.'
         }
         actions={
-          caps.canEditProjects ? (
-            <a className="inline-flex min-h-11 items-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a]" data-primary="1" href={deskHref(base, 'sites')}>
-              New project
-            </a>
-          ) : null
+          <>
+            {caps.canEditProjects ? (
+              <a className="inline-flex min-h-11 items-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a]" data-primary="1" href={deskHref(base, 'sites')}>
+                New project
+              </a>
+            ) : null}
+            <CatalogueDownloadButton id={catalogueForModule('constructiongraph')?.id} variant="secondary" />
+          </>
         }
       />
       {empty ? (

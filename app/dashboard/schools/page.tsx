@@ -36,6 +36,8 @@ import GoldenPathStrip from '@/components/schools/GoldenPathStrip';
 import NsnpSystemFlow from '@/components/schools/NsnpSystemFlow';
 import NsnpSystemOverview from '@/components/schools/NsnpSystemOverview';
 import ProcessGuidePdfButtons from '@/components/schools/ProcessGuidePdfButtons';
+import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { catalogueForModule } from '@/lib/catalogues';
 import SchoolTodayBoard from '@/components/schools/SchoolTodayBoard';
 import { SchoolAdvisorBillingCard } from '@/components/schools/SchoolAdvisorBillingCard';
 import AgencyExceptionBoard from '@/components/schools/AgencyExceptionBoard';
@@ -143,6 +145,7 @@ function Inner() {
           titleAccent="®"
           description="Building your SchoolAdvisor® public-sector command centre…"
           mode={role}
+          action={<CatalogueDownloadButton id={catalogueForModule('schools')?.id} variant="secondary" />}
         />
         <div className="py-20 flex justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
@@ -162,6 +165,7 @@ function Inner() {
           action={
             <div className="flex flex-wrap items-center gap-2">
               <ProcessGuidePdfButtons variant="header" />
+              <CatalogueDownloadButton id={catalogueForModule('schools')?.id} variant="secondary" />
               <button
                 type="button"
                 onClick={() => void load()}
@@ -322,6 +326,7 @@ function Inner() {
           action={
             <div className="flex flex-wrap items-center gap-2">
               <ProcessGuidePdfButtons variant="header" />
+              <CatalogueDownloadButton id={catalogueForModule('schools')?.id} variant="secondary" />
               <button
                 type="button"
                 onClick={() => void load()}
@@ -554,6 +559,7 @@ function Inner() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ProcessGuidePdfButtons variant="header" />
+            <CatalogueDownloadButton id={catalogueForModule('schools')?.id} variant="secondary" />
             <button
               type="button"
               onClick={() => void load()}

@@ -8,6 +8,8 @@ import {
   ApparelgraphWorkbench,
   useApparelgraph,
 } from '@/components/apparel/ApparelgraphWorkbench';
+import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { catalogueForModule } from '@/lib/catalogues';
 
 function zar(n: number) {
   return `R ${Number(n || 0).toLocaleString('en-ZA')}`;
@@ -25,6 +27,7 @@ export default function ApparelgraphOverviewPage() {
     <ApparelgraphWorkbench
       title="Overview"
       description="ApparelAdvisor® for factories and brands: seasons, style/color/size, landed BOM, critical path, QA holds that actually stop ship, wholesale ATS, and a buyer line-sheet PWA — on the same books as suppliers, customers and finance."
+      action={<CatalogueDownloadButton id={catalogueForModule('apparelgraph')?.id} variant="secondary" />}
     >
       {loading || !summary ? (
         <ApparelLoadingBlock />

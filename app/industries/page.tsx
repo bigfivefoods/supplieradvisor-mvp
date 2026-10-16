@@ -211,6 +211,15 @@ export default function IndustriesIndexPage() {
               {COMPANY_PROFILE_PDF.label}
             </a>{' '}
             <span className="text-xs text-slate-500">{COMPANY_PROFILE_PDF.meta}</span>
+            <span className="mx-2 text-slate-300" aria-hidden="true">
+              ·
+            </span>
+            <a
+              href="/catalogues"
+              className="font-semibold text-[#0077b6] underline underline-offset-4"
+            >
+              Browse all catalogues
+            </a>
           </p>
         </div>
 

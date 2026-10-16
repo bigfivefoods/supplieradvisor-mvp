@@ -74,10 +74,12 @@ export function useApparelgraph() {
 export function ApparelgraphWorkbench({
   title,
   description,
+  action,
   children,
 }: {
   title: string;
   description: string;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -87,6 +89,7 @@ export function ApparelgraphWorkbench({
           eyebrow="ApparelAdvisor®"
           title={title}
           description={description}
+          action={action}
         />
         {children}
       </ApparelgraphPage>

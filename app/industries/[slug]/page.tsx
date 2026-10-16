@@ -17,6 +17,8 @@ import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/packaging-constants';
 import { industryJsonLd, jsonLdString } from '@/lib/seo/jsonld';
 import { marketingMetadata } from '@/lib/seo/metadata';
 import { industryShareCard } from '@/lib/seo/share-cards';
+import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { catalogueForIndustry } from '@/lib/catalogues';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -91,6 +93,11 @@ export default async function IndustryDetailPage({ params }: Props) {
           >
             Interactive demo
           </Link>
+          <CatalogueDownloadButton
+            id={catalogueForIndustry(ind.slug)?.id}
+            variant="secondary"
+            showMeta
+          />
           {trades ? (
             <Link
               href="/preview/tradegraph"

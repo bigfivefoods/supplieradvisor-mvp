@@ -30,6 +30,8 @@ import {
 } from '@/components/quarry/QuarrygraphShell';
 import QuarrygraphSystemFlow from '@/components/quarry/QuarrygraphSystemFlow';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
+import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { catalogueForModule } from '@/lib/catalogues';
 import {
   HubModuleGrid,
   HubTelemetryGrid,
@@ -237,6 +239,7 @@ function HubInner() {
             >
               <Mountain className="w-4 h-4" /> Quarries
             </Link>
+            <CatalogueDownloadButton id={catalogueForModule('quarrygraph')?.id} variant="secondary" />
             <button
               type="button"
               disabled={seeding}
