@@ -143,11 +143,10 @@ for (const entry of CATALOGUES.filter((item) => item.status === 'coming-soon')) 
   assert.equal(entry.cover, undefined);
 }
 
-assert.match(
+assert.equal(
   CATALOGUE_FILE_BASE_URL,
-  /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/catalogues$/
+  'https://fmsczg6npzkpslsh.public.blob.vercel-storage.com/catalogues'
 );
-assert.doesNotMatch(CATALOGUE_FILE_BASE_URL, /\{\{|REPLACE/);
 
 const hygieneRoots = [
   resolve(root, 'lib/catalogues.ts'),
@@ -172,14 +171,23 @@ for (const file of hygieneRoots) {
   assert.doesNotMatch(src, /next\/script|<script|dangerouslySetInnerHTML/, file);
   assert.doesNotMatch(src, /from\s+['"][^'"]*(privy|viem|wagmi|undici)/i, file);
   assert.doesNotMatch(src, cyanFills, file);
-  for (const match of src.matchAll(/className=(?:\{`|"|')([^"'`]+)(?:`|"|')/g)) {
-    const className = match[1] || '';
+  for (const match of src.matchAll(/'([^'\\]*)'|"([^"\\]*)"|`([^`$]*)`/g)) {
+    const className = match[1] ?? match[2] ?? match[3] ?? '';
     if (!className.includes('bg-[#00b4d8]')) continue;
     assert.ok(
       className.includes('text-[#0f172a]') || className.includes('sa-btn-brand'),
       `${file} cyan fill needs navy text: ${className}`
     );
+    assert.doesNotMatch(className, /text-white/, `${file} white text on cyan: ${className}`);
   }
 }
+
+const tradeCommand = readFileSync(resolve(root, 'components/trades/TradeScreens.tsx'), 'utf8');
+const fleetCommand = readFileSync(resolve(root, 'components/fleet/FleetViews.tsx'), 'utf8');
+assert.match(tradeCommand, /CatalogueDownloadButton[^/]*variant="quiet" tone="cyan"/);
+assert.doesNotMatch(tradeCommand, /CatalogueDownloadButton[^/]*variant="secondary"/);
+assert.match(fleetCommand, /CatalogueDownloadButton[^/]*variant="quiet" tone="inverse"/);
+assert.match(fleetCommand, /CatalogueDownloadButton[^/]*variant="quiet" \/>/);
+assert.doesNotMatch(fleetCommand, /CatalogueDownloadButton[^/]*variant="secondary"/);
 
 console.log('brief119-catalogues.test.ts ok');

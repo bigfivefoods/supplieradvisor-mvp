@@ -180,7 +180,7 @@ function CommandView(props: FleetDeskProps) {
           title="Command"
           detail="Vehicles, drivers, open jobs, expiries and fleet cost per kilometre."
           illustration={props.illustrate}
-          actions={<CatalogueDownloadButton id={catalogueForModule('fleetgraph')?.id} variant="secondary" />}
+          actions={<CatalogueDownloadButton id={catalogueForModule('fleetgraph')?.id} variant="quiet" />}
         />
       ) : null}
       <Banners {...props} />
@@ -234,7 +234,7 @@ function CommandView(props: FleetDeskProps) {
             </div>
             <div className="flex flex-wrap gap-2 px-5 py-3">
               <Link className={`${fleetBtn} ${fleetFocus}`} href={`${props.hrefBase}/jobs`}>Open jobs</Link>
-              <CatalogueDownloadButton id={catalogueForModule('fleetgraph')?.id} variant="secondary" />
+              <CatalogueDownloadButton id={catalogueForModule('fleetgraph')?.id} variant="quiet" tone="inverse" />
               <Link className={`${fleetBtn} ${fleetFocus}`} href={`${props.hrefBase}/vehicles`}>Vehicles</Link>
               {props.caps.seesCosts ? (
                 <Link className={`${fleetBtn} ${fleetFocus}`} href={`${props.hrefBase}/cpk`}>Cost per kilometre</Link>

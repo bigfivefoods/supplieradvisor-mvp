@@ -120,7 +120,7 @@ export default function AdvisorSystemOverview({
               <Download className="w-3.5 h-3.5" />
               One-pager PDF
             </a>
-            <CatalogueDownloadButton id={catalogueId} variant="secondary" />
+            <CatalogueDownloadButton id={catalogueId} variant="secondary" focus="on-dark" />
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}

@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import type { CatalogueEntry } from '@/lib/catalogues';
 import { formatCatalogueSize } from '@/lib/catalogues';
-import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { CATALOGUE_FOCUS, CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -45,12 +45,12 @@ export function CatalogueCard({
         <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">{entry.name}</h3>
         <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{entry.blurb}</p>
         <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{meta}</p>
-        <div className="mt-5 flex flex-wrap items-center gap-3">
+        <div className="mt-auto flex flex-wrap items-center gap-3 pt-5">
           <CatalogueDownloadButton id={entry.id} label="Download PDF" />
           {entry.industrySlug ? (
             <a
               href={`/industries/${entry.industrySlug}`}
-              className="inline-flex min-h-11 items-center text-sm font-bold text-[#0077b6] underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0f172a]"
+              className={`inline-flex min-h-11 items-center text-sm font-bold text-[#0077b6] underline underline-offset-4 dark:text-[#00b4d8] ${CATALOGUE_FOCUS}`}
             >
               See the industry page
             </a>

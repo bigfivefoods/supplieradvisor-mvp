@@ -1,6 +1,8 @@
 /**
  * Catalogue download counts via the Vercel Web Analytics server SDK
- * already mounted in the app. The event carries the catalogue id only.
+ * already mounted in the app. Each human GET adds one event. Totals are
+ * event counts, not unique visitors: this call has no visitor identity.
+ * The event carries the catalogue id only.
  * The visitor address, session, and user-agent are not forwarded.
  */
 import { track } from '@vercel/analytics/server';

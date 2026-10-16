@@ -6,7 +6,8 @@ import {
 
 type Ctx = { params: Promise<{ id: string }> };
 
-const CACHE_CONTROL = 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400';
+/** Do not cache the redirect. A shared cache would skip the function and undercount. */
+const NO_STORE = 'no-store';
 
 export async function GET(incoming: Request, ctx: Ctx) {
   const { id } = await ctx.params;
@@ -14,7 +15,10 @@ export async function GET(incoming: Request, ctx: Ctx) {
   if (!entry || entry.status !== 'available' || !entry.file) {
     return new Response('Not found', {
       status: 404,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': NO_STORE,
+      },
     });
   }
   if (
@@ -30,7 +34,7 @@ export async function GET(incoming: Request, ctx: Ctx) {
     status: 302,
     headers: {
       Location: location,
-      'Cache-Control': CACHE_CONTROL,
+      'Cache-Control': NO_STORE,
     },
   });
 }

@@ -89,14 +89,18 @@ const helperSrc = readFileSync(resolve(process.cwd(), 'lib/catalogues/download-c
 assert.match(routeSrc, /recordCatalogueDownload/);
 assert.doesNotMatch(routeSrc, /searchParams|request\.url|x-forwarded-for|@vercel\/analytics/);
 assert.match(helperSrc, /CATALOGUE_DOWNLOAD_EVENT/);
+assert.match(helperSrc, /await Promise\.race\(/);
+assert.match(helperSrc, /setTimeout\(resolve, CATALOGUE_DOWNLOAD_TRACK_TIMEOUT_MS\)/);
 assert.doesNotMatch(helperSrc, /x-forwarded-for|cookie|incoming\.headers/);
+assert.doesNotMatch(routeSrc, /s-maxage|max-age=/);
+assert.match(routeSrc, /no-store/);
 
 async function main() {
 await withCapture(async (calls) => {
   const res = await GET(request('trade', 'GET', HUMAN), { params: Promise.resolve({ id: 'trade' }) });
   assert.equal(res.status, 302);
   assert.equal(res.headers.get('Location'), catalogueFileUrl(catalogueById('trade')!, { download: true }));
-  assert.equal(res.headers.get('Cache-Control'), 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+  assert.equal(res.headers.get('Cache-Control'), 'no-store');
   assert.equal(calls.length, 1);
   assertNoVisitorLeak(calls[0]!);
 });
@@ -112,6 +116,7 @@ await withCapture(async (calls) => {
     ['recover', 'GET', HUMAN],
   ] as const) {
     const res = await GET(request(id, method, ua), { params: Promise.resolve({ id }) });
+    assert.equal(res.headers.get('Cache-Control'), 'no-store', id);
     if (id === 'trade') assert.equal(res.status, 302, `${method} ${ua}`);
     else assert.equal(res.status, 404, id);
   }
@@ -137,7 +142,19 @@ await withCapture(async (calls) => {
 });
 
 const started = Date.now();
-await recordCatalogueDownload('trade', () => new Promise<void>(() => {}));
+let boundTimer: ReturnType<typeof setTimeout> | undefined;
+try {
+  await Promise.race([
+    recordCatalogueDownload('trade', () => new Promise<void>(() => {})),
+    new Promise<never>((_, reject) => {
+      boundTimer = setTimeout(() => {
+        reject(new Error('analytics bound was not enforced'));
+      }, CATALOGUE_DOWNLOAD_TRACK_TIMEOUT_MS + 400);
+    }),
+  ]);
+} finally {
+  if (boundTimer) clearTimeout(boundTimer);
+}
 const elapsed = Date.now() - started;
 assert.ok(elapsed >= CATALOGUE_DOWNLOAD_TRACK_TIMEOUT_MS - 50, `elapsed ${elapsed}`);
 assert.ok(elapsed < CATALOGUE_DOWNLOAD_TRACK_TIMEOUT_MS + 400, `elapsed ${elapsed}`);
@@ -152,7 +169,18 @@ await recordCatalogueDownload('recover');
 console.log('brief119-catalogue-downloads.test.ts ok');
 }
 
-main().catch((error) => {
-  console.error(error);
+const finished = main();
+const guard = setTimeout(() => {
+  console.error('brief119-catalogue-downloads.test.ts did not finish');
   process.exit(1);
-});
+}, CATALOGUE_DOWNLOAD_TRACK_TIMEOUT_MS + 2_000);
+finished.then(
+  () => {
+    clearTimeout(guard);
+  },
+  (error) => {
+    clearTimeout(guard);
+    console.error(error);
+    process.exit(1);
+  },
+);
