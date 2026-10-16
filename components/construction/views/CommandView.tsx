@@ -14,6 +14,7 @@ import {
   ConstructionStatusPill,
   ConstructionUnavailable,
 } from '@/components/construction/ConstructionUi';
+import { AdvisorProcessFlow } from '@/components/advisors/AdvisorProcessFlow';
 import { deskHref, ScreenState, type DeskProps } from '@/components/construction/desk';
 
 export const commandTestIds = ['command-view', 'command-loading', 'command-empty', 'command-error', 'command-kpi', 'site-action-bar'];
@@ -183,6 +184,9 @@ export function CommandView(props: DeskProps) {
             </ConstructionButton>
           ) : null}
         </ConstructionSection>
+      ) : null}
+      {role !== 'none' ? (
+        <AdvisorProcessFlow module="constructiongraph" role={role} caps={caps} hrefBase={base} />
       ) : null}
       {role === 'none' ? <ConstructionUnavailable /> : null}
       {role === 'site_manager' ? (

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { AdvisorProcessFlow } from '@/components/advisors/AdvisorProcessFlow';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -205,8 +207,25 @@ export function TradeCommand({ base }: { base: string }) {
           })}
         </div>
       </section>
+      <TradeFlowMount base={base} />
     </div>
   );
+}
+
+function TradeFlowMount({ base }: { base: string }) {
+  const { live } = useTradeBook();
+  if (!live) return <TradeFlow base={base} role={undefined} />;
+  return <TradeLiveFlow base={base} />;
+}
+
+function TradeLiveFlow({ base }: { base: string }) {
+  const company = useCompanyRole();
+  const role = company.loading || company.role == null ? undefined : company.role;
+  return <TradeFlow base={base} role={role} />;
+}
+
+function TradeFlow({ base, role }: { base: string; role: string | undefined }) {
+  return <AdvisorProcessFlow module="tradegraph" role={role} hrefBase={base} />;
 }
 
 export function TradeBoard({ base, startNew = false }: { base: string; startNew?: boolean }) {
