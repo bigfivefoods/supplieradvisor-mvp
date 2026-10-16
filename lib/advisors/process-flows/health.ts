@@ -1,0 +1,227 @@
+import type { AdvisorFlowDef, FlowTarget } from './types';
+
+function screen(path: string, label: string): FlowTarget {
+  return { label, scope: 'module', path };
+}
+
+function appPath(path: string, label: string): FlowTarget {
+  return { label, scope: 'app', path };
+}
+
+const audiences = ['department', 'facility', 'sp'] as const;
+
+export const HEALTH_FLOW: AdvisorFlowDef = {
+  module: 'health',
+  product: 'HealthAdvisor®',
+  anchorId: 'health-process-flow',
+  title: 'HealthAdvisor® from the Department of Health to the clinic kitchen',
+  lead: 'The department registers and adds clinics and hospitals. A facility or service provider asks to join. Screens that are still the schools pages say so.',
+  hrefRoot: '/dashboard/health',
+  previewRoot: null,
+  previewPaths: [],
+  roles: [
+    { id: 'department', label: 'Department of Health', openByDefault: true },
+    { id: 'facility', label: 'clinic or hospital', openByDefault: true },
+    { id: 'sp', label: 'service provider', openByDefault: true },
+  ],
+  openWhenRoleUnknown: true,
+  phases: [
+    { id: 'setup', title: 'Set up the programme', subtitle: 'Register the department, then add or join.' },
+    { id: 'supply', title: 'Supply', subtitle: 'The foods catalogue, the facility order, and the delivery.' },
+    { id: 'serve', title: 'Serve, record and report', subtitle: 'The kitchen, the meal record, and the department report.' },
+  ],
+  steps: [
+    {
+      id: 'register',
+      n: 1,
+      phase: 'setup',
+      title: 'Register the department',
+      desc: 'Register the department and open the desk.',
+      who: 'Department of Health',
+      roles: ['department'],
+      status: 'live',
+      to: screen('agency', 'Department desk'),
+      icon: 'building-2',
+      sources: ['app/dashboard/health/agency/page.tsx'],
+      audiences: ['department'],
+    },
+    {
+      id: 'join',
+      n: 2,
+      phase: 'setup',
+      title: 'Add or join',
+      desc: 'The department adds a clinic or hospital already on the platform, or approves a join request. A facility or service provider sends a request to join.',
+      who: 'Department, facility, service provider',
+      roles: audiences,
+      status: 'live',
+      to: screen('join', 'Add or join'),
+      icon: 'users',
+      sources: ['app/dashboard/health/join/page.tsx', 'lib/health/programme-role.ts'],
+      audiences,
+    },
+    {
+      id: 'approve',
+      n: 3,
+      phase: 'setup',
+      title: 'Approve facilities',
+      desc: 'Approve, suspend or reject a facility link on the desk.',
+      who: 'Department of Health',
+      roles: ['department'],
+      status: 'live',
+      to: screen('agency', 'Review facilities'),
+      icon: 'clipboard-check',
+      sources: ['app/dashboard/health/agency/page.tsx'],
+      audiences: ['department'],
+    },
+    {
+      id: 'foods',
+      n: 4,
+      phase: 'supply',
+      title: 'Approved foods',
+      desc: 'Open the foods catalogue the health home already links.',
+      who: 'Department, facility, service provider',
+      roles: audiences,
+      status: 'partial',
+      to: appPath('/dashboard/schools/approved-list', 'Approved foods'),
+      note: 'This opens the schools catalogue. A separate health foods list is not on this screen.',
+      icon: 'book-open',
+      sources: ['app/dashboard/schools/approved-list/page.tsx', 'lib/chrome/module-nav.ts'],
+      audiences,
+    },
+    {
+      id: 'profile',
+      n: 5,
+      phase: 'supply',
+      title: 'Facility profile',
+      desc: 'Open the profile screen the facility home already links.',
+      who: 'Facility',
+      roles: ['facility'],
+      status: 'partial',
+      to: appPath('/dashboard/schools/profile', 'Facility profile'),
+      note: 'This is the schools profile screen. Clinic or hospital type is chosen when joining, not on this screen.',
+      icon: 'building-2',
+      sources: ['app/dashboard/schools/profile/page.tsx'],
+      audiences: ['facility'],
+    },
+    {
+      id: 'order',
+      n: 6,
+      phase: 'supply',
+      title: 'Order',
+      desc: 'Open the orders screen the facility home already links.',
+      who: 'Facility',
+      roles: ['facility'],
+      status: 'partial',
+      to: appPath('/dashboard/schools/orders', 'Orders'),
+      note: 'This is the schools orders screen. A separate health purchase desk is not here.',
+      icon: 'receipt',
+      sources: ['app/dashboard/schools/orders/page.tsx'],
+      audiences: ['facility'],
+    },
+    {
+      id: 'deliver',
+      n: 7,
+      phase: 'supply',
+      title: 'Deliver',
+      desc: 'Open the deliveries screen the service provider home already links.',
+      who: 'Service provider',
+      roles: ['sp'],
+      status: 'partial',
+      to: appPath('/dashboard/schools/deliveries', 'Deliveries'),
+      note: 'This is the schools deliveries screen. A separate clinic dispatch desk is not here.',
+      icon: 'package',
+      sources: ['app/dashboard/schools/deliveries/page.tsx'],
+      audiences: ['sp'],
+    },
+    {
+      id: 'kitchen',
+      n: 8,
+      phase: 'serve',
+      title: 'Kitchen',
+      desc: 'Open the kitchen screen the facility home already links.',
+      who: 'Facility',
+      roles: ['facility'],
+      status: 'partial',
+      to: appPath('/dashboard/schools/kitchen', 'Kitchen'),
+      note: 'This is the schools kitchen screen. It is not a separate clinic kitchen.',
+      icon: 'clipboard-list',
+      sources: ['app/dashboard/schools/kitchen/page.tsx'],
+      audiences: ['facility'],
+    },
+    {
+      id: 'nutrition',
+      n: 9,
+      phase: 'serve',
+      title: 'Nutrition',
+      desc: 'Open the nutrition screen the facility home already links.',
+      who: 'Facility',
+      roles: ['facility'],
+      status: 'partial',
+      to: appPath('/dashboard/schools/nutrition', 'Nutrition'),
+      note: 'This screen compares meals with the school nutrition norms. It is not a clinic record.',
+      icon: 'file-text',
+      sources: ['app/dashboard/schools/nutrition/page.tsx'],
+      audiences: ['facility'],
+    },
+    {
+      id: 'report',
+      n: 10,
+      phase: 'serve',
+      title: 'Coverage report',
+      desc: 'The health report groups linked facilities by district and member type. The nutrition link and the map link open the schools screens.',
+      who: 'Department of Health',
+      roles: ['department'],
+      status: 'partial',
+      to: screen('report', 'Coverage report'),
+      secondary: [
+        appPath('/dashboard/schools/nutrition-agency', 'Nutrition roll-up'),
+        appPath('/dashboard/schools/map', 'Facility map'),
+      ],
+      note: 'The nutrition roll-up is the schools screen, not a separate health roll-up.',
+      icon: 'bar-chart-3',
+      sources: [
+        'app/dashboard/health/report/page.tsx',
+        'app/dashboard/schools/nutrition-agency/page.tsx',
+        'app/dashboard/schools/map/page.tsx',
+      ],
+      audiences: ['department'],
+    },
+  ],
+  guardrails: [
+    {
+      title: 'The diagram waits for a resolved role',
+      body: 'Until the programme role record has loaded, the health home does not draw this diagram. A failed load is not shown as a clinic or hospital.',
+      source: 'app/dashboard/health/page.tsx',
+    },
+    {
+      title: 'Education is a separate module',
+      body: 'The health home says education is a separate module under Schools. This diagram does not turn that module into a health step.',
+      source: 'app/dashboard/health/page.tsx',
+    },
+    {
+      title: 'The coverage report is for the department',
+      body: 'The coverage report loads for a department. Any other role sees a department-only message and no facility table.',
+      source: 'app/dashboard/health/report/page.tsx',
+    },
+    {
+      title: 'Three health addresses are redirects',
+      body: 'The facilities address, the health map address and the management address are redirects. This diagram links to the department desk, the schools map and the report.',
+      source: 'app/dashboard/health/facilities/page.tsx',
+    },
+    {
+      title: 'Several steps open schools screens',
+      body: 'Approved foods, the profile, orders, deliveries, the kitchen, nutrition and the nutrition roll-up are schools screens. They are not a separate clinic record.',
+      source: 'app/dashboard/schools/nutrition/page.tsx',
+    },
+  ],
+  outcome: 'The health home shows the steps for the resolved organisation, and it says when a screen is still a schools page.',
+};
+
+/** Steps whose audiences include this role, renumbered from one for that home. */
+export function sliceHealthFlow(audience: string): AdvisorFlowDef {
+  const steps = HEALTH_FLOW.steps
+    .filter((step) => (step.audiences || []).includes(audience))
+    .map((step, index) => ({ ...step, n: index + 1 }));
+  const phases = HEALTH_FLOW.phases.filter((phase) => steps.some((step) => step.phase === phase.id));
+  return { ...HEALTH_FLOW, steps, phases };
+}

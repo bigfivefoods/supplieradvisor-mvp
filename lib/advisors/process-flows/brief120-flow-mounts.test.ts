@@ -35,6 +35,8 @@ const SHARED_MOUNTED: Record<string, { file: string; moduleAttr: string }> = {
   },
   fleetgraph: { file: 'components/fleet/FleetViews.tsx', moduleAttr: 'module="fleetgraph"' },
   apparelgraph: { file: 'app/dashboard/apparelgraph/page.tsx', moduleAttr: 'module="apparelgraph"' },
+  containers: { file: 'app/dashboard/containers/page.tsx', moduleAttr: 'module="containers"' },
+  health: { file: 'app/dashboard/health/page.tsx', moduleAttr: 'sliceHealthFlow(audience)' },
 };
 
 const later = ADVISOR_OS_MODULE_IDS.filter((id) => !(id in OWN) && !(id in SHARED_MOUNTED));
@@ -113,5 +115,52 @@ assert.match(apparelFlow, /const role = company\.loading \|\| company\.role == n
 assert.match(apparelFlow, /<AdvisorProcessFlow module="apparelgraph" role=\{role\} hrefBase="\/dashboard\/apparelgraph" \/>/);
 assert.equal(/role=\{['"]owner['"]\}/.test(apparelFlow), false);
 assert.equal(/role=\{\s*['"]owner['"]\s*\}/.test(apparelFlow), false);
+
+const containersPage = readFileSync('app/dashboard/containers/page.tsx', 'utf8');
+assert.match(containersPage, /useCompanyRole\(/);
+assert.equal(containersPage.includes('useCompanyRole'), true);
+const gridAt = containersPage.indexOf('<HubModuleGrid');
+const principlesAt = containersPage.indexOf('<HubPrinciples');
+const flowAt = containersPage.indexOf('<ContainersFlow');
+assert.ok(gridAt >= 0 && principlesAt > gridAt && flowAt > gridAt && flowAt < principlesAt);
+const containersFlow = containersPage.slice(containersPage.indexOf('function ContainersFlow'));
+assert.match(containersFlow, /useCompanyRole\(/);
+assert.match(containersFlow, /if \(company\.loading \|\| company\.role == null\) return null;/);
+assert.match(containersFlow, /<AdvisorProcessFlow module="containers" role=\{company\.role\} hrefBase="\/dashboard\/containers" \/>/);
+assert.equal(/role=\{['"]owner['"]\}/.test(containersFlow), false);
+assert.equal(/<AdvisorProcessFlow[^>]*\bcaps=/.test(containersFlow), false);
+assert.equal((containersPage.match(/module="containers"/g) || []).length, 1);
+
+const healthPage = readFileSync('app/dashboard/health/page.tsx', 'utf8');
+const inner = healthPage.slice(healthPage.indexOf('function Inner'));
+const beforeDepartment = inner.slice(0, inner.indexOf("if (programme.role === 'department')"));
+assert.equal(beforeDepartment.includes('HealthFlow'), false);
+const department = inner.slice(
+  inner.indexOf("if (programme.role === 'department')"),
+  inner.indexOf("if (programme.role === 'sp')")
+);
+assert.match(department, /programme\.info\?\.role === 'department'/);
+assert.match(department, /<HealthFlow audience="department" \/>/);
+assert.equal(department.includes('audience="facility"'), false);
+assert.equal(department.includes('audience="sp"'), false);
+const spBlock = inner.slice(inner.indexOf("if (programme.role === 'sp')"), inner.lastIndexOf('\n  return ('));
+const facilityBlock = inner.slice(inner.lastIndexOf('\n  return ('), inner.indexOf('function HealthFlow'));
+assert.match(spBlock, /programme\.info\?\.role === 'sp'/);
+assert.match(spBlock, /<HealthFlow audience="sp" \/>/);
+assert.equal(spBlock.includes('audience="department"'), false);
+assert.equal(spBlock.includes('audience="facility"'), false);
+assert.match(facilityBlock, /programme\.info\?\.role === 'facility'/);
+assert.match(facilityBlock, /<HealthFlow audience="facility" \/>/);
+assert.equal(facilityBlock.includes('audience="department"'), false);
+assert.equal(facilityBlock.includes('audience="sp"'), false);
+const healthFlow = healthPage.slice(healthPage.indexOf('function HealthFlow'));
+assert.match(healthFlow, /sliceHealthFlow\(audience\)/);
+assert.match(healthFlow, /role: audience/);
+assert.match(healthFlow, /audience,/);
+assert.match(healthFlow, /hrefBase: '\/dashboard\/health'/);
+assert.equal(/role:\s*'department'/.test(healthFlow), false);
+assert.equal(/audience:\s*'facility'/.test(healthFlow), false);
+assert.equal(/module="health"/.test(healthPage), false);
+assert.equal((healthPage.match(/sliceHealthFlow\(audience\)/g) || []).length, 1);
 
 console.log('brief120-flow-mounts.test.ts ok');

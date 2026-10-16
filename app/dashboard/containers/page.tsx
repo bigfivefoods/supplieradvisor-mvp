@@ -22,6 +22,8 @@ import {
   Calculator,
   Store,
 } from 'lucide-react';
+import { AdvisorProcessFlow } from '@/components/advisors/AdvisorProcessFlow';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
   CompanyRequired,
@@ -383,6 +385,10 @@ function HubInner() {
 
       <HubModuleGrid modules={modules} />
 
+      <div className="mt-6">
+        <ContainersFlow />
+      </div>
+
       <HubPrinciples
         items={[
           {
@@ -400,5 +406,13 @@ function HubInner() {
         ]}
       />
     </ContainersPage>
+  );
+}
+
+function ContainersFlow() {
+  const company = useCompanyRole();
+  if (company.loading || company.role == null) return null;
+  return (
+    <AdvisorProcessFlow module="containers" role={company.role} hrefBase="/dashboard/containers" />
   );
 }

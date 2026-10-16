@@ -50,9 +50,11 @@ On a signed-out preview (`hrefBase` starts with `/preview/`):
 
 Owner and manager roles start open. Other roles start collapsed. An unknown role starts open when `openWhenRoleUnknown` is true. The choice is not stored.
 
-TradeAdvisor® and ApparelAdvisor® have no module role on the Command page. The signed-in mount reads the company role already cached for the session: owner and admin start open, any other loaded role starts collapsed, and a role that is still loading starts open. The signed-out preview does not call that hook. ApparelAdvisor® has no signed-out preview, so its mount is only on the signed-in Command page.
+TradeAdvisor®, ApparelAdvisor® and ContainerAdvisor® have no module role on the Command page. The signed-in mount reads the company role already cached for the session: owner and admin start open, and any other loaded role starts collapsed. TradeAdvisor® and ApparelAdvisor® still open while that role is loading. ContainerAdvisor® does not mount until the company role is known, so a loading role is not drawn as a viewer. ApparelAdvisor® and ContainerAdvisor® have no signed-out preview, so their mounts are only on the signed-in Command page. The signed-out TradeAdvisor® preview does not call that hook.
 
 Role `none` does not mount the diagram. FleetAdvisor® also leaves it unmounted while the company role has not been read, or while database setup is still pending, so that window is not drawn as a viewer.
+
+HealthAdvisor® has no signed-out preview. Its Command page has three branches. Each branch mounts only the steps whose audiences include that branch, and only after the programme role has loaded. An unresolved role is not drawn as a clinic or hospital. The facilities, health map and management addresses are redirects, so the diagram links to the department desk, the schools map and the report.
 
 ## Colour and the registered mark
 
@@ -62,7 +64,7 @@ Write the registered mark after the product name in prose (`TradeAdvisor®`). Do
 
 ## Modules
 
-The ids live in `ADVISOR_OS_MODULE_IDS`. Own diagrams, including RecoverAdvisor®, are the `OWN` map in the mounts test. Shared diagrams are the keys of `ADVISOR_FLOWS`. TradeAdvisor®, ConstructionAdvisor®, FleetAdvisor® and ApparelAdvisor® are registered today.
+The ids live in `ADVISOR_OS_MODULE_IDS`. Own diagrams, including RecoverAdvisor®, are the `OWN` map in the mounts test. Shared diagrams are the keys of `ADVISOR_FLOWS`. TradeAdvisor®, ConstructionAdvisor®, FleetAdvisor®, ApparelAdvisor®, ContainerAdvisor® and HealthAdvisor® are registered today.
 
 ## Left out on purpose
 

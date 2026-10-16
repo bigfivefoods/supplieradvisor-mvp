@@ -1,6 +1,8 @@
 import { APPARELGRAPH_FLOW } from './apparelgraph';
 import { CONSTRUCTIONGRAPH_FLOW } from './constructiongraph';
+import { CONTAINERS_FLOW } from './containers';
 import { FLEETGRAPH_FLOW } from './fleetgraph';
+import { HEALTH_FLOW } from './health';
 import { TRADEGRAPH_FLOW } from './tradegraph';
 import type { AdvisorFlowDef, AdvisorFlowModuleId } from './types';
 
@@ -14,6 +16,8 @@ export const ADVISOR_FLOWS: Partial<Record<AdvisorFlowModuleId, AdvisorFlowDef>>
   constructiongraph: CONSTRUCTIONGRAPH_FLOW,
   fleetgraph: FLEETGRAPH_FLOW,
   apparelgraph: APPARELGRAPH_FLOW,
+  containers: CONTAINERS_FLOW,
+  health: HEALTH_FLOW,
 };
 
 export function getAdvisorFlow(id: AdvisorFlowModuleId): AdvisorFlowDef | null {

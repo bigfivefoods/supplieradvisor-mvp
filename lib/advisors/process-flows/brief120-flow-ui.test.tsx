@@ -5,6 +5,9 @@ import assert from 'node:assert/strict';
 import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AdvisorProcessFlow } from '../../../components/advisors/AdvisorProcessFlow';
+import { CONTAINERS_FLOW } from './containers';
+import { sliceHealthFlow } from './health';
+import { resolveAdvisorFlow } from './resolve';
 import { capabilitiesFor } from '../../construction/roles';
 import { capabilitiesFor as fleetCaps } from '../../fleet/roles';
 
@@ -175,5 +178,56 @@ const apparelMember = html(
 );
 assert.match(apparelMember, /aria-expanded="false"/);
 assertFlow(apparelMember, 10);
+
+const containersOwner = html(
+  createElement(AdvisorProcessFlow, {
+    module: 'containers',
+    role: 'owner',
+    hrefBase: '/dashboard/containers',
+  })
+);
+assert.match(containersOwner, /aria-expanded="true"/);
+assert.match(containersOwner, /href="\/dashboard\/containers\/add"/);
+assert.match(containersOwner, /not a head count/);
+assert.equal(containersOwner.includes('/dashboard/containers/list'), false);
+assert.equal(containersOwner.includes('/payouts'), false);
+assertFlow(containersOwner, CONTAINERS_FLOW.steps.length);
+
+const containersMember = html(
+  createElement(AdvisorProcessFlow, {
+    module: 'containers',
+    role: 'member',
+    hrefBase: '/dashboard/containers',
+  })
+);
+assert.match(containersMember, /aria-expanded="false"/);
+assertFlow(containersMember, CONTAINERS_FLOW.steps.length);
+
+for (const audience of ['department', 'facility', 'sp'] as const) {
+  const view = resolveAdvisorFlow(sliceHealthFlow(audience), {
+    role: audience,
+    audience,
+    hrefBase: '/dashboard/health',
+  });
+  const markup = html(createElement(AdvisorProcessFlow, { view }));
+  assert.match(markup, /aria-expanded="true"/);
+  assertFlow(markup, view.phases.reduce((sum, phase) => sum + phase.steps.length, 0));
+  assert.equal(markup.includes('/dashboard/health/facilities'), false, audience);
+  assert.equal(markup.includes('/dashboard/health/map'), false, audience);
+  assert.equal(markup.includes('/dashboard/health/management'), false, audience);
+  if (audience === 'department') {
+    assert.match(markup, /href="\/dashboard\/health\/agency"/);
+    assert.equal(markup.includes('/dashboard/schools/kitchen'), false);
+  }
+  if (audience === 'facility') {
+    assert.match(markup, /href="\/dashboard\/schools\/kitchen"/);
+    assert.equal(markup.includes('/dashboard/health/agency'), false);
+  }
+  if (audience === 'sp') {
+    assert.match(markup, /href="\/dashboard\/schools\/deliveries"/);
+    assert.equal(markup.includes('/dashboard/schools/kitchen'), false);
+    assert.equal(markup.includes('/dashboard/health/agency'), false);
+  }
+}
 
 console.log('brief120-flow-ui.test.tsx ok');
