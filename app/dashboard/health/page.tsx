@@ -10,12 +10,16 @@ import {
   MapPinned,
   UtensilsCrossed,
 } from 'lucide-react';
+import { AdvisorProcessFlow } from '@/components/advisors/AdvisorProcessFlow';
 import {
   CompanyRequired,
   HealthHeader,
   HealthPage,
 } from '@/components/health/HealthShell';
+import { resolveAdvisorFlow } from '@/lib/advisors/process-flows';
+import { sliceHealthFlow } from '@/lib/advisors/process-flows/health';
 import { useHealthProgrammeRole } from '@/lib/health/useProgrammeRole';
+import type { HealthProgrammeRole } from '@/lib/health/programme-role';
 
 export default function HealthHomePage() {
   return (
@@ -97,6 +101,11 @@ function Inner() {
             </Link>
           ))}
         </div>
+        {programme.info?.role === 'department' ? (
+          <div className="mt-6">
+            <HealthFlow audience="department" />
+          </div>
+        ) : null}
         <p className="mt-6 text-xs text-slate-500">
           Education (DBE / schools / NSNP) is a separate module under{' '}
           <Link href="/dashboard/schools" className="font-bold text-[#0077b6]">
@@ -137,6 +146,11 @@ function Inner() {
             </p>
           </Link>
         </div>
+        {programme.info?.role === 'sp' ? (
+          <div className="mt-6">
+            <HealthFlow audience="sp" />
+          </div>
+        ) : null}
       </HealthPage>
     );
   }
@@ -192,6 +206,20 @@ function Inner() {
           </Link>
         ))}
       </div>
+      {programme.info?.role === 'facility' ? (
+        <div className="mt-6">
+          <HealthFlow audience="facility" />
+        </div>
+      ) : null}
     </HealthPage>
   );
+}
+
+function HealthFlow({ audience }: { audience: HealthProgrammeRole }) {
+  const view = resolveAdvisorFlow(sliceHealthFlow(audience), {
+    role: audience,
+    audience,
+    hrefBase: '/dashboard/health',
+  });
+  return <AdvisorProcessFlow view={view} />;
 }
