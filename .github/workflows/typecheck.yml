@@ -123,6 +123,10 @@ jobs:
             lib/recovery/brief116-pwa.test.ts \
             lib/recovery/brief116-brand.test.ts \
             lib/recovery/brief116-ui-parity.test.ts \
+            lib/recovery/brief117-process-flow.test.ts \
+            lib/recovery/brief117-process-flow-roles.test.ts \
+            lib/recovery/brief117-book-stats.test.ts \
+            lib/recovery/brief117-accounts-state-link.test.ts \
             lib/chrome/trade-sidebar.test.ts
           do
             if [ -f "$file" ]; then

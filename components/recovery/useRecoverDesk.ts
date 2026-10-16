@@ -3,6 +3,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/member-company';
+import { mapRecoverHref } from '@/lib/recovery/href';
 import type { RecoverIllustration } from '@/lib/recovery/sample-desk';
 import type { RecoverDeskPayload, RecoverOp } from '@/lib/recovery/types';
 
@@ -101,15 +102,12 @@ export function useRecoverLinks() {
   return useContext(LinksContext);
 }
 
+export function useRecoverHrefBase() {
+  return useContext(HrefBaseContext);
+}
+
 export function useRecoverHref(path: string) {
-  const base = useContext(HrefBaseContext);
-  if (!base) return path;
-  const root = '/dashboard/recovergraph';
-  const [basePath, query] = base.split('?');
-  const suffix = query ? `?${query}` : '';
-  if (path === root) return `${basePath}${suffix}`;
-  if (path.startsWith(`${root}/`)) return `${basePath}${path.slice(root.length)}${suffix}`;
-  return path;
+  return mapRecoverHref(path, useContext(HrefBaseContext));
 }
 
 function rememberCompany() {

@@ -9,7 +9,7 @@ import {
   loadRecoverDesk,
   MigrationPendingError,
 } from '@/lib/recovery/recovergraph-db';
-import { deskResponseBody, projectDesk } from '@/lib/recovery/project';
+import { deskResponseBody, projectBookStats, projectDesk } from '@/lib/recovery/project';
 import { loadAccountsForAgent } from '@/lib/recovery/agent-read';
 import { bulkAssignAccounts, commitBook, customerInCompany, findStaffId, setAssignmentBlock, setStaffExpiry } from '@/lib/recovery/book-db';
 import { validateDeskExtra, validateRecoverOp, validateSetRealData } from '@/lib/recovery/validate';
@@ -48,9 +48,23 @@ export async function GET(request: NextRequest) {
     });
     const role = resolveRecoverRole(gate.role, load.self);
     const projected = projectDesk(role, load);
-    if (role !== 'agent' && role !== 'none' && load.ready) {
-      const { loadBookStats } = await import('@/lib/recovery/book-db');
-      projected.book = await loadBookStats(member.member.companyId);
+    if (load.ready && role !== 'none') {
+      const { countAssignedToStaff, loadBookStats } = await import('@/lib/recovery/book-db');
+      if (role === 'agent') {
+        const assigned = load.self?.id ? await countAssignedToStaff(member.member.companyId, load.self.id) : 0;
+        projected.book =
+          assigned == null
+            ? null
+            : projectBookStats('agent', {
+                placedCount: assigned,
+                placedBalanceCents: 0,
+                assignedCount: assigned,
+                unassignedCount: 0,
+                imported: assigned > 0,
+              });
+      } else {
+        projected.book = projectBookStats(role, await loadBookStats(member.member.companyId));
+      }
     }
     return json(deskResponseBody(projected, canRecoveryTrust(gate.role, 'view')));
   } catch (error) {

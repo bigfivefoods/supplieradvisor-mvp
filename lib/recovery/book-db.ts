@@ -1,6 +1,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { decryptId, encryptId } from './pii-crypto';
 import { isMigrationPending, MigrationPendingError, readFeatureResult } from './recovergraph-db';
+import { assembleBookStats, type BookStatsClient } from './book-stats';
 import type { RecoverBookOp, RecoverBookStats } from './types';
 
 const PERSONAL = new Set([
@@ -312,25 +313,52 @@ export async function customerInCompany(companyId: number, customerId: number): 
   return Boolean(result.data?.id);
 }
 
-export async function loadBookStats(companyId: number): Promise<RecoverBookStats | null> {
+function supabaseBookStatsClient(companyId: number): BookStatsClient {
+  const supabase = getSupabaseServer();
+  return {
+    async count(filter) {
+      let query = supabase.from('recover_accounts').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
+      if (filter === 'assigned') query = query.not('assigned_to', 'is', null);
+      if (filter === 'unassigned') query = query.is('assigned_to', null).eq('state', 'active');
+      if (filter === 'arrangement' || filter === 'paid' || filter === 'recalled' || filter === 'closed') {
+        query = query.eq('state', filter);
+      }
+      const result = await query;
+      return { count: result.count, error: result.error };
+    },
+    async balance() {
+      const result = await supabase
+        .from('recover_accounts')
+        .select('balance_cents, state')
+        .eq('company_id', companyId)
+        .limit(2000);
+      return {
+        data: (result.data || null) as { balance_cents?: number | null; state?: string | null }[] | null,
+        error: result.error,
+      };
+    },
+  };
+}
+
+/**
+ * Exact head-counts for the book. No migration.
+ * `placedBalanceCents` stays a sum of the first 2,000 rows. The flow does not show it.
+ */
+export async function loadBookStats(companyId: number, client?: BookStatsClient): Promise<RecoverBookStats | null> {
+  const source = client || supabaseBookStatsClient(companyId);
+  return assembleBookStats(source);
+}
+
+/** Exact count of accounts assigned to one staff row. Null when the table is not ready. */
+export async function countAssignedToStaff(companyId: number, staffId: string): Promise<number | null> {
   const supabase = getSupabaseServer();
   const result = await supabase
     .from('recover_accounts')
-    .select('balance_cents, assigned_to, state')
+    .select('id', { count: 'exact', head: true })
     .eq('company_id', companyId)
-    .limit(2000);
+    .eq('assigned_to', staffId);
   if (isMigrationPending(result.error) || result.error) return null;
-  const rows = (result.data || []) as { balance_cents?: number; assigned_to?: string | null; state?: string }[];
-  const active = rows.filter((row) => row.state === 'active' || !row.state);
-  return {
-    placedCount: rows.length,
-    placedBalanceCents: active.reduce((sum, row) => sum + Number(row.balance_cents || 0), 0),
-    assignedCount: rows.filter((row) => row.assigned_to).length,
-    unassignedCount: rows.filter((row) => !row.assigned_to && (row.state === 'active' || !row.state)).length,
-    imported: rows.length > 0,
-    arrangementCount: rows.filter((row) => row.state === 'arrangement').length,
-    paidCount: rows.filter((row) => row.state === 'paid').length,
-  };
+  return result.count ?? 0;
 }
 
 async function loadAccountLabels(companyId: number, rows: Record<string, unknown>[]) {

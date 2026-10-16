@@ -1,5 +1,6 @@
 import { capabilitiesFor } from './roles';
 import type {
+  RecoverBookStats,
   RecoverCreditor,
   RecoverDeskPayload,
   RecoverMandate,
@@ -16,8 +17,60 @@ export type RecoverLoad = {
   mandates: RecoverMandate[];
   staff: RecoverStaff[];
   self: RecoverStaff | null;
-  book?: import('./types').RecoverBookStats | null;
+  book?: RecoverBookStats | null;
 };
+
+/**
+ * Book figures each role may receive.
+ * Owner and manager receive every field.
+ * Finance and compliance keep the balance, because the command page already
+ * prints it for them. They also receive the count fields.
+ * Viewer keeps placed, imported, and the balance (the placed card already
+ * prints it) and zeros assigned and unassigned, matching the previous
+ * projection. Arrangement, paid, recalled, and closed are omitted.
+ * Agent receives only their own assignedCount, plus imported. Balance is 0
+ * and is not a workspace total. placedCount is that same assigned count so
+ * older cards cannot show the whole book.
+ */
+export function projectBookStats(
+  role: RecoverRole,
+  stats: RecoverBookStats | null | undefined
+): RecoverBookStats | null {
+  if (!stats || role === 'none') return null;
+  if (role === 'owner' || role === 'manager') return { ...stats };
+  if (role === 'finance' || role === 'compliance') {
+    return {
+      placedCount: stats.placedCount,
+      placedBalanceCents: stats.placedBalanceCents,
+      assignedCount: stats.assignedCount,
+      unassignedCount: stats.unassignedCount,
+      imported: stats.imported,
+      arrangementCount: stats.arrangementCount,
+      paidCount: stats.paidCount,
+      recalledCount: stats.recalledCount,
+      closedCount: stats.closedCount,
+    };
+  }
+  if (role === 'viewer') {
+    return {
+      placedCount: stats.placedCount,
+      placedBalanceCents: stats.placedBalanceCents,
+      assignedCount: 0,
+      unassignedCount: 0,
+      imported: stats.imported,
+    };
+  }
+  if (role === 'agent') {
+    return {
+      placedCount: stats.assignedCount,
+      placedBalanceCents: 0,
+      assignedCount: stats.assignedCount,
+      unassignedCount: 0,
+      imported: stats.imported,
+    };
+  }
+  return null;
+}
 
 function publicWorkspace(workspace: RecoverWorkspace | null, role: RecoverRole): RecoverWorkspace | null {
   if (!workspace) return null;
@@ -63,27 +116,7 @@ export function projectDesk(role: RecoverRole, load: RecoverLoad): RecoverDeskPa
     mandates: agent || role === 'none' ? [] : load.mandates,
     staff: agent || role === 'none' ? [] : load.staff,
     self: load.self,
-    book: agent
-      ? load.book
-        ? {
-            placedCount: load.book.assignedCount,
-            placedBalanceCents: 0,
-            assignedCount: load.book.assignedCount,
-            unassignedCount: 0,
-            imported: load.book.imported,
-          }
-        : null
-      : role === 'viewer'
-        ? load.book
-          ? {
-              placedCount: load.book.placedCount,
-              placedBalanceCents: load.book.placedBalanceCents,
-              assignedCount: 0,
-              unassignedCount: 0,
-              imported: load.book.imported,
-            }
-          : null
-        : load.book ?? null,
+    book: projectBookStats(role, load.book),
   };
 }
 
