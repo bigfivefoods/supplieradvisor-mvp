@@ -151,6 +151,7 @@ assert.doesNotMatch(CATALOGUE_FILE_BASE_URL, /\{\{|REPLACE/);
 
 const hygieneRoots = [
   resolve(root, 'lib/catalogues.ts'),
+  resolve(root, 'lib/catalogues/download-count.ts'),
   resolve(root, 'components/marketing/HomeCatalogues.tsx'),
 ];
 function walk(dir: string, into: string[]) {
