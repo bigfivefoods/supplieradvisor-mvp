@@ -52,7 +52,7 @@ Owner and manager roles start open. Other roles start collapsed. An unknown role
 
 TradeAdvisor® and ApparelAdvisor® have no module role on the Command page. The signed-in mount reads the company role already cached for the session: owner and admin start open, any other loaded role starts collapsed, and a role that is still loading starts open. The signed-out preview does not call that hook. ApparelAdvisor® has no signed-out preview, so its mount is only on the signed-in Command page.
 
-Role `none` does not mount the diagram.
+Role `none` does not mount the diagram. FleetAdvisor® also leaves it unmounted while the company role has not been read, or while database setup is still pending, so that window is not drawn as a viewer.
 
 ## Colour and the registered mark
 

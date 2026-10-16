@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -50,16 +51,38 @@ async function noHorizontalOverflow(page: Page) {
 let axeSourcePromise: Promise<string> | null = null;
 
 const AXE_FILE = join(process.cwd(), 'e2e/vendor/axe-core-4.10.2.min.js');
+const AXE_NOTE = join(process.cwd(), 'e2e/vendor/PROVENANCE.txt');
+const AXE_SHA256 = 'b511cd9dec01c76f4b2ad1723b66b6db37d4c2eb4ed199076e1829d9ee7b75e3';
+const AXE_BYTES = 553290;
+
+function vendoredAxe(): string | null {
+  let bytes: Buffer;
+  try {
+    bytes = readFileSync(AXE_FILE);
+  } catch {
+    return null;
+  }
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  if (bytes.length !== AXE_BYTES || hash !== AXE_SHA256) {
+    throw new Error(`vendored axe-core failed the size or hash check (${bytes.length} ${hash})`);
+  }
+  return bytes.toString('utf8');
+}
+
+test('vendored axe-core matches its provenance note', () => {
+  const note = readFileSync(AXE_NOTE, 'utf8');
+  expect(note).toContain('https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js');
+  expect(note).toContain('4.10.2');
+  expect(note).toContain(AXE_SHA256);
+  expect(note).toContain('MPL-2.0');
+  expect(vendoredAxe()?.length).toBe(AXE_BYTES);
+});
 
 async function getAxeSource() {
   if (!axeSourcePromise) {
     axeSourcePromise = (async () => {
-      try {
-        const local = readFileSync(AXE_FILE, 'utf8');
-        if (local.length > 0) return local;
-      } catch {
-        // The vendored file is the normal source. A mirror is only a fallback.
-      }
+      const local = vendoredAxe();
+      if (local) return local;
       const urls = [
         'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js',
         'https://cdn.jsdelivr.net/npm/axe-core@4.10.2/axe.min.js',

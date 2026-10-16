@@ -120,6 +120,7 @@ const fleetOwner = html(
 assert.match(fleetOwner, /aria-expanded="true"/);
 assert.match(fleetOwner, /You are the owner/);
 assert.match(fleetOwner, /href="\/dashboard\/fleetgraph\/cpk"/);
+assert.match(fleetOwner, /href="\/dashboard\/fleetgraph\/vehicles"[^>]*>Running costs</);
 assertFlow(fleetOwner, 10);
 
 const dispatcher = html(
@@ -134,6 +135,8 @@ assert.match(dispatcher, /aria-expanded="false"/);
 assert.match(dispatcher, /Not available to your role/);
 assert.equal(dispatcher.includes('href="/dashboard/fleetgraph/cpk"'), false);
 assert.equal(dispatcher.includes('href="/dashboard/fleetgraph/import"'), false);
+assert.equal(/href="\/dashboard\/fleetgraph\/vehicles"[^>]*>Running costs</.test(dispatcher), false);
+assert.match(dispatcher, /Running costs/);
 assertFlow(dispatcher, 10);
 
 const fleetPreview = html(

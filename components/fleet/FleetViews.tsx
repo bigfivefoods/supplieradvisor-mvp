@@ -22,7 +22,7 @@ import {
   vehicleStatusLabel,
 } from '@/lib/fleet/labels';
 import { nextMonth, periodFor, type PeriodId } from '@/lib/fleet/periods';
-import type { FleetCapabilities } from '@/lib/fleet/roles';
+import { fleetProcessRole, type FleetCapabilities } from '@/lib/fleet/roles';
 import type { FleetBook, FleetOp, FleetReadiness, FleetRole } from '@/lib/fleet/types';
 import { ComplianceView, DriverDetailView, ImportView, RemindersPanel, VehicleDetailView } from './ComplianceViews';
 import { CpkWaterfallArt, DispatchArt, ExpiryStripArt, FleetRegisterArt, MapSketchArt, PodArt } from './Illustrations';
@@ -65,6 +65,7 @@ export type FleetDeskProps = {
   today: string;
   notice?: string | null;
   migrationPending?: boolean;
+  roleResolved?: boolean;
   illustrate?: boolean;
   webPush?: 'ready' | 'not_configured';
   subjectId?: string;
@@ -322,8 +323,13 @@ function CommandView(props: FleetDeskProps) {
 }
 
 function FleetFlow(props: FleetDeskProps) {
-  if (props.role === 'none') return null;
-  return <AdvisorProcessFlow module="fleetgraph" role={props.role} caps={props.caps} hrefBase={props.hrefBase} />;
+  const flowRole = fleetProcessRole({
+    role: props.role,
+    migrationPending: props.migrationPending,
+    roleResolved: props.roleResolved,
+  });
+  if (!flowRole) return null;
+  return <AdvisorProcessFlow module="fleetgraph" role={flowRole} caps={props.caps} hrefBase={props.hrefBase} />;
 }
 
 function fleetRollup(rows: VehicleCpk[], periodId: PeriodId, windowDays: number): {

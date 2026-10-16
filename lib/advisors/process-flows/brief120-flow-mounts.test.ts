@@ -9,6 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ADVISOR_OS_MODULE_IDS } from '../../chrome/functional-nav';
+import { fleetProcessRole } from '../../fleet/roles';
 import { ADVISOR_FLOWS } from './index';
 
 const OWN: Record<string, { file: string; marker: string }> = {
@@ -69,8 +70,22 @@ for (const id of later) {
 const fleet = readFileSync('components/fleet/FleetViews.tsx', 'utf8');
 assert.equal(fleet.includes('useCompanyRole'), false);
 assert.equal((fleet.match(/module="fleetgraph"/g) || []).length, 1);
-assert.match(fleet, /function FleetFlow\(props: FleetDeskProps\) \{\s*if \(props\.role === 'none'\) return null;/);
-assert.match(fleet, /<AdvisorProcessFlow module="fleetgraph" role=\{props\.role\} caps=\{props\.caps\} hrefBase=\{props\.hrefBase\} \/>/);
+assert.match(fleet, /function FleetFlow\(props: FleetDeskProps\) \{\s*const flowRole = fleetProcessRole\(\{/);
+assert.match(fleet, /if \(!flowRole\) return null;/);
+assert.match(fleet, /<AdvisorProcessFlow module="fleetgraph" role=\{flowRole\} caps=\{props\.caps\} hrefBase=\{props\.hrefBase\} \/>/);
+assert.equal(fleetProcessRole({ role: 'owner', migrationPending: true, roleResolved: true }), undefined);
+assert.equal(fleetProcessRole({ role: 'owner', roleResolved: false }), undefined);
+assert.equal(fleetProcessRole({ role: 'viewer', migrationPending: true }), undefined);
+assert.equal(fleetProcessRole({ role: 'none' }), undefined);
+assert.equal(fleetProcessRole({ role: null }), undefined);
+assert.equal(fleetProcessRole({ role: 'owner' }), 'owner');
+assert.equal(fleetProcessRole({ role: 'dispatcher', roleResolved: true }), 'dispatcher');
+const live = readFileSync('components/fleet/FleetLive.tsx', 'utf8');
+const pending = live.slice(live.indexOf('if (body.ready === false)'), live.indexOf('if (body.book)'));
+assert.match(pending, /setRoleResolved\(false\)/);
+assert.equal(pending.includes('setRole('), false);
+assert.match(live, /roleResolved=\{roleResolved\}/);
+assert.match(live, /const \[roleResolved, setRoleResolved\] = useState\(false\)/);
 const commandStart = fleet.indexOf('function CommandView');
 const commandEnd = fleet.indexOf('function fleetRollup');
 const command = fleet.slice(commandStart, commandEnd);
@@ -92,5 +107,11 @@ const branch = apparel.slice(apparel.indexOf('loading || !summary'));
 const loading = branch.slice(0, branch.indexOf(') : ('));
 assert.equal(loading.includes('ApparelFlow'), false);
 assert.equal(branch.includes('<ApparelFlow'), true);
+const apparelFlow = apparel.slice(apparel.indexOf('function ApparelFlow'));
+assert.match(apparelFlow, /useCompanyRole\(/);
+assert.match(apparelFlow, /const role = company\.loading \|\| company\.role == null \? undefined : company\.role/);
+assert.match(apparelFlow, /<AdvisorProcessFlow module="apparelgraph" role=\{role\} hrefBase="\/dashboard\/apparelgraph" \/>/);
+assert.equal(/role=\{['"]owner['"]\}/.test(apparelFlow), false);
+assert.equal(/role=\{\s*['"]owner['"]\s*\}/.test(apparelFlow), false);
 
 console.log('brief120-flow-mounts.test.ts ok');

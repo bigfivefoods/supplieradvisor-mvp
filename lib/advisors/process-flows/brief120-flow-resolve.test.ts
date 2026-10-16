@@ -222,14 +222,18 @@ for (const role of fleetRoles) {
   const costs = byId('costs');
   const cpk = byId('cpk');
   const imported = vehicles.secondary.find((link) => link.label === 'Import');
+  const running = costs.secondary.find((link) => link.label === 'Running costs');
   assert.ok(imported, role);
+  assert.ok(running, role);
   assert.equal(byId('dispatch').linkHref, null, role);
   assert.equal(byId('invoicing').linkHref, null, role);
   assert.equal(byId('jobs').state, 'partial', role);
   assert.equal(byId('map').state, 'partial', role);
   assert.equal(typeof byId('map').linkHref, 'string', role);
+  assert.equal(typeof byId('settings').linkHref, 'string', role);
   const gated: Array<[string, boolean, string | null]> = [
-    ['costs', caps.seesCosts, costs.linkHref],
+    ['costs', caps.canEditRegister, costs.linkHref],
+    ['running', caps.seesCosts, running.href],
     ['cpk', caps.seesCosts, cpk.linkHref],
     ['import', caps.canImportCsv, imported.href],
   ];
@@ -249,7 +253,9 @@ const priced = resolveAdvisorFlow(FLEETGRAPH_FLOW, {
 });
 const pricedSteps = priced.phases.flatMap((phase) => phase.steps);
 assert.equal(pricedSteps.find((step) => step.id === 'cpk')?.linkHref, null);
-assert.equal(pricedSteps.find((step) => step.id === 'costs')?.linkHref, null);
+const pricedCosts = pricedSteps.find((step) => step.id === 'costs');
+assert.equal(typeof pricedCosts?.linkHref, 'string');
+assert.equal(pricedCosts?.secondary.find((link) => link.label === 'Running costs')?.href, null);
 
 const fleetPreview = resolveAdvisorFlow(FLEETGRAPH_FLOW, {
   role: 'owner',

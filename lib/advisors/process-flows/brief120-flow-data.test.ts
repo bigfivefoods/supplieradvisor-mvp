@@ -136,6 +136,41 @@ for (const flow of flows) {
 }
 
 const ALLOWED_NUMBERS = ['15 percent'];
+const NUMBER_WORDS = [
+  'zero',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+  'ten',
+  'eleven',
+  'twelve',
+  'thirteen',
+  'fourteen',
+  'fifteen',
+  'sixteen',
+  'seventeen',
+  'eighteen',
+  'nineteen',
+  'twenty',
+  'thirty',
+  'forty',
+  'fifty',
+  'sixty',
+  'seventy',
+  'eighty',
+  'ninety',
+  'hundred',
+  'thousand',
+];
+const spelledPercent = new RegExp(`\\b(${NUMBER_WORDS.join('|')})\\s+percent\\b`, 'i');
+assert.equal(spelledPercent.test('Twelve percent of the fleet'), true);
+assert.equal(spelledPercent.test('in one place'), false);
 
 function visibleCopy(flow: AdvisorFlowDef): string[] {
   const lines = [flow.product, flow.title, flow.lead, flow.outcome];
@@ -160,6 +195,7 @@ for (const flow of flows) {
     let rest = line;
     for (const phrase of ALLOWED_NUMBERS) rest = rest.split(phrase).join('');
     assert.equal(/\d/.test(rest), false, `${flow.module} copy has a number outside the allow-list: ${line}`);
+    assert.equal(spelledPercent.test(line), false, `${flow.module} copy spells a percent: ${line}`);
   }
 }
 
@@ -198,15 +234,25 @@ const fleetStep = (id: string) => {
 assert.equal(fleetStep('jobs').status, 'partial');
 assert.match(fleetStep('jobs').note || '', /not switched on/);
 assert.equal(fleetStep('map').status, 'partial');
+assert.match(fleetStep('map').desc, /last odometer distance/);
+assert.match(fleetStep('map').desc, /not a place on a map/);
+assert.equal(/last recorded/.test(fleetStep('map').desc), false);
 assert.match(fleetStep('map').note || '', /Live positions launching soon/);
 assert.equal(fleetStep('dispatch').status, 'soon');
 assert.equal(fleetStep('dispatch').to, null);
 assert.equal(fleetStep('invoicing').status, 'soon');
 assert.equal(fleetStep('invoicing').to, null);
-assert.deepEqual([...fleetStep('costs').roles], ['owner', 'manager']);
-assert.equal(fleetStep('costs').to?.needs, 'seesCosts');
+assert.deepEqual([...fleetStep('vehicles').roles], ['owner', 'manager', 'dispatcher']);
+assert.notDeepEqual(fleetStep('vehicles').roles, []);
+assert.deepEqual([...fleetStep('costs').roles], ['owner', 'manager', 'dispatcher']);
+assert.equal(fleetStep('costs').to?.needs, 'canEditRegister');
+assert.equal(fleetStep('costs').secondary?.find((target) => target.label === 'Running costs')?.needs, 'seesCosts');
+assert.match(fleetStep('costs').desc, /dispatcher records an odometer reading/);
+assert.match(fleetStep('costs').desc, /owner or a manager also records a running cost/);
 assert.equal(fleetStep('cpk').to?.needs, 'seesCosts');
 assert.deepEqual([...fleetStep('cpk').roles], ['owner', 'manager', 'office']);
+assert.equal(fleetStep('settings').to?.needs, undefined);
+assert.equal((fleetStep('settings').secondary || []).some((target) => target.needs), false);
 assert.equal(fleetStep('vehicles').secondary?.find((target) => target.path === 'import')?.needs, 'canImportCsv');
 for (const role of fleet.roles) {
   const open = role.id === 'owner' || role.id === 'manager';
@@ -250,6 +296,10 @@ assert.ok(release);
 assert.match(release.body, /four-point/);
 assert.match(release.body, /NBC date is past/);
 assert.match(release.body, /QA hold is open/);
+assert.match(release.body, /does not stop a shipment/);
+const apparelVisible = visibleCopy(apparel).join('\n');
+assert.equal(/\bstop a ship\b/i.test(apparelVisible), false);
+assert.match(apparel.lead, /ship screen shows when release is blocked/);
 assert.equal(apparel.previewRoot, null);
 assert.equal(apparel.previewPaths.length, 0);
 

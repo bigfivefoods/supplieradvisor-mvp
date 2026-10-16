@@ -24,7 +24,7 @@ export const APPARELGRAPH_FLOW: AdvisorFlowDef = {
   product: 'ApparelAdvisor®',
   anchorId: 'apparelgraph-process-flow',
   title: 'ApparelAdvisor® from range plan to shipped order',
-  lead: 'Plan the season, make it, sell it against what is available, and ship it. A quality hold can stop a ship.',
+  lead: 'Plan the season, make it, sell it against what is available, and ship it. The ship screen shows when release is blocked.',
   hrefRoot: '/dashboard/apparelgraph',
   previewRoot: null,
   previewPaths: [],
@@ -186,8 +186,8 @@ export const APPARELGRAPH_FLOW: AdvisorFlowDef = {
   ],
   guardrails: [
     {
-      title: 'A gate or a hold can stop a release',
-      body: 'Release stays blocked while a four-point, shade, gold-seal or AQL gate fails, while an NBC date is past, or while a QA hold is open.',
+      title: 'The ship screen shows when release is blocked',
+      body: 'The ship screen shows release blocked while a four-point, shade, gold-seal or AQL gate fails, while an NBC date is past, or while a QA hold is open. The screen does not stop a shipment.',
       source: 'lib/apparel/apparelgraph.ts',
     },
     {
@@ -206,5 +206,5 @@ export const APPARELGRAPH_FLOW: AdvisorFlowDef = {
       source: 'app/dashboard/apparelgraph/samples/page.tsx',
     },
   ],
-  outcome: 'The season stays on one desk from the range plan through to the ship, and release waits while a gate or a hold is open.',
+  outcome: 'The season stays on one desk from the range plan through to the ship screen, which shows when release is blocked.',
 };
