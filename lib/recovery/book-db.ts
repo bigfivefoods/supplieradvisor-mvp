@@ -1,6 +1,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { decryptId, encryptId } from './pii-crypto';
 import { isMigrationPending, MigrationPendingError, readFeatureResult } from './recovergraph-db';
+import { assembleBookStats, type BookStatsClient } from './book-stats';
 import type { RecoverBookOp, RecoverBookStats } from './types';
 
 const PERSONAL = new Set([
@@ -312,25 +313,76 @@ export async function customerInCompany(companyId: number, customerId: number): 
   return Boolean(result.data?.id);
 }
 
-export async function loadBookStats(companyId: number): Promise<RecoverBookStats | null> {
+function supabaseBookStatsClient(companyId: number): BookStatsClient {
   const supabase = getSupabaseServer();
-  const result = await supabase
-    .from('recover_accounts')
-    .select('balance_cents, assigned_to, state')
-    .eq('company_id', companyId)
-    .limit(2000);
-  if (isMigrationPending(result.error) || result.error) return null;
-  const rows = (result.data || []) as { balance_cents?: number; assigned_to?: string | null; state?: string }[];
-  const active = rows.filter((row) => row.state === 'active' || !row.state);
   return {
-    placedCount: rows.length,
-    placedBalanceCents: active.reduce((sum, row) => sum + Number(row.balance_cents || 0), 0),
-    assignedCount: rows.filter((row) => row.assigned_to).length,
-    unassignedCount: rows.filter((row) => !row.assigned_to && (row.state === 'active' || !row.state)).length,
-    imported: rows.length > 0,
-    arrangementCount: rows.filter((row) => row.state === 'arrangement').length,
-    paidCount: rows.filter((row) => row.state === 'paid').length,
+    async count(filter) {
+      let query = supabase.from('recover_accounts').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
+      if (filter === 'assigned') query = query.not('assigned_to', 'is', null);
+      if (filter === 'unassigned') query = query.is('assigned_to', null).eq('state', 'active');
+      if (filter === 'arrangement' || filter === 'paid' || filter === 'recalled' || filter === 'closed') {
+        query = query.eq('state', filter);
+      }
+      const result = await query;
+      return { count: result.count, error: result.error };
+    },
+    async balance() {
+      const result = await supabase
+        .from('recover_accounts')
+        .select('balance_cents, state')
+        .eq('company_id', companyId)
+        .limit(2000);
+      return {
+        data: (result.data || null) as { balance_cents?: number | null; state?: string | null }[] | null,
+        error: result.error,
+      };
+    },
   };
+}
+
+/**
+ * Exact head-counts for the book. No migration.
+ * `placedBalanceCents` stays a sum of the first 2,000 rows. The flow does not show it.
+ */
+export async function loadBookStats(companyId: number, client?: BookStatsClient): Promise<RecoverBookStats | null> {
+  const source = client || supabaseBookStatsClient(companyId);
+  return assembleBookStats(source);
+}
+
+const STAFF_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Exact count of accounts the agent read would return: assigned to this
+ * active staff row, or placed on that row's team. Company is always filtered.
+ * Null when the table is not ready or the count query fails.
+ */
+export async function countAccountsForAgent(companyId: number, staffId: string): Promise<number | null> {
+  if (!STAFF_UUID.test(staffId)) return 0;
+  const supabase = getSupabaseServer();
+  const staff = await supabase
+    .from('recover_staff')
+    .select('id, team_id, status')
+    .eq('company_id', companyId)
+    .eq('id', staffId)
+    .maybeSingle();
+  if (isMigrationPending(staff.error) || staff.error) return null;
+  const teamId = staff.data?.status === 'active' && staff.data.team_id ? String(staff.data.team_id) : null;
+  if (!staff.data || staff.data.status !== 'active') return 0;
+  let query = supabase.from('recover_accounts').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
+  if (teamId && STAFF_UUID.test(teamId)) {
+    query = query.or(`assigned_to.eq.${staffId},team_id.eq.${teamId}`);
+  } else {
+    query = query.eq('assigned_to', staffId);
+  }
+  const result = await query;
+  if (isMigrationPending(result.error) || result.error) return null;
+  if (result.count == null) return null;
+  return result.count;
+}
+
+/** @deprecated Use countAccountsForAgent. Kept so callers share the agent-read scope. */
+export async function countAssignedToStaff(companyId: number, staffId: string): Promise<number | null> {
+  return countAccountsForAgent(companyId, staffId);
 }
 
 async function loadAccountLabels(companyId: number, rows: Record<string, unknown>[]) {
