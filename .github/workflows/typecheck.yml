@@ -129,7 +129,11 @@ jobs:
             lib/recovery/brief117-accounts-state-link.test.ts \
             lib/recovery/brief117-process-flow-ui.test.ts \
             lib/recovery/brief117-scope.test.ts \
-            lib/chrome/trade-sidebar.test.ts
+            lib/chrome/trade-sidebar.test.ts \
+            lib/onboarding/brief118-write-order.test.ts \
+            lib/billing/brief118-access.test.ts \
+            lib/onboarding/brief118-profile-columns.test.ts \
+            lib/onboarding/register-profile.test.ts
           do
             if [ -f "$file" ]; then
               if [ "$file" = "lib/recovery/brief116-pii.test.ts" ]; then
@@ -138,7 +142,8 @@ jobs:
                 npx --yes tsx "$file"
               fi
             else
-              echo "Skipping missing test: $file"
+              echo "::error::Missing test file: $file"
+              exit 1
             fi
           done
       - name: ConstructionAdvisor portal tests
@@ -283,3 +288,33 @@ jobs:
         env:
           FLEET_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fleetgraph
         run: npx --yes tsx lib/fleet/brief115-db.test.ts
+
+  profiles-registration-db:
+    name: profiles registration Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: profiles118
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d profiles118"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Run profiles registration column migration
+        env:
+          PROFILES_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/profiles118
+        run: npx --yes tsx lib/onboarding/brief118-profiles-db.test.ts
