@@ -54,7 +54,14 @@ export function CatalogueCard({
             >
               See the industry page
             </a>
-          ) : null}
+          ) : (
+            <span
+              className="invisible hidden min-h-11 items-center text-sm font-bold sm:inline-flex lg:hidden"
+              aria-hidden="true"
+            >
+              See the industry page
+            </span>
+          )}
         </div>
       </div>
     </article>

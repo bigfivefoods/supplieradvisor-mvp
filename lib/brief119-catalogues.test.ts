@@ -165,14 +165,26 @@ walk(resolve(root, 'app/catalogues'), hygieneRoots);
 
 const cyanFills = /bg-\[#(?:22d3ee|0099b8|0ea5e9|06b6d4|14b8a6|2dd4bf|0891b2|0e7490|38bdf8|0284c7)\]/;
 
-for (const file of hygieneRoots) {
-  const src = readFileSync(file, 'utf8');
-  assert.doesNotMatch(src, /kwaden/i, file);
-  assert.doesNotMatch(src, /next\/script|<script|dangerouslySetInnerHTML/, file);
-  assert.doesNotMatch(src, /from\s+['"][^'"]*(privy|viem|wagmi|undici)/i, file);
-  assert.doesNotMatch(src, cyanFills, file);
-  for (const match of src.matchAll(/'([^'\\]*)'|"([^"\\]*)"|`([^`$]*)`/g)) {
-    const className = match[1] ?? match[2] ?? match[3] ?? '';
+/** Quoted strings plus template literals. `${name}` is replaced when `name` is a string const. */
+function classStrings(src: string): string[] {
+  const consts = new Map<string, string>();
+  for (const match of src.matchAll(/const\s+([A-Za-z0-9_]+)\s*=\s*(?:'([^'\\]*)'|"([^"\\]*)"|`([^`$]*)`)/g)) {
+    consts.set(match[1]!, match[2] ?? match[3] ?? match[4] ?? '');
+  }
+  const flatten = (raw: string) =>
+    raw.replace(/\$\{([^{}]*)\}/g, (_, expr: string) => consts.get(expr.trim()) ?? ' ');
+  const found: string[] = [];
+  for (const match of src.matchAll(/'([^'\\]*)'|"([^"\\]*)"/g)) {
+    found.push(match[1] ?? match[2] ?? '');
+  }
+  for (const match of src.matchAll(/`([^`]*)`/g)) {
+    found.push(flatten(match[1] ?? ''));
+  }
+  return found;
+}
+
+function assertNavyOnCyan(file: string, src: string) {
+  for (const className of classStrings(src)) {
     if (!className.includes('bg-[#00b4d8]')) continue;
     assert.ok(
       className.includes('text-[#0f172a]') || className.includes('sa-btn-brand'),
@@ -181,6 +193,31 @@ for (const file of hygieneRoots) {
     assert.doesNotMatch(className, /text-white/, `${file} white text on cyan: ${className}`);
   }
 }
+
+for (const file of hygieneRoots) {
+  const src = readFileSync(file, 'utf8');
+  assert.doesNotMatch(src, /kwaden/i, file);
+  assert.doesNotMatch(src, /next\/script|<script|dangerouslySetInnerHTML/, file);
+  assert.doesNotMatch(src, /from\s+['"][^'"]*(privy|viem|wagmi|undici)/i, file);
+  assert.doesNotMatch(src, cyanFills, file);
+  assertNavyOnCyan(file, src);
+}
+
+const buttonSrc = readFileSync(resolve(root, 'components/catalogues/CatalogueDownloadButton.tsx'), 'utf8');
+assertNavyOnCyan('components/catalogues/CatalogueDownloadButton.tsx', buttonSrc);
+const focusConst = (name: string) => {
+  const match = buttonSrc.match(new RegExp(`export const ${name} =\\n  '([^']*)'`));
+  assert.ok(match, name);
+  return match[1]!;
+};
+const onCyan = focusConst('CATALOGUE_FOCUS_ON_CYAN');
+assert.match(onCyan, /outline-\[#0f172a\]/);
+assert.doesNotMatch(onCyan, /dark:|#00b4d8/);
+const onGradient = focusConst('CATALOGUE_FOCUS_ON_GRADIENT');
+assert.match(onGradient, /outline-white/);
+assert.doesNotMatch(onGradient, /#00b4d8/);
+assert.match(buttonSrc, /tone === 'cyan'[\s\S]{0,120}CATALOGUE_FOCUS_ON_CYAN/);
+assert.match(buttonSrc, /focus === 'on-dark'[\s\S]{0,80}CATALOGUE_FOCUS_ON_GRADIENT/);
 
 const tradeCommand = readFileSync(resolve(root, 'components/trades/TradeScreens.tsx'), 'utf8');
 const fleetCommand = readFileSync(resolve(root, 'components/fleet/FleetViews.tsx'), 'utf8');
