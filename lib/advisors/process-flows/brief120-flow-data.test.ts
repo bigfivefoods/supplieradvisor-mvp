@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { ADVISOR_FLOWS } from './index';
-import type { AdvisorFlowDef } from './types';
+import { FLOW_ICON_NAMES, type AdvisorFlowDef } from './types';
 
 function read(file: string): string {
   return readFileSync(file, 'utf8');
@@ -72,8 +72,10 @@ const flows = Object.values(ADVISOR_FLOWS).filter((flow): flow is AdvisorFlowDef
 assert.ok(flows.length > 0);
 
 const doc = read('docs/advisor-process-flows.md');
+assert.match(doc, /ADVISOR_FLOWS/);
+assert.match(doc, /brief120-flow-mounts\.test\.ts/);
+assert.match(doc, /FLOW_ICON_NAMES/);
 for (const flow of flows) {
-  assert.equal(doc.includes(flow.module), true, `doc lists ${flow.module}`);
   assert.equal(flow.anchorId.includes('®'), false);
   assert.equal(flow.module.includes('®'), false);
   assert.equal(flow.product.includes('®'), true, flow.module);
@@ -131,6 +133,66 @@ for (const flow of flows) {
     assert.equal(link.path.includes('®'), false);
     if (link.needs) assert.equal(caps.includes(link.needs), true, link.needs);
   }
+}
+
+const ALLOWED_NUMBERS = ['15 percent'];
+
+function visibleCopy(flow: AdvisorFlowDef): string[] {
+  const lines = [flow.product, flow.title, flow.lead, flow.outcome];
+  for (const phase of flow.phases) lines.push(phase.title, phase.subtitle);
+  for (const role of flow.roles) lines.push(role.label);
+  for (const step of flow.steps) {
+    lines.push(step.title, step.desc, step.who);
+    if (step.note) lines.push(step.note);
+    if (step.to) lines.push(step.to.label);
+    for (const extra of step.secondary || []) lines.push(extra.label);
+  }
+  for (const guard of flow.guardrails) lines.push(guard.title, guard.body);
+  if (flow.around) {
+    lines.push(flow.around.title);
+    for (const link of flow.around.links) lines.push(link.label);
+  }
+  return lines;
+}
+
+for (const flow of flows) {
+  for (const line of visibleCopy(flow)) {
+    let rest = line;
+    for (const phrase of ALLOWED_NUMBERS) rest = rest.split(phrase).join('');
+    assert.equal(/\d/.test(rest), false, `${flow.module} copy has a number outside the allow-list: ${line}`);
+  }
+}
+
+const construction = flows.find((flow) => flow.module === 'constructiongraph');
+assert.ok(construction);
+const quotes = construction.steps.find((step) => step.id === 'quotes');
+const trades = construction.steps.find((step) => step.id === 'trades');
+const claims = construction.steps.find((step) => step.id === 'claims');
+assert.ok(quotes && trades && claims);
+assert.equal(quotes.status, 'partial');
+assert.equal(trades.status, 'partial');
+assert.equal(quotes.desc.includes('beside'), false);
+assert.match(quotes.desc, /listed under the quotes/);
+assert.equal(claims.desc.toLowerCase().includes('approved'), false);
+assert.match(claims.desc, /certifies a claim/);
+assert.equal(claims.to?.needs, 'canCertify');
+const certificates = claims?.secondary?.find((target) => target.path === 'certificates');
+const portal = construction.steps.find((step) => step.id === 'reports')?.secondary?.find((target) => target.path === 'portal');
+assert.equal(certificates?.needs, 'canCertify');
+assert.equal(portal?.needs, 'canManagePortals');
+const siteMoney = construction.guardrails.find((item) => item.source.endsWith('constructiongraph/route.ts'));
+assert.ok(siteMoney);
+assert.match(siteMoney.body, /includes those claims and certificates again/);
+assert.equal(siteMoney.body.includes('not to this desk'), false);
+const diary = construction.guardrails.find((item) => item.title.toLowerCase().includes('diary') || item.body.toLowerCase().includes('sign-off'));
+assert.ok(diary);
+assert.equal(diary.body.toLowerCase().includes('addendum'), false);
+
+const component = read('components/advisors/AdvisorProcessFlow.tsx');
+for (const name of FLOW_ICON_NAMES) {
+  const quoted = component.includes(`'${name}':`) || component.includes(`"${name}":`);
+  const bare = new RegExp(`(?:^|\\n)\\s*${name}:`).test(component);
+  assert.equal(quoted || bare, true, `ICONS map is missing ${name}`);
 }
 
 for (const file of walkLib('lib/advisors/process-flows')) {

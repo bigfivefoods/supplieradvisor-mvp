@@ -124,6 +124,7 @@ function StepBody({ step }: { step: FlowNodeView }) {
     <>
       <div className="flex items-start gap-2">
         <span
+          data-flow-badge
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-black"
           style={{ backgroundColor: FLOW_BRAND.accent, color: FLOW_BRAND.ink }}
         >
@@ -148,13 +149,13 @@ function StepCard({ step }: { step: FlowNodeView }) {
   const shared = `block min-h-11 w-full min-w-0 rounded-2xl border border-[#e2e8f0] p-3 text-left ${mine} ${focusRing}`;
   if (step.linkHref) {
     return (
-      <Link href={step.linkHref} aria-label={step.ariaLabel} className={`${shared} hover:border-[#00b4d8]`} prefetch={false}>
+      <Link href={step.linkHref} className={`${shared} hover:border-[#00b4d8]`} prefetch={false}>
         <StepBody step={step} />
       </Link>
     );
   }
   return (
-    <div aria-disabled="true" aria-label={step.ariaLabel} className={shared}>
+    <div aria-disabled="true" className={shared}>
       <StepBody step={step} />
     </div>
   );

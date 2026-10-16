@@ -1,6 +1,8 @@
 /**
  * Shared process-flow types. No React, no Date, no network.
- * recovergraph is reserved until that module moves onto this component.
+ * recovergraph keeps its own diagram and is not registered here.
+ * FLOW_ICON_NAMES is the icon set. AdvisorProcessFlow maps every name;
+ * a module that reuses a name needs no component edit.
  */
 export type AdvisorFlowModuleId =
   | 'tradegraph'

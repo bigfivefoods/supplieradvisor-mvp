@@ -13,16 +13,20 @@ One shared diagram for an advisor Command page. The component draws whatever a t
 | `AdvisorFlowView` | What the component renders after `resolveAdvisorFlow` |
 | `FlowNodeView` | One step in that view: `id`, `n`, `title`, `desc`, `who`, `icon`, `state`, `linkHref`, `chips`, `mine`, `ariaLabel`, `secondary` |
 
-`recovergraph` is a reserved module id. It is not in `ADVISOR_FLOWS` until that module's own diagram is converted.
+`recovergraph` has its own diagram (`RecoverProcessFlow`) and is not in `ADVISOR_FLOWS`.
 
 ## How to add a module
 
 1. Add `lib/advisors/process-flows/<module>.ts` exporting an `AdvisorFlowDef`. Read the screens before writing the copy. If a step is less built than it looks, mark it `partial` or `soon`.
 2. Register it in `ADVISOR_FLOWS` inside `lib/advisors/process-flows/index.ts`. That map is the only registry.
 3. Mount `<AdvisorProcessFlow module="..." />` once on that module's Command page. Pass the role, capability object, and `hrefBase` the page already has.
-4. Add one row to the mount table in `lib/advisors/process-flows/brief120-flow-mounts.test.ts`.
+4. Add one row to `SHARED_MOUNTED` in `lib/advisors/process-flows/brief120-flow-mounts.test.ts`.
 
-No new route, no sidebar edit, no migration.
+Ids that are not in that mount table and not in its `OWN` map are not registered. The test derives that remainder from `ADVISOR_OS_MODULE_IDS`, so there is no second list to edit.
+
+Reuse an icon from `FLOW_ICON_NAMES`. A new picture is one name in that list and one entry in the `ICONS` map in `components/advisors/AdvisorProcessFlow.tsx`. TypeScript rejects a name with no icon. A module that reuses a name does not edit the component.
+
+No new route, no sidebar edit, no migration. This doc does not keep a per-module id table.
 
 ## Status
 
@@ -58,26 +62,7 @@ Write the registered mark after the product name in prose (`TradeAdvisor®`). Do
 
 ## Modules
 
-| Module id | Diagram | Mount | In the shared registry |
-| --- | --- | --- | --- |
-| `fitgraph` | GymAdvisor® own diagram | `app/dashboard/fitgraph/page.tsx` | No |
-| `physiograph` | PhysioAdvisor® own diagram | `app/dashboard/physiograph/page.tsx` | No |
-| `dentalgraph` | DentalAdvisor® own diagram | `app/dashboard/dentalgraph/page.tsx` | No |
-| `psychiatrygraph` | PsychiatryAdvisor® own diagram | `app/dashboard/psychiatrygraph/page.tsx` | No |
-| `medicalgraph` | MedicalAdvisor® own diagram | `app/dashboard/medicalgraph/page.tsx` | No |
-| `vetgraph` | VetAdvisor® own diagram | `app/dashboard/vetgraph/page.tsx` | No |
-| `hiregraph` | HireAdvisor® own diagram | `app/dashboard/hiregraph/page.tsx` | No |
-| `retailgraph` | RetailAdvisor® own diagram | `app/dashboard/retailgraph/page.tsx` | No |
-| `quarrygraph` | QuarryAdvisor® own diagram | `app/dashboard/quarrygraph/page.tsx` | No |
-| `fieldgraph` | CropAdvisor® own diagram | `app/dashboard/fieldgraph/page.tsx` | No |
-| `schools` | SchoolAdvisor® own diagram | `app/dashboard/schools/page.tsx` | No |
-| `tradegraph` | `tradegraph` | `components/trades/TradeScreens.tsx` | Yes |
-| `constructiongraph` | `constructiongraph` | `components/construction/views/CommandView.tsx` | Yes |
-| `fleetgraph` | shared component, not registered yet | FleetAdvisor® Command, later | No |
-| `apparelgraph` | shared component, not registered yet | ApparelAdvisor® Command, later | No |
-| `containers` | shared component, not registered yet | ContainerAdvisor® Command, later | No |
-| `health` | shared component, not registered yet | HealthAdvisor® Command, later | No |
-| `recovergraph` | pending on its own component | RecoverAdvisor® Command | No |
+The ids live in `ADVISOR_OS_MODULE_IDS`. Own diagrams, including RecoverAdvisor®, are the `OWN` map in the mounts test. Shared diagrams are the keys of `ADVISOR_FLOWS`. TradeAdvisor® and ConstructionAdvisor® are registered today.
 
 ## Left out on purpose
 

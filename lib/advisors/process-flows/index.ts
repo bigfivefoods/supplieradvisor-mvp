@@ -5,7 +5,7 @@ import type { AdvisorFlowDef, AdvisorFlowModuleId } from './types';
 /**
  * One entry per module that uses the shared flow.
  * Adding a module is a data file plus one line here, then one mount.
- * recovergraph stays off this map until its own component is converted.
+ * recovergraph stays off this map. It has its own diagram.
  */
 export const ADVISOR_FLOWS: Partial<Record<AdvisorFlowModuleId, AdvisorFlowDef>> = {
   tradegraph: TRADEGRAPH_FLOW,

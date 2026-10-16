@@ -67,7 +67,7 @@ export const CONSTRUCTIONGRAPH_FLOW: AdvisorFlowDef = {
       n: 2,
       phase: 'win',
       title: 'Quote a project',
-      desc: 'Start a quote and keep the BOQ lines beside it. Amounts are as entered; the book does not calculate VAT.',
+      desc: 'Start a quote with a title. BOQ lines already on the book are listed under the quotes. Amounts are as entered; the book does not calculate VAT.',
       who: 'Owner, Office',
       roles: ['owner', 'office'],
       status: 'partial',
@@ -161,13 +161,13 @@ export const CONSTRUCTIONGRAPH_FLOW: AdvisorFlowDef = {
       n: 8,
       phase: 'change',
       title: 'Claims, certificates and costs',
-      desc: 'Progress claims, certificates issued once a claim is approved, and actual costs allocated to the project. Amounts are as entered.',
+      desc: 'Progress claims, a certificate when the office certifies a claim, and actual costs allocated to the project. Amounts are as entered.',
       who: 'Owner, Office',
       roles: ['owner', 'office'],
       status: 'live',
-      to: screen('payments', 'Payments'),
+      to: screen('payments', 'Payments', 'canCertify'),
       secondary: [
-        screen('certificates', 'Certificates', 'canSeeMoney'),
+        screen('certificates', 'Certificates', 'canCertify'),
         screen('costs', 'Costs', 'canSeeCostsAndBoq'),
       ],
       icon: 'wallet',
@@ -219,9 +219,9 @@ export const CONSTRUCTIONGRAPH_FLOW: AdvisorFlowDef = {
       source: 'components/construction/views/RegisterViews.tsx',
     },
     {
-      title: 'Site managers do not see money on the desk',
-      body: 'A site manager response omits money. The owner switch for payment amounts applies to the workers app, not to this desk.',
-      source: 'lib/construction/roles.ts',
+      title: 'Site manager claims follow the owner switch',
+      body: 'The desk hides claims and certificates from a site manager. When the owner allows workers to see payment amounts, that site manager response includes those claims and certificates again. Costs stay off that response.',
+      source: 'app/api/construction/constructiongraph/route.ts',
     },
     {
       title: 'Workers see payment amounts only when the owner turns that on',
@@ -230,7 +230,7 @@ export const CONSTRUCTIONGRAPH_FLOW: AdvisorFlowDef = {
     },
     {
       title: 'Sign-off locks the diary day',
-      body: 'Sign-off locks the day. A signed day is not rewritten; a later note is an addendum.',
+      body: 'Sign-off locks that day. The screen does not edit a signed day.',
       source: 'components/construction/views/OpsViews.tsx',
     },
     {

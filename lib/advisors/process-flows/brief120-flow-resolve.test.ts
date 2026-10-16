@@ -16,7 +16,13 @@ assert.equal(flowDefaultOpen(CONSTRUCTIONGRAPH_FLOW, 'missing'), false);
 assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, 'owner'), true);
 assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, 'admin'), true);
 assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, 'operations'), false);
+assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, 'member'), false);
 assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, undefined), true);
+for (const role of TRADEGRAPH_FLOW.roles) {
+  const open = role.id === 'owner' || role.id === 'admin';
+  assert.equal(role.openByDefault, open, role.id);
+  assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, role.id), open, role.id);
+}
 
 const owner = resolveAdvisorFlow(CONSTRUCTIONGRAPH_FLOW, {
   role: 'owner',
@@ -144,5 +150,35 @@ const other = resolveAdvisorFlow(
   { hrefBase: '/dashboard/tradegraph', audience: 'department' }
 );
 assert.equal(other.phases[0]?.steps[0]?.mine, false);
+
+const roles = ['owner', 'site_manager', 'office', 'viewer', 'none'] as const;
+for (const role of roles) {
+  const caps = capabilitiesFor(role);
+  const view = resolveAdvisorFlow(CONSTRUCTIONGRAPH_FLOW, {
+    role,
+    caps,
+    hrefBase: '/dashboard/constructiongraph',
+  });
+  const steps = view.phases.flatMap((phase) => phase.steps);
+  const quoteStep = steps.find((step) => step.id === 'quotes');
+  const claimStep = steps.find((step) => step.id === 'claims');
+  const reportStep = steps.find((step) => step.id === 'reports');
+  assert.ok(quoteStep && claimStep && reportStep);
+  const certificate = claimStep.secondary.find((link) => link.label === 'Certificates');
+  const cost = claimStep.secondary.find((link) => link.label === 'Costs');
+  const portalLink = reportStep.secondary.find((link) => link.label === 'Portal');
+  assert.ok(certificate && cost && portalLink);
+  const gated: Array<[string, boolean, string | null]> = [
+    ['quotes', caps.canSeeCostsAndBoq, quoteStep.linkHref],
+    ['payments', caps.canCertify, claimStep.linkHref],
+    ['certificates', caps.canCertify, certificate.href],
+    ['costs', caps.canSeeCostsAndBoq, cost.href],
+    ['portal', caps.canManagePortals, portalLink.href],
+  ];
+  for (const [name, allowed, href] of gated) {
+    if (allowed) assert.equal(typeof href, 'string', `${role} ${name}`);
+    else assert.equal(href, null, `${role} ${name}`);
+  }
+}
 
 console.log('brief120-flow-resolve.test.ts ok');

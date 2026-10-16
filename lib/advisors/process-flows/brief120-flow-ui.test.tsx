@@ -11,6 +11,19 @@ function html(node: ReactElement): string {
   return renderToStaticMarkup(node);
 }
 
+function openingTag(markup: string, marker: string): string {
+  const at = markup.indexOf(marker);
+  assert.ok(at >= 0, marker);
+  const start = markup.lastIndexOf('<', at);
+  return markup.slice(start, markup.indexOf('>', start) + 1);
+}
+
+function assertNavyOnCyan(tag: string) {
+  assert.match(tag, /background-color:#00b4d8/);
+  assert.match(tag, /color:#0f172a/);
+  assert.doesNotMatch(tag, /color:#fff\b|color:#ffffff|color:white|color:rgb\(255,\s*255,\s*255\)/i);
+}
+
 function liCount(markup: string): number {
   return markup.match(/<li\b/g)?.length || 0;
 }
@@ -31,9 +44,12 @@ function assertFlow(markup: string, steps: number) {
   assert.equal(markup.includes('amber-'), false);
   assert.equal(markup.includes('stone-'), false);
   assert.equal(markup.includes('text-white'), false);
-  const header = markup.slice(markup.indexOf('data-flow-header'), markup.indexOf('advisor-flow-toggle'));
-  assert.equal(header.includes('#00b4d8'), true);
-  assert.equal(header.includes('#0f172a'), true);
+  assert.equal(markup.includes('aria-label='), false);
+  const header = openingTag(markup, 'data-flow-header');
+  assertNavyOnCyan(header);
+  const badges = markup.match(/<span[^>]*data-flow-badge[^>]*>/g) || [];
+  assert.ok(badges.length > 0);
+  for (const badge of badges) assertNavyOnCyan(badge);
   const soonBlocks = markup.split('data-flow-state="soon"').slice(1);
   for (const block of soonBlocks) {
     const card = block.slice(0, block.indexOf('</li>'));

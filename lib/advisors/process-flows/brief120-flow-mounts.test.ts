@@ -1,5 +1,10 @@
 /**
  * Run: npx --yes tsx lib/advisors/process-flows/brief120-flow-mounts.test.ts
+ *
+ * OWN is every module that already has its own diagram.
+ * SHARED_MOUNTED is every module on AdvisorProcessFlow.
+ * Anything else in ADVISOR_OS_MODULE_IDS is not registered. That remainder
+ * is derived, so adding a shared module does not edit a second id list.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -18,6 +23,7 @@ const OWN: Record<string, { file: string; marker: string }> = {
   quarrygraph: { file: 'app/dashboard/quarrygraph/page.tsx', marker: 'QuarrygraphSystemFlow' },
   fieldgraph: { file: 'app/dashboard/fieldgraph/page.tsx', marker: 'FieldgraphSystemFlow' },
   schools: { file: 'app/dashboard/schools/page.tsx', marker: 'NsnpSystemFlow' },
+  recovergraph: { file: 'components/recovery/RecoverCommand.tsx', marker: 'RecoverProcessFlow' },
 };
 
 const SHARED_MOUNTED: Record<string, { file: string; moduleAttr: string }> = {
@@ -28,15 +34,8 @@ const SHARED_MOUNTED: Record<string, { file: string; moduleAttr: string }> = {
   },
 };
 
-const SHARED_LATER = ['fleetgraph', 'apparelgraph', 'containers', 'health'] as const;
-const PENDING = ['recovergraph'] as const;
-
-const accounted = [
-  ...Object.keys(OWN),
-  ...Object.keys(SHARED_MOUNTED),
-  ...SHARED_LATER,
-  ...PENDING,
-];
+const later = ADVISOR_OS_MODULE_IDS.filter((id) => !(id in OWN) && !(id in SHARED_MOUNTED));
+const accounted = [...Object.keys(OWN), ...Object.keys(SHARED_MOUNTED), ...later];
 assert.deepEqual([...accounted].sort(), [...ADVISOR_OS_MODULE_IDS].sort());
 
 for (const [id, row] of Object.entries(OWN)) {
@@ -53,11 +52,16 @@ for (const [id, row] of Object.entries(SHARED_MOUNTED)) {
   assert.ok(ADVISOR_FLOWS[id as keyof typeof ADVISOR_FLOWS], id);
 }
 
-for (const id of SHARED_LATER) {
-  assert.equal(ADVISOR_FLOWS[id], undefined, id);
-}
-for (const id of PENDING) {
-  assert.equal(ADVISOR_FLOWS[id], undefined, id);
+const trade = readFileSync('components/trades/TradeScreens.tsx', 'utf8');
+const tradeCommand = trade.slice(trade.indexOf('export function TradeCommand'), trade.indexOf('function TradeFlowMount'));
+assert.match(tradeCommand, /<TradeFlowMount\b/);
+
+const construction = readFileSync('components/construction/views/CommandView.tsx', 'utf8');
+assert.match(construction, /role !== 'none' \? \(\s*<AdvisorProcessFlow\b/);
+assert.equal((construction.match(/<AdvisorProcessFlow\b/g) || []).length, 1);
+
+for (const id of later) {
+  assert.equal(ADVISOR_FLOWS[id as keyof typeof ADVISOR_FLOWS], undefined, id);
 }
 
 console.log('brief120-flow-mounts.test.ts ok');
