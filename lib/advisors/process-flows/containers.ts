@@ -207,7 +207,7 @@ export const CONTAINERS_FLOW: AdvisorFlowDef = {
     },
     {
       title: 'A reseller draw checks status',
-      body: 'The stock-draw route refuses a reseller whose status is not verified or a mismatch.',
+      body: 'The stock-draw route allows a reseller whose status is verified or a mismatch, and it refuses every other status.',
       source: 'app/api/containers/resellers/transfer/route.ts',
     },
     {

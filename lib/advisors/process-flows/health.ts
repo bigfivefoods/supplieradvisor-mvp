@@ -78,7 +78,7 @@ export const HEALTH_FLOW: AdvisorFlowDef = {
       n: 4,
       phase: 'supply',
       title: 'Approved foods',
-      desc: 'Open the foods catalogue the health home already links.',
+      desc: 'Open the schools foods catalogue. The department home and the facility home already link it. The service provider home does not.',
       who: 'Department, facility, service provider',
       roles: audiences,
       status: 'partial',
@@ -204,7 +204,7 @@ export const HEALTH_FLOW: AdvisorFlowDef = {
       source: 'app/dashboard/health/report/page.tsx',
     },
     {
-      title: 'Three health addresses are redirects',
+      title: 'The facilities, map and management addresses are redirects',
       body: 'The facilities address, the health map address and the management address are redirects. This diagram links to the department desk, the schools map and the report.',
       source: 'app/dashboard/health/facilities/page.tsx',
     },
@@ -217,11 +217,32 @@ export const HEALTH_FLOW: AdvisorFlowDef = {
   outcome: 'The health home shows the steps for the resolved organisation, and it says when a screen is still a schools page.',
 };
 
+/** Subtitles for the steps that audience actually has. The shared phase lines name the whole chain. */
+const phaseSubtitleFor: Record<string, Record<string, string>> = {
+  department: {
+    setup: 'Register the department, then add or join.',
+    supply: 'The foods catalogue.',
+    serve: 'The department report.',
+  },
+  facility: {
+    setup: 'Ask to join the programme.',
+    supply: 'The foods catalogue, the profile, and the order.',
+    serve: 'The kitchen and the meal record.',
+  },
+  sp: {
+    setup: 'Ask to join the programme.',
+    supply: 'The foods catalogue and the delivery.',
+  },
+};
+
 /** Steps whose audiences include this role, renumbered from one for that home. */
 export function sliceHealthFlow(audience: string): AdvisorFlowDef {
   const steps = HEALTH_FLOW.steps
     .filter((step) => (step.audiences || []).includes(audience))
     .map((step, index) => ({ ...step, n: index + 1 }));
-  const phases = HEALTH_FLOW.phases.filter((phase) => steps.some((step) => step.phase === phase.id));
+  const overrides = phaseSubtitleFor[audience] || {};
+  const phases = HEALTH_FLOW.phases
+    .filter((phase) => steps.some((step) => step.phase === phase.id))
+    .map((phase) => ({ ...phase, subtitle: overrides[phase.id] || phase.subtitle }));
   return { ...HEALTH_FLOW, steps, phases };
 }

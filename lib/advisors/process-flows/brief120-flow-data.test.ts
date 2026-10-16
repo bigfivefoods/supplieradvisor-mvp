@@ -172,6 +172,20 @@ const NUMBER_WORDS = [
 const spelledPercent = new RegExp(`\\b(${NUMBER_WORDS.join('|')})\\s+percent\\b`, 'i');
 assert.equal(spelledPercent.test('Twelve percent of the fleet'), true);
 assert.equal(spelledPercent.test('in one place'), false);
+const SPELLED_COUNT_ALLOW = ['one desk', 'one picture', 'one place', 'one diary entry'];
+const spelledCount = new RegExp(`\\b(${NUMBER_WORDS.join('|')})\\s+[A-Za-z]`, 'i');
+
+function hasSpelledCount(line: string): boolean {
+  let rest = line;
+  for (const phrase of SPELLED_COUNT_ALLOW) rest = rest.replace(new RegExp(`\\b${phrase}\\b`, 'gi'), ' ');
+  return spelledCount.test(rest);
+}
+
+assert.equal(hasSpelledCount('forty operators'), true);
+assert.equal(hasSpelledCount('fifty facility links'), true);
+assert.equal(hasSpelledCount('on one desk'), false);
+assert.equal(hasSpelledCount('in one picture'), false);
+assert.equal(hasSpelledCount('in one place'), false);
 
 function visibleCopy(flow: AdvisorFlowDef): string[] {
   const lines = [flow.product, flow.title, flow.lead, flow.outcome];
@@ -197,6 +211,7 @@ for (const flow of flows) {
     for (const phrase of ALLOWED_NUMBERS) rest = rest.split(phrase).join('');
     assert.equal(/\d/.test(rest), false, `${flow.module} copy has a number outside the allow-list: ${line}`);
     assert.equal(spelledPercent.test(line), false, `${flow.module} copy spells a percent: ${line}`);
+    assert.equal(hasSpelledCount(line), false, `${flow.module} copy spells a count: ${line}`);
   }
 }
 
@@ -331,7 +346,9 @@ assert.match(containersStep('training').note || '', /View only/);
 assert.match(containersStep('outlet').note || '', /redirect/);
 assert.match(containersStep('metrics').note || '', /not a separate exact total/);
 assert.match(containers.guardrails.find((item) => item.source.endsWith('contractor-invite/route.ts'))?.body || '', /does not read an identity-check status/);
-assert.match(containers.guardrails.find((item) => item.source.endsWith('transfer/route.ts'))?.body || '', /mismatch/);
+const transferBody = containers.guardrails.find((item) => item.source.endsWith('transfer/route.ts'))?.body || '';
+assert.match(transferBody, /allows a reseller whose status is verified or a mismatch/);
+assert.match(transferBody, /refuses every other status/);
 assert.match(containers.guardrails.find((item) => item.source.endsWith('settings/page.tsx'))?.body || '', /settings page/);
 assert.match(containers.guardrails.find((item) => item.source.endsWith('summary/route.ts'))?.body || '', /does not show those totals/);
 for (const role of containers.roles) {
@@ -381,6 +398,9 @@ for (const step of health.steps) {
   }
 }
 assert.equal(healthStep('foods').to?.path, '/dashboard/schools/approved-list');
+assert.match(healthStep('foods').desc, /department home and the facility home already link it/);
+assert.match(healthStep('foods').desc, /service provider home does not/);
+assert.equal(/health home already links/.test(healthStep('foods').desc), false);
 assert.equal(healthStep('report').secondary?.some((target) => target.path === '/dashboard/schools/map'), true);
 assert.equal(healthStep('report').secondary?.some((target) => target.path === '/dashboard/schools/nutrition-agency'), true);
 assert.match(healthStep('nutrition').note || '', /not a clinic record/);
@@ -402,6 +422,37 @@ for (const audience of ['department', 'facility', 'sp']) {
 assert.equal(sliceHealthFlow('sp').phases.some((phase) => phase.id === 'serve'), false);
 assert.equal(sliceHealthFlow('department').steps.some((step) => step.id === 'kitchen'), false);
 assert.equal(sliceHealthFlow('facility').steps.some((step) => step.id === 'register'), false);
+const phaseSubtitles: Record<string, Record<string, string>> = {
+  department: {
+    setup: 'Register the department, then add or join.',
+    supply: 'The foods catalogue.',
+    serve: 'The department report.',
+  },
+  facility: {
+    setup: 'Ask to join the programme.',
+    supply: 'The foods catalogue, the profile, and the order.',
+    serve: 'The kitchen and the meal record.',
+  },
+  sp: {
+    setup: 'Ask to join the programme.',
+    supply: 'The foods catalogue and the delivery.',
+  },
+};
+for (const audience of ['department', 'facility', 'sp']) {
+  const text = sliceHealthFlow(audience).phases.map((phase) => `${phase.id}:${phase.subtitle}`).join('\n');
+  const expected = phaseSubtitles[audience];
+  for (const [id, subtitle] of Object.entries(expected)) {
+    assert.match(text, new RegExp(`^${id}:${subtitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'), audience);
+  }
+  if (audience !== 'department') assert.equal(/Register the department/.test(text), false, audience);
+  if (audience !== 'facility') {
+    assert.equal(/facility order/.test(text), false, audience);
+    assert.equal(/\bkitchen\b/.test(text), false, audience);
+    assert.equal(/meal record/.test(text), false, audience);
+  }
+  if (audience !== 'sp') assert.equal(/\bdelivery\b/.test(text), false, audience);
+  if (audience !== 'department') assert.equal(/department report/.test(text), false, audience);
+}
 
 const component = read('components/advisors/AdvisorProcessFlow.tsx');
 for (const name of FLOW_ICON_NAMES) {
