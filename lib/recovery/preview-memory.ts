@@ -1,5 +1,7 @@
+import { summariseBookRows } from './book-stats';
 import { harbourBatches, HARBOUR_AGENCY, HARBOUR_CREDITORS, HARBOUR_TEAM, HARBOUR_TODAY } from './harbour-seed';
 import { fileSha256, parseBookCsv, suggestMapping, validateBook } from './import-book';
+import { projectBookStats } from './project';
 import { capabilitiesFor } from './roles';
 import type { AllocationLabel, ProductType, RecoverBookStats, RecoverDeskPayload, RecoverRole } from './types';
 
@@ -216,18 +218,20 @@ export function clearHarbourSession() {
   sessionStorage.removeItem(HARBOUR_SESSION);
 }
 
-export function bookStats(book: MemoryBook, role: RecoverRole): RecoverBookStats {
-  const rows = visibleAccounts(book, role);
-  const active = rows.filter((row) => row.state === 'active');
-  return {
-    placedCount: role === 'viewer' ? book.accounts.length : rows.length,
-    placedBalanceCents: active.reduce((sum, row) => sum + row.balance_cents, 0),
-    assignedCount: book.accounts.filter((row) => row.assignee).length,
-    unassignedCount: book.accounts.filter((row) => !row.assignee && row.state === 'active').length,
-    imported: book.batches.some((batch) => batch.status === 'imported'),
-    arrangementCount: rows.filter((row) => row.state === 'arrangement').length,
-    paidCount: rows.filter((row) => row.state === 'paid').length,
-  };
+export function bookStats(book: MemoryBook, role: RecoverRole): RecoverBookStats | null {
+  const full = summariseBookRows(
+    book.accounts.map((row) => ({
+      balance_cents: row.balance_cents,
+      assigned_to: row.assignee,
+      state: row.state,
+    }))
+  );
+  if (book.batches.some((batch) => batch.status === 'imported')) full.imported = true;
+  if (role === 'agent') {
+    const mine = book.accounts.filter((row) => row.assignee === 'pieter').length;
+    return projectBookStats('agent', { ...full, assignedCount: mine });
+  }
+  return projectBookStats(role, full);
 }
 
 export function visibleAccounts(book: MemoryBook, role: RecoverRole): MemoryAccount[] {

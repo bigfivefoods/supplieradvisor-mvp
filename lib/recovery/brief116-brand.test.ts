@@ -14,9 +14,12 @@ assert.equal(RECOVER_BRAND.ink, '#0f172a');
 const files = [
   'components/recovery/book-views.tsx',
   'components/recovery/RecoverInstalled.tsx',
+  'components/recovery/RecoverProcessFlow.tsx',
   'components/recovery/RecoverUi.tsx',
   'lib/recovery/harbour-seed.ts',
+  'lib/recovery/process-flow.ts',
   'docs/recoveradvisor-book.md',
+  'docs/recoveradvisor-process-flow.md',
 ];
 const bannedName = [ ['kwa', 'den'].join(''), ['dr', 'inc'].join('') ];
 const claims = ['compliant', 'certified', 'legally', 'lawful', 'approved by the regulator'];

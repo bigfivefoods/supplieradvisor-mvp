@@ -145,12 +145,21 @@ export type AccountState = 'active' | 'arrangement' | 'dispute' | 'legal' | 'pai
 
 export type RecoverBookStats = {
   placedCount: number;
-  placedBalanceCents: number;
+  /**
+   * Sum of active balances, or null when that query failed.
+   * Null is unavailable: it must not be shown as R 0,00.
+   * The live loader still reads only the first 2,000 balance rows.
+   * Counts elsewhere on this object are exact. The process flow does not display this figure.
+   */
+  placedBalanceCents: number | null;
   assignedCount: number;
   unassignedCount: number;
   imported: boolean;
   arrangementCount?: number;
   paidCount?: number;
+  recalledCount?: number;
+  /** Accounts in state `closed` only. Not `prescribed` or `stopped`. */
+  closedCount?: number;
 };
 
 export type RecoverCapabilities = {

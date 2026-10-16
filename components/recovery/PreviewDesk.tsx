@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { RECOVER_DEMO_BANNER } from '@/lib/recovery/brand';
 import { recovergraphNavSteps, recoverSidebarSteps } from '@/lib/recovery/nav';
 import { blankDesk, illustrationFor, sampleDesk } from '@/lib/recovery/sample-desk';
@@ -28,6 +28,7 @@ import {
   writeHarbourSession,
   type MemoryBook,
 } from '@/lib/recovery/preview-memory';
+import { accountStateFromQuery } from '@/lib/recovery/href';
 import { capabilitiesFor } from '@/lib/recovery/roles';
 import { HARBOUR_CREDITORS, HARBOUR_CUSTOMERS, HARBOUR_TEAM } from '@/lib/recovery/harbour-seed';
 import { PreviewBookProvider, RecoverPreviewProvider, useRecoverIllustration, type DeskSave } from './useRecoverDesk';
@@ -228,6 +229,7 @@ const MemoryContext = createContext<{
 export function PreviewDesk({ view }: { view: string }) {
   const role = useContext(PreviewRoleContext);
   const memory = useContext(MemoryContext);
+  const initialState = accountStateFromQuery(useSearchParams().get('state'));
   const deskRole = role === 'agent' || role === 'finance' || role === 'compliance' || role === 'viewer' || role === 'manager' ? role : 'owner';
   if (role === 'client') return <ClientSample />;
   if (view === 'installed') {
@@ -245,6 +247,7 @@ export function PreviewDesk({ view }: { view: string }) {
         role={deskRole}
         caps={caps}
         showDemo
+        initialState={initialState}
         onOpen={(id) => {
           const params = new URLSearchParams(window.location.search);
           if (!params.get('book')) params.set('book', 'harbour');
@@ -402,7 +405,7 @@ export function PreviewDesk({ view }: { view: string }) {
       />
     );
   }
-  if (view === 'accounts') return <AccountsView phase="ready" book={emptyMemory()} role={deskRole} caps={capabilitiesFor(deskRole)} />;
+  if (view === 'accounts') return <AccountsView phase="ready" book={emptyMemory()} role={deskRole} caps={capabilitiesFor(deskRole)} initialState={initialState} />;
   if (view === 'imports') return <ImportView phase="ready" book={emptyMemory()} caps={capabilitiesFor(deskRole)} />;
   if (view === 'queue') return <RecoverQueue />;
   if (view === 'creditors') return <RecoverCreditors />;
