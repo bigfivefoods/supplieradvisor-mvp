@@ -45,6 +45,7 @@ export const FOOTER_EXPLORE_GROUPS: FooterLinkGroup[] = [
       { label: 'SA Member', href: '/#member-app' },
       { label: 'Why SA', href: '/#why-join' },
       { label: 'Modules', href: '/#modules' },
+      { label: 'Catalogues', href: '/catalogues' },
       { label: 'How it fits', href: '/#packaging' },
       { label: 'Compare platforms', href: '/#compare' },
       { label: 'Security', href: '/#security' },

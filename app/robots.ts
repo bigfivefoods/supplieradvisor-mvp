@@ -22,6 +22,7 @@ export default function robots(): MetadataRoute.Robots {
           '/c/',
           '/marketplace',
           '/industries',
+          '/catalogues',
           '/pricing',
           '/demo',
           '/verification-sla',
@@ -61,6 +62,7 @@ export default function robots(): MetadataRoute.Robots {
           '/c/',
           '/marketplace',
           '/industries',
+          '/catalogues',
           '/pricing',
           '/demo',
           '/verification-sla',
@@ -81,12 +83,12 @@ export default function robots(): MetadataRoute.Robots {
       },
       {
         userAgent: 'Bingbot',
-        allow: ['/', '/c/', '/marketplace', '/industries', ...LOCALE_ALLOWS],
+        allow: ['/', '/c/', '/marketplace', '/industries', '/catalogues', ...LOCALE_ALLOWS],
         disallow: ['/api/', '/dashboard', '/dashboard/', '/login', '/directory', '/r/', '/p/'],
       },
       {
         userAgent: 'GPTBot',
-        allow: ['/', '/c/', '/marketplace', '/industries', '/llms.txt'],
+        allow: ['/', '/c/', '/marketplace', '/industries', '/catalogues', '/llms.txt'],
         disallow: ['/api/', '/dashboard', '/dashboard/', '/login', '/directory'],
       },
       {
@@ -96,7 +98,7 @@ export default function robots(): MetadataRoute.Robots {
       },
       {
         userAgent: 'Google-Extended',
-        allow: ['/', '/c/', '/marketplace', '/industries', '/llms.txt'],
+        allow: ['/', '/c/', '/marketplace', '/industries', '/catalogues', '/llms.txt'],
         disallow: ['/api/', '/dashboard', '/dashboard/', '/directory'],
       },
       {
