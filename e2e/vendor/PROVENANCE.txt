@@ -1,0 +1,9 @@
+axe-core used by e2e/advisor-process-flows.spec.ts
+
+Source: https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js
+Version: 4.10.2
+File: axe-core-4.10.2.min.js
+sha256: b511cd9dec01c76f4b2ad1723b66b6db37d4c2eb4ed199076e1829d9ee7b75e3
+Size: 553290 bytes
+License: MPL-2.0 (Mozilla Public License, v. 2.0)
+Copyright (c) 2015 - 2024 Deque Systems, Inc.

@@ -8,7 +8,9 @@ import {
   ApparelgraphWorkbench,
   useApparelgraph,
 } from '@/components/apparel/ApparelgraphWorkbench';
+import { AdvisorProcessFlow } from '@/components/advisors/AdvisorProcessFlow';
 import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import { catalogueForModule } from '@/lib/catalogues';
 
 function zar(n: number) {
@@ -76,8 +78,15 @@ export default function ApparelgraphOverviewPage() {
               Seed ApparelAdvisor® demo
             </button>
           </div>
+          <ApparelFlow />
         </div>
       )}
     </ApparelgraphWorkbench>
   );
+}
+
+function ApparelFlow() {
+  const company = useCompanyRole();
+  const role = company.loading || company.role == null ? undefined : company.role;
+  return <AdvisorProcessFlow module="apparelgraph" role={role} hrefBase="/dashboard/apparelgraph" />;
 }

@@ -146,6 +146,19 @@ jobs:
               exit 1
             fi
           done
+      - name: Advisor process flow tests
+        run: |
+          set -e
+          for file in \
+            lib/advisors/process-flows/brief120-flow-data.test.ts \
+            lib/advisors/process-flows/brief120-flow-routes.test.ts \
+            lib/advisors/process-flows/brief120-flow-resolve.test.ts \
+            lib/advisors/process-flows/brief120-flow-ui.test.tsx \
+            lib/advisors/process-flows/brief120-flow-brand.test.ts \
+            lib/advisors/process-flows/brief120-flow-mounts.test.ts
+          do
+            npx --yes tsx "$file"
+          done
       - name: Catalogue tests
         run: |
           set -euo pipefail

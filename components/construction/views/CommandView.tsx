@@ -14,6 +14,7 @@ import {
   ConstructionStatusPill,
   ConstructionUnavailable,
 } from '@/components/construction/ConstructionUi';
+import { AdvisorProcessFlow } from '@/components/advisors/AdvisorProcessFlow';
 import { deskHref, ScreenState, type DeskProps } from '@/components/construction/desk';
 import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
 import { catalogueForModule } from '@/lib/catalogues';
@@ -188,6 +189,9 @@ export function CommandView(props: DeskProps) {
             </ConstructionButton>
           ) : null}
         </ConstructionSection>
+      ) : null}
+      {role !== 'none' ? (
+        <AdvisorProcessFlow module="constructiongraph" role={role} caps={caps} hrefBase={base} />
       ) : null}
       {role === 'none' ? <ConstructionUnavailable /> : null}
       {role === 'site_manager' ? (
