@@ -140,6 +140,16 @@ jobs:
               exit 1
             fi
           done
+      - name: Catalogue tests
+        run: |
+          set -euo pipefail
+          for file in \
+            lib/brief119-catalogues.test.ts \
+            lib/brief119-home-static.test.ts \
+            components/catalogues/brief119-catalogues.render.test.ts
+          do
+            npx --yes tsx "$file"
+          done
       - name: ConstructionAdvisor portal tests
         run: |
           set -euo pipefail
