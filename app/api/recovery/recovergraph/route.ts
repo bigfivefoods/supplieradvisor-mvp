@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCompanyPermission } from '@/lib/auth/api-auth';
 import { canRecoveryTrust } from '@/lib/recovery/permissions';
-import { resolveRecoverRole, capabilitiesFor } from '@/lib/recovery/roles';
+import { allowedBookOps, capabilitiesFor, resolveRecoverRole } from '@/lib/recovery/roles';
 import { resolveMemberCompany } from '@/lib/recovery/member-company';
 import {
   applyRecoverOp,
@@ -10,7 +10,9 @@ import {
   MigrationPendingError,
 } from '@/lib/recovery/recovergraph-db';
 import { deskResponseBody, projectDesk } from '@/lib/recovery/project';
-import { validateRecoverOp, validateSetRealData } from '@/lib/recovery/validate';
+import { loadAccountsForAgent } from '@/lib/recovery/agent-read';
+import { bulkAssignAccounts, commitBook, customerInCompany, findStaffId, setAssignmentBlock, setStaffExpiry } from '@/lib/recovery/book-db';
+import { validateDeskExtra, validateRecoverOp, validateSetRealData } from '@/lib/recovery/validate';
 
 export const runtime = 'nodejs';
 
@@ -45,7 +47,12 @@ export async function GET(request: NextRequest) {
       email: member.member.email,
     });
     const role = resolveRecoverRole(gate.role, load.self);
-    return json(deskResponseBody(projectDesk(role, load), canRecoveryTrust(gate.role, 'view')));
+    const projected = projectDesk(role, load);
+    if (role !== 'agent' && role !== 'none' && load.ready) {
+      const { loadBookStats } = await import('@/lib/recovery/book-db');
+      projected.book = await loadBookStats(member.member.companyId);
+    }
+    return json(deskResponseBody(projected, canRecoveryTrust(gate.role, 'view')));
   } catch (error) {
     if (error instanceof MigrationPendingError) {
       return json({ ready: false, reason: 'migration_pending' }, 409);
@@ -80,7 +87,10 @@ export async function POST(request: NextRequest) {
     }
     const canWriteTrust = canRecoveryTrust(gate.role, 'write');
     const parsed = validateRecoverOp(raw, { canWriteTrust });
-    if (!parsed.ok) return json({ error: parsed.error }, 400);
+    const extra = parsed.ok ? null : validateDeskExtra(raw);
+    if (!parsed.ok && (!extra || !extra.ok)) {
+      return json({ error: extra?.attempted ? extra.error : parsed.error }, 400);
+    }
 
     const load = await loadRecoverDesk(member.member.companyId, {
       userId: gate.userId,
@@ -89,6 +99,85 @@ export async function POST(request: NextRequest) {
     if (!load.ready) return json({ ready: false, reason: 'migration_pending' }, 409);
     const role = resolveRecoverRole(gate.role, load.self);
     const caps = capabilitiesFor(role);
+    if (extra?.ok) {
+      if (
+        extra.value.op === 'creditor.upsert' ||
+        extra.value.op === 'mandate.upsert' ||
+        extra.value.op === 'account.assign' ||
+        extra.value.op === 'account.set_flag' ||
+        extra.value.op === 'account.clear_flag' ||
+        extra.value.op === 'account.add_note' ||
+        extra.value.op === 'account.recall' ||
+        extra.value.op === 'account.adjust' ||
+        extra.value.op === 'debtor.merge'
+      ) {
+        if (!allowedBookOps(role).has(extra.value.op)) return denied();
+        if (extra.value.op === 'creditor.upsert') {
+          const customerId = Number(extra.value.patch.customer_id);
+          if (Number.isInteger(customerId) && customerId > 0) {
+            const same = await customerInCompany(member.member.companyId, customerId);
+            if (!same) return json({ error: 'Choose a customer from this company.' }, 400);
+          }
+        }
+        if (extra.value.op === 'account.add_note' && role === 'agent') {
+          if (!load.self?.id) return denied();
+          const visible = await loadAccountsForAgent({
+            companyId: member.member.companyId,
+            staffId: load.self.id,
+            limit: 1,
+            after: null,
+            afterId: null,
+            state: null,
+            search: null,
+            accountId: String(extra.value.patch.id || ''),
+          });
+          if (!visible.ready) return json({ ready: false, reason: 'migration_pending' }, 409);
+          if (!(visible.rows as unknown[]).length) return json({ error: 'That account is not on your book.' }, 403);
+        }
+        const noteActor =
+          extra.value.op === 'account.add_note' &&
+          role === 'agent' &&
+          load.self &&
+          !load.self.user_id &&
+          load.self.email.trim()
+            ? load.self.email.trim()
+            : gate.userId;
+        await commitBook(member.member.companyId, noteActor, extra.value);
+      } else if (extra.value.op === 'workspace.set_assignment_block') {
+        if (!caps.canEditSettings) return denied();
+        await setAssignmentBlock({
+          companyId: member.member.companyId,
+          actorId: gate.userId,
+          enabled: extra.value.enabled,
+        });
+      } else if (extra.value.op === 'staff.set_expiry') {
+        if (!caps.canManageStaff) return denied();
+        const staffId = await findStaffId(member.member.companyId, extra.value.staff_id, extra.value.email);
+        if (staffId === 'pending') return json({ ready: false, reason: 'migration_pending' }, 409);
+        if (!staffId) return json({ error: 'Choose a staff record.' }, 400);
+        await setStaffExpiry({
+          companyId: member.member.companyId,
+          actorId: gate.userId,
+          staffId,
+          expiresOn: extra.value.expires_on,
+        });
+      } else if (extra.value.op === 'account.bulk_assign') {
+        if (role !== 'owner' && role !== 'manager') return denied();
+        await bulkAssignAccounts({
+          companyId: member.member.companyId,
+          actorId: gate.userId,
+          ids: extra.value.ids,
+          staffId: extra.value.staff_id,
+          teamId: extra.value.team_id,
+        });
+      }
+      const next = await loadRecoverDesk(member.member.companyId, {
+        userId: gate.userId,
+        email: member.member.email,
+      });
+      return json(deskResponseBody(projectDesk(role, next), canRecoveryTrust(gate.role, 'view')));
+    }
+    if (!parsed.ok) return json({ error: parsed.error }, 400);
     const op = parsed.value;
 
     if (op.op === 'set_real_data_enabled') {
@@ -124,6 +213,39 @@ export async function POST(request: NextRequest) {
     }
     if (error instanceof Error && error.message === 'missing_staff') {
       return json({ error: 'Choose a staff record.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'registration_missing') {
+      return json({ error: 'That person has no Council registration recorded.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'registration_expired') {
+      return json({ error: 'That registration is recorded as expired.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'conflict') {
+      return json({ error: 'That record changed. Open it again.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'duplicate_creditor') {
+      return json({ error: 'A creditor with that name is already on the book.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'duplicate_customer') {
+      return json({ error: 'That customer is already linked to a creditor.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'mandate_locked') {
+      return json({ error: 'That mandate already has accounts. The creditor, product, and credit-agreement mark stay as they are.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'collector') {
+      return json({ error: 'Assign an account to a collector.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'note_scope') {
+      return json({ error: 'That account is not on your book.' }, 403);
+    }
+    if (error instanceof Error && error.message === 'reason') {
+      return json({ error: 'A reason is required.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'balance') {
+      return json({ error: 'That adjustment would take the balance below zero.' }, 400);
+    }
+    if (error instanceof Error && (error.message === 'closed' || error.message === 'name' || error.message === 'creditor' || error.message === 'cap')) {
+      return json({ error: 'RecoverAdvisor® could not save that change.' }, 400);
     }
     return json({ error: 'RecoverAdvisor® could not save that change.' }, 500);
   }

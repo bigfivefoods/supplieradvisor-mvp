@@ -56,6 +56,18 @@ export function resolveRecoverRole(
   return 'none';
 }
 
+const BOOK_CLOSED = {
+  canEditBooks: false,
+  canSeeContacts: false,
+  canSeeAccountRows: false,
+  canAddNote: false,
+  canMutateAccounts: false,
+  canRevealId: false,
+  canImport: false,
+  canClearDemo: false,
+  canSeeCreditorDetail: false,
+};
+
 export function capabilitiesFor(role: RecoverRole): RecoverCapabilities {
   const closed: RecoverCapabilities = {
     canSeeAllQueues: false,
@@ -63,6 +75,7 @@ export function capabilitiesFor(role: RecoverRole): RecoverCapabilities {
     canSeeTrust: false,
     canManageStaff: false,
     canSetRealData: false,
+    ...BOOK_CLOSED,
   };
   if (role === 'owner') {
     return {
@@ -71,6 +84,15 @@ export function capabilitiesFor(role: RecoverRole): RecoverCapabilities {
       canSeeTrust: true,
       canManageStaff: true,
       canSetRealData: true,
+      canEditBooks: true,
+      canSeeContacts: true,
+      canSeeAccountRows: true,
+      canAddNote: true,
+      canMutateAccounts: true,
+      canRevealId: true,
+      canImport: true,
+      canClearDemo: true,
+      canSeeCreditorDetail: true,
     };
   }
   if (role === 'manager') {
@@ -80,12 +102,68 @@ export function capabilitiesFor(role: RecoverRole): RecoverCapabilities {
       canSeeTrust: true,
       canManageStaff: true,
       canSetRealData: false,
+      canEditBooks: true,
+      canSeeContacts: true,
+      canSeeAccountRows: true,
+      canAddNote: true,
+      canMutateAccounts: true,
+      canRevealId: true,
+      canImport: true,
+      canClearDemo: false,
+      canSeeCreditorDetail: true,
     };
   }
-  if (role === 'finance') {
-    return { ...closed, canSeeTrust: true };
+  if (role === 'agent') {
+    return {
+      ...closed,
+      canSeeContacts: true,
+      canSeeAccountRows: true,
+      canAddNote: true,
+    };
+  }
+  if (role === 'finance' || role === 'compliance') {
+    return {
+      ...closed,
+      canSeeTrust: role === 'finance',
+      canSeeAccountRows: true,
+      canSeeCreditorDetail: true,
+    };
+  }
+  if (role === 'viewer') {
+    return { ...closed, canSeeCreditorDetail: true };
   }
   return closed;
+}
+
+const OWNER_OPS = [
+  'creditor.upsert',
+  'creditor.archive',
+  'mandate.upsert',
+  'mandate.set_status',
+  'debtor.upsert',
+  'contact_point.upsert',
+  'contact_point.remove',
+  'account.create',
+  'account.assign',
+  'account.set_flag',
+  'account.clear_flag',
+  'account.add_note',
+  'account.recall',
+  'account.adjust',
+  'debtor.merge',
+  'account.reveal_id',
+  'import.dry_run',
+  'import.commit',
+  'import.rollback',
+  'import.load_demo',
+  'import.clear_demo',
+] as const;
+
+export function allowedBookOps(role: RecoverRole): ReadonlySet<string> {
+  if (role === 'owner') return new Set(OWNER_OPS);
+  if (role === 'manager') return new Set(OWNER_OPS.filter((op) => op !== 'import.clear_demo'));
+  if (role === 'agent') return new Set(['account.add_note']);
+  return new Set();
 }
 
 export function queueNavLabel(role: RecoverRole): string {

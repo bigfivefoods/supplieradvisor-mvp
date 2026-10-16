@@ -49,6 +49,24 @@ test.describe('Tier-1 API auth', () => {
     expect(json.creditors).toBeFalsy();
   });
 
+  test('recovery accounts without token → 401 or 403', async ({ request }) => {
+    const res = await request.get(`${base}/api/recovery/recovergraph/accounts`);
+    expect([401, 403]).toContain(res.status());
+    const json = await res.json();
+    expect(json.rows).toBeFalsy();
+    expect(json.workspace).toBeFalsy();
+  });
+
+  test('recovery import without token → 401 or 403', async ({ request }) => {
+    const res = await request.post(`${base}/api/recovery/recovergraph/import`, {
+      data: { action: 'dry_run', csv: 'a,b' },
+    });
+    expect([401, 403]).toContain(res.status());
+    const json = await res.json();
+    expect(json.rows).toBeFalsy();
+    expect(json.summary).toBeFalsy();
+  });
+
   test('public recovergraph route is absent', async ({ request }) => {
     const res = await request.get(`${base}/api/public/recovergraph`);
     expect(res.status()).toBe(404);

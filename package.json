@@ -53,6 +53,7 @@
     "react-dom": "^18.3.1",
     "react-leaflet": "4",
     "resend": "^6.13.0",
+    "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "stripe": "^16.0.0",
     "tailwindcss": "^3.4.13",

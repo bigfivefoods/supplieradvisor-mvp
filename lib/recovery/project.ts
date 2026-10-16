@@ -16,6 +16,7 @@ export type RecoverLoad = {
   mandates: RecoverMandate[];
   staff: RecoverStaff[];
   self: RecoverStaff | null;
+  book?: import('./types').RecoverBookStats | null;
 };
 
 function publicWorkspace(workspace: RecoverWorkspace | null, role: RecoverRole): RecoverWorkspace | null {
@@ -62,6 +63,27 @@ export function projectDesk(role: RecoverRole, load: RecoverLoad): RecoverDeskPa
     mandates: agent || role === 'none' ? [] : load.mandates,
     staff: agent || role === 'none' ? [] : load.staff,
     self: load.self,
+    book: agent
+      ? load.book
+        ? {
+            placedCount: load.book.assignedCount,
+            placedBalanceCents: 0,
+            assignedCount: load.book.assignedCount,
+            unassignedCount: 0,
+            imported: load.book.imported,
+          }
+        : null
+      : role === 'viewer'
+        ? load.book
+          ? {
+              placedCount: load.book.placedCount,
+              placedBalanceCents: load.book.placedBalanceCents,
+              assignedCount: 0,
+              unassignedCount: 0,
+              imported: load.book.imported,
+            }
+          : null
+        : load.book ?? null,
   };
 }
 

@@ -58,6 +58,19 @@ export function RecoverQueue() {
         </div>
       ) : illustration ? (
         <IllustratedQueue illustration={illustration} />
+      ) : desk?.book && (desk.book.placedCount > 0 || desk.book.assignedCount > 0) ? (
+        <div data-testid="recover-queue-counts" className="rounded-3xl border border-[#e2e8f0] bg-white p-5">
+          <p className="text-sm text-slate-700">
+            {manager
+              ? `${desk.book.unassignedCount} accounts are not assigned yet.`
+              : `${desk.book.assignedCount} accounts are assigned to you.`}
+          </p>
+          <div className="mt-4">
+            <RecoverButton href={manager ? '/dashboard/recovergraph/accounts' : '/dashboard/recovergraph/accounts'}>
+              {manager ? 'Assign accounts' : 'Open accounts'}
+            </RecoverButton>
+          </div>
+        </div>
       ) : (
         <RecoverEmpty
           testId="recover-queue-empty"

@@ -1,12 +1,66 @@
 'use client';
 
-import { createContext, createElement, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/member-company';
 import type { RecoverIllustration } from '@/lib/recovery/sample-desk';
 import type { RecoverDeskPayload, RecoverOp } from '@/lib/recovery/types';
 
+export type DeskSave =
+  | RecoverOp
+  | {
+      op:
+        | 'creditor.upsert'
+        | 'mandate.upsert'
+        | 'staff.set_expiry'
+        | 'account.bulk_assign'
+        | 'account.assign'
+        | 'account.set_flag'
+        | 'account.clear_flag'
+        | 'account.add_note'
+        | 'account.recall'
+        | 'account.adjust'
+        | 'debtor.merge'
+        | 'workspace.set_assignment_block';
+      name?: string;
+      customer_id?: number | string;
+      enabled?: boolean;
+      id?: string;
+      source_id?: string;
+      target_id?: string;
+      reg_no?: string;
+      contact_email?: string;
+      creditor_id?: string;
+      product_type?: string;
+      nca_regulated?: boolean;
+      commission_model?: { kind: string };
+      staff_id?: string | null;
+      email?: string;
+      expires_on?: string | null;
+      ids?: string[];
+      team_id?: string | null;
+      flag?: string;
+      reason?: string;
+      note_text?: string;
+      adjustment_cents?: number;
+      close_reason?: string;
+    };
+
+const PreviewBookContext = createContext<((op: DeskSave) => boolean) | null>(null);
+
+export function PreviewBookProvider({ children, onOp }: { children: ReactNode; onOp: (op: DeskSave) => boolean }) {
+  return createElement(PreviewBookContext.Provider, { value: onOp }, children);
+}
+
+export function usePreviewBook() {
+  return useContext(PreviewBookContext);
+}
+
 const PreviewContext = createContext<RecoverDeskPayload | null>(null);
+
+export function useIsRecoverPreview() {
+  return useContext(PreviewContext) !== null;
+}
 const IllustrationContext = createContext<RecoverIllustration | null>(null);
 const HrefBaseContext = createContext<string | null>(null);
 const LinksContext = createContext<'live' | 'soon'>('live');
@@ -107,7 +161,7 @@ export function useRecoverDesk() {
     void load();
   }, [load]);
 
-  const save = useCallback(async (op: RecoverOp) => {
+  const save = useCallback(async (op: DeskSave) => {
     if (preview) {
       void op;
       setError(null);

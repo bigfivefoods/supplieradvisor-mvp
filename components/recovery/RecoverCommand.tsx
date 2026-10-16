@@ -12,6 +12,7 @@ import {
   Users,
 } from 'lucide-react';
 import { RECOVER_PRODUCT_NAME } from '@/lib/recovery/brand';
+import { formatRecoverMoney } from '@/lib/recovery/money';
 import { queueNavLabel } from '@/lib/recovery/roles';
 import type { RecoverDeskPayload, RecoverWorkspace } from '@/lib/recovery/types';
 import { AgentArt, DeskArt, PendingArt } from './RecoverArt';
@@ -51,20 +52,27 @@ function cfdcDue(workspace: RecoverWorkspace | null) {
   return workspace.cfdc_expiry < todayIso();
 }
 
-function deskDescription(role: RecoverRole): string {
+function deskDescription(role: RecoverRole, placed: number): string {
   if (role === 'agent') {
     return 'Your queue is the only work on this desk. Accounts show up here after a creditor book is placed.';
   }
   if (role === 'finance') {
-    return 'Finance sees trust and remittance. The books themselves are not loaded in this version.';
+    return placed > 0
+      ? 'Finance sees trust and remittance. Recovered and trust figures stay blank until those books exist.'
+      : 'Finance sees trust and remittance. Recovered and trust figures stay blank until a book is placed.';
   }
   if (role === 'compliance') {
     return 'Compliance watches the operator profile and the Council registration. Collection work is not open yet.';
   }
   if (role === 'viewer') {
-    return 'This is a read-only look at the collections desk. Nothing has been placed yet.';
+    return placed > 0
+      ? 'This is a read-only look at the collections desk.'
+      : 'This is a read-only look at the collections desk. Nothing has been placed yet.';
   }
-  return 'Collections workspace. Set the operator, the team, and the first creditor book. Accounts are not loaded in this version.';
+  if (placed > 0) {
+    return `${placed} accounts are on the book. Open accounts, the team, or a new import.`;
+  }
+  return 'Collections workspace. Set the operator, the team, and the first creditor book.';
 }
 
 export function RecoverCommand() {
@@ -73,7 +81,7 @@ export function RecoverCommand() {
     <RecoverScreen
       testId="recover-command"
       title={RECOVER_PRODUCT_NAME}
-      description={desk ? deskDescription(desk.role) : 'Opening the collections desk.'}
+      description={desk ? deskDescription(desk.role, desk.book?.placedCount ?? 0) : 'Opening the collections desk.'}
       action={desk ? <RecoverRoleChip role={desk.role} /> : null}
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
@@ -153,6 +161,16 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
       done: (counts.mandates ?? 0) > 0,
       href: '/dashboard/recovergraph/mandates',
     },
+    {
+      label: 'First import',
+      done: Boolean(desk.book?.imported),
+      href: '/dashboard/recovergraph/imports',
+    },
+    {
+      label: 'First account assigned',
+      done: (desk.book?.assignedCount ?? 0) > 0,
+      href: '/dashboard/recovergraph/accounts',
+    },
   ];
 
   return (
@@ -190,7 +208,9 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
             <p className="text-sm leading-relaxed text-slate-600">
               {picture
                 ? 'Illustration · sample data. These figures are a picture of a book, not a live workspace.'
-                : 'No accounts placed yet. Placed, recovered, trust, and clock figures stay blank until those books exist.'}
+                : desk.book && desk.book.placedCount > 0
+                  ? `${desk.book.placedCount} accounts are on the book. Recovered, in trust, and clocks stay blank until those books exist.`
+                  : 'No accounts placed yet. Placed, recovered, trust, and clock figures stay blank until those books exist.'}
             </p>
           </div>
           <DeskArt />
@@ -204,8 +224,14 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
             <RecoverKpi
               testId="recover-kpi-placed"
               label="Placed"
-              value={picture ? picture.placed : '—'}
-              sub={picture ? 'Illustration · sample data' : 'No accounts placed yet'}
+              value={picture ? picture.placed : desk.book && desk.book.placedCount > 0 ? String(desk.book.placedCount) : '—'}
+              sub={
+                picture
+                  ? 'Illustration · sample data'
+                  : desk.book && desk.book.placedCount > 0
+                    ? `${formatRecoverMoney(desk.book.placedBalanceCents)}. Placed balance; payments are not recorded yet.`
+                    : 'No accounts placed yet'
+              }
               icon={Scale}
               tint="border-sky-100 bg-sky-50"
             />
@@ -237,6 +263,11 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
             />
       </div>
 
+      {!picture && desk.book && desk.book.placedCount > 0 ? (
+        <p className="mb-6 text-sm text-slate-700" data-testid="recover-placed-live">
+          {desk.book.placedCount} accounts placed. Recovered, in trust, and clocks stay blank until those books exist.
+        </p>
+      ) : null}
       {picture ? (
         <div className="mb-8 grid gap-4">
           <NeedsAttention items={picture.attention} />
@@ -249,7 +280,7 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
           <PromiseTimeline items={picture.promises} />
           {picture.scope === 'book' ? <WorkloadStrip /> : null}
         </div>
-      ) : (
+      ) : desk.book && desk.book.placedCount > 0 ? null : (
         <div className="mb-8">
           <RecoverEmpty
             testId="recover-accounts-empty"
@@ -290,7 +321,7 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
         <RecoverPanel title="Next">
           <p className="mb-4 text-sm leading-relaxed text-slate-600">
             {desk.workspace
-              ? 'Creditors and mandates are read-only here. Create the customer record in Customers, then place the book in a later release.'
+              ? 'Open creditors and mandates to record who places accounts, then import the book.'
               : 'Create the workspace profile before inviting staff or reading a book.'}
           </p>
           <RecoverButton
@@ -312,8 +343,8 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
           icon={ListChecks}
           code="01"
           title={queueNavLabel(desk.role)}
-          desc="Accounts waiting for work. None are assigned yet."
-          metric="—"
+          desc={desk.book && desk.book.assignedCount > 0 ? `${desk.book.assignedCount} accounts are assigned.` : 'Accounts waiting for work. None are assigned yet.'}
+          metric={desk.book && desk.book.assignedCount > 0 ? String(desk.book.assignedCount) : '—'}
           metricLabel="Accounts"
           accent="from-cyan-50 to-white border-cyan-100"
         />

@@ -45,7 +45,7 @@ for (const file of desks) {
 }
 
 const owner = readFileSync(resolve('app/work/recovergraph/manifest.webmanifest/route.ts'), 'utf8');
-assert.match(owner, /public, max-age=3600/);
+assert.match(owner, /private, no-store/);
 assert.match(owner, /\/work\/recovergraph\?source=pwa/);
 assert.match(owner, /scope: '\/work\/recovergraph'/);
 assert.match(owner, /\/recover\/owner-192.png/);

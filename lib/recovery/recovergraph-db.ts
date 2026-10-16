@@ -18,6 +18,23 @@ import type { RecoverLoad } from './project';
 
 type DbError = { code?: string; message?: string } | null;
 
+export type RecoverFeature = 'accounts' | 'creditors' | 'import' | 'book';
+
+export function readFeatureResult(
+  error: DbError,
+  feature: RecoverFeature
+): { ready: false; reason: 'migration_pending'; feature: RecoverFeature } | { ready: true } {
+  if (!error) return { ready: true };
+  const code = String(error.code || '');
+  const message = String(error.message || '').toLowerCase();
+  const coded =
+    code === 'PGRST205' || code === 'PGRST202' || code === '42P01' || code === '42883';
+  const recoverObject = message.includes('recover_');
+  if (coded && recoverObject) return { ready: false, reason: 'migration_pending', feature };
+  if (isMigrationPending(error)) return { ready: false, reason: 'migration_pending', feature };
+  return { ready: true };
+}
+
 export function isMigrationPending(error: DbError): boolean {
   if (!error) return false;
   const code = String(error.code || '');
@@ -98,6 +115,19 @@ function asCreditor(row: Record<string, unknown>): RecoverCreditor {
   };
 }
 
+async function countAccountsByMandate(companyId: number): Promise<Map<string, number> | null> {
+  const supabase = getSupabaseServer();
+  const placed = await supabase.from('recover_accounts').select('mandate_id').eq('company_id', companyId).limit(2000);
+  if (placed.error) return null;
+  const counts = new Map<string, number>();
+  for (const row of (placed.data || []) as { mandate_id?: string | null }[]) {
+    const id = String(row.mandate_id || '');
+    if (!id) continue;
+    counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  return counts;
+}
+
 export async function loadRecoverDesk(
   companyId: number,
   actor: { userId: string; email: string | null }
@@ -112,6 +142,15 @@ export async function loadRecoverDesk(
     .maybeSingle();
   if (isMigrationPending(workspace.error)) return pending();
   if (workspace.error) throw new Error('workspace');
+  let blockUnregistered: boolean | undefined;
+  const block = await supabase
+    .from('recover_workspaces')
+    .select('block_unregistered_assignment')
+    .eq('company_id', companyId)
+    .maybeSingle();
+  if (!block.error && block.data) {
+    blockUnregistered = Boolean((block.data as { block_unregistered_assignment?: boolean }).block_unregistered_assignment);
+  }
 
   const creditors = await supabase
     .from('recover_creditors')
@@ -125,7 +164,7 @@ export async function loadRecoverDesk(
   const mandates = await supabase
     .from('recover_mandates')
     .select(
-      'id, creditor_id, programme_type, product_type, nca_regulated, processing_role, status'
+      'id, creditor_id, programme_type, product_type, nca_regulated, processing_role, status, agreement_reference'
     )
     .eq('company_id', companyId)
     .order('created_at', { ascending: false })
@@ -145,6 +184,20 @@ export async function loadRecoverDesk(
   if (staff.error) throw new Error('staff');
 
   const staffRows = ((staff.data || []) as Record<string, unknown>[]).map(asStaff);
+  const expiry = await supabase
+    .from('recover_staff')
+    .select('id, registration_expires_on')
+    .eq('company_id', companyId)
+    .limit(200);
+  if (!expiry.error) {
+    const dates = new Map(
+      ((expiry.data || []) as { id: string; registration_expires_on?: string | null }[]).map((row) => [
+        String(row.id),
+        row.registration_expires_on ? String(row.registration_expires_on) : null,
+      ])
+    );
+    for (const row of staffRows) row.registration_expires_on = dates.get(row.id) ?? null;
+  }
   const email = (actor.email || '').trim().toLowerCase();
   const self =
     staffRows.find((row) => row.user_id && row.user_id === actor.userId) ||
@@ -153,6 +206,7 @@ export async function loadRecoverDesk(
 
   const creditorRows = ((creditors.data || []) as Record<string, unknown>[]).map(asCreditor);
   const names = new Map(creditorRows.map((row) => [row.id, row.name]));
+  const mandateCounts = await countAccountsByMandate(companyId);
   const mandateRows: RecoverMandate[] = ((mandates.data || []) as Record<string, unknown>[]).map(
     (row) => ({
       id: String(row.id),
@@ -163,12 +217,16 @@ export async function loadRecoverDesk(
       nca_regulated: Boolean(row.nca_regulated),
       processing_role: (row.processing_role || 'operator') as ProcessingRole,
       status: String(row.status || 'draft'),
+      agreement_reference: row.agreement_reference ? String(row.agreement_reference) : '',
+      account_count: mandateCounts ? mandateCounts.get(String(row.id)) || 0 : undefined,
     })
   );
 
   return {
     ready: true,
-    workspace: workspace.data ? asWorkspace(workspace.data as Record<string, unknown>) : null,
+    workspace: workspace.data
+      ? { ...asWorkspace(workspace.data as Record<string, unknown>), block_unregistered_assignment: blockUnregistered }
+      : null,
     creditors: creditorRows,
     mandates: mandateRows,
     staff: staffRows,
@@ -257,6 +315,11 @@ export async function applyRecoverOp(
     return;
   }
 
+  if (op.enabled) {
+    const { demoRowsExist } = await import('./book-db');
+    const demo = await demoRowsExist(companyId);
+    if (demo === true) throw new Error('Clear the demo book first');
+  }
   await commitDesk(companyId, actor.userId, 'set_real_data_enabled', 'recover_workspaces', {
     enabled: op.enabled,
     real_data_confirmed_by: op.enabled ? actor.userId : null,

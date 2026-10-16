@@ -79,11 +79,11 @@ const agentNav = recoverSidebarSteps(
 );
 assert.deepEqual(
   agentNav.map((step) => step.name),
-  ['Command centre', 'My queue']
+  ['Command centre', 'My queue', 'Accounts']
 );
 assert.deepEqual(
   agentNav.map((step) => step.href),
-  ['/dashboard/recovergraph', '/dashboard/recovergraph/queue']
+  ['/dashboard/recovergraph', '/dashboard/recovergraph/queue', '/dashboard/recovergraph/accounts']
 );
 const ownerNav = recoverSidebarSteps('owner', null, recovergraphNavSteps());
 assert.ok(ownerNav.some((step) => step.name === 'All queues'));

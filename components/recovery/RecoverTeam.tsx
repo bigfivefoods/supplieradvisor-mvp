@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Shield, Users } from 'lucide-react';
 import { RecoverPendingBanner } from './RecoverChrome';
 import { ENABLE_REAL_DATA_PHRASE } from '@/lib/recovery/validate';
+import { sastToday } from '@/lib/recovery/normalise';
 import { staffRoleLabel } from '@/lib/recovery/roles';
 import type {
   OperatorType,
@@ -24,7 +25,7 @@ import {
   formatRand,
   recoverInputClass,
 } from './RecoverChrome';
-import { useRecoverDesk } from './useRecoverDesk';
+import { usePreviewBook, useRecoverDesk } from './useRecoverDesk';
 
 function percentFromBps(bps: number | null | undefined): string {
   if (bps == null || Number.isNaN(bps)) return '';
@@ -49,6 +50,7 @@ const STAFF_ROLES: Array<{ value: StaffRole; label: string }> = [
 
 export function RecoverTeam() {
   const { desk, error, loading, saving, save } = useRecoverDesk();
+  const previewBook = usePreviewBook();
   const [phrase, setPhrase] = useState('');
   const [dialog, setDialog] = useState(false);
   const [staffEmail, setStaffEmail] = useState('');
@@ -73,15 +75,29 @@ export function RecoverTeam() {
     await save(op);
   }
 
+  async function onBlock(enabled: boolean) {
+    const op = { op: 'workspace.set_assignment_block' as const, enabled };
+    if (previewBook) {
+      previewBook(op);
+      return;
+    }
+    await save(op);
+  }
+
   async function onStaff(form: FormData) {
     const rands = String(form.get('target_rands') || '').trim();
+    const email = String(form.get('email') || '');
+    const expires = String(form.get('registration_expires_on') || '').trim();
     const ok = await save({
       op: 'upsert_staff',
-      email: String(form.get('email') || ''),
+      email,
       role: String(form.get('role') || 'collector') as StaffRole,
       cfdc_registration_no: String(form.get('cfdc_registration_no') || ''),
       monthly_target_cents: rands === '' ? null : Math.round(Number(rands) * 100),
     });
+    if (ok && expires) {
+      await save({ op: 'staff.set_expiry', email, expires_on: expires });
+    }
     if (ok) {
       setStaffEmail('');
       setStaffTarget('');
@@ -102,7 +118,7 @@ export function RecoverTeam() {
       {loading || !desk ? (
         <div className="h-64 animate-pulse rounded-3xl bg-slate-100 motion-reduce:animate-none" aria-busy="true" />
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 min-[1440px]:grid-cols-2">
           <RecoverPanel title="Workspace">
             <form
               data-testid="recover-team-form"
@@ -149,6 +165,17 @@ export function RecoverTeam() {
               <p className="sm:col-span-2 text-sm leading-relaxed text-slate-600">
                 Trust mode means money collected for a creditor is held and remitted. Direct means the creditor is paid without a trust ledger. The ledger itself is not open yet.
               </p>
+              <label className="sm:col-span-2 flex min-h-11 items-start gap-2 text-sm font-semibold text-slate-900">
+                <input
+                  data-testid="recover-assignment-block"
+                  type="checkbox"
+                  className="mt-1"
+                  checked={workspace?.block_unregistered_assignment !== false}
+                  disabled={!canEdit || !desk.ready}
+                  onChange={(event) => void onBlock(event.target.checked)}
+                />
+                <span>Block assignment when a collector&apos;s Council registration is missing or recorded as expired. ⚖ VERIFY who must register. RecoverAdvisor® gives no legal advice.</span>
+              </label>
               <RecoverField label="CFDC number">
                 <input
                   name="cfdc_registration_no"
@@ -202,6 +229,9 @@ export function RecoverTeam() {
 
           <div className="space-y-4">
             <RecoverPanel title="Staff">
+              <p className="mb-3 text-sm text-slate-600">
+                Council registration is shown as recorded by you. ⚖ VERIFY the categories of persons who must register. RecoverAdvisor® gives no legal advice.
+              </p>
               {canStaff ? (
                 <form
                   className="mb-4 grid gap-3 sm:grid-cols-2"
@@ -238,6 +268,9 @@ export function RecoverTeam() {
                   </RecoverField>
                   <RecoverField label="CFDC number">
                     <input name="cfdc_registration_no" className={recoverInputClass} disabled={!desk.ready} />
+                  </RecoverField>
+                  <RecoverField label="Registration date as recorded by you">
+                    <input name="registration_expires_on" type="date" className={recoverInputClass} disabled={!desk.ready} />
                   </RecoverField>
                   <RecoverField label="Monthly target (rand)">
                     <input
@@ -374,12 +407,13 @@ function StaffTable({
     );
   }
   return (
-    <div data-testid="recover-staff-table" className="overflow-hidden rounded-2xl border border-[#e2e8f0]">
+    <div data-testid="recover-staff-table" className="overflow-x-auto rounded-2xl border border-[#e2e8f0]">
       <ul className="grid gap-2 p-3 md:hidden">
         {rows.map((row) => (
           <li key={row.id} className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
             <p className="break-all text-sm font-black text-slate-900">{row.email}</p>
             <p className="mt-1 text-xs font-bold text-slate-700">{staffRoleLabel(row.role)}</p>
+            <RegistrationChip row={row} />
             <p className="mt-1 text-sm tabular-nums text-slate-700">{formatRand(row.monthly_target_cents)}</p>
             {row.status === 'active' && canStaff ? (
               <button
@@ -414,6 +448,7 @@ function StaffTable({
                   <Users className="h-3.5 w-3.5 text-[#0077b6]" aria-hidden />
                   {staffRoleLabel(row.role)}
                 </span>
+                <RegistrationChip row={row} />
               </td>
               <td className="px-3 py-3 tabular-nums text-slate-700">{formatRand(row.monthly_target_cents)}</td>
               <td className="px-3 py-3">
@@ -435,5 +470,18 @@ function StaffTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function RegistrationChip({ row }: { row: RecoverStaff }) {
+  if (row.role !== 'collector') return null;
+  const today = sastToday();
+  const missing = !row.cfdc_registration_no;
+  const expired = Boolean(row.registration_expires_on && row.registration_expires_on < today);
+  if (!missing && !expired) return null;
+  return (
+    <p data-testid="recover-reg-chip" className="mt-1 text-xs font-bold text-[#0077b6]">
+      {missing ? 'Missing registration as recorded by you' : 'Expired registration as recorded by you'}
+    </p>
   );
 }
