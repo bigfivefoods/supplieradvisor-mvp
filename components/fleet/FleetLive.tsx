@@ -24,6 +24,7 @@ export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectI
   const [phase, setPhase] = useState<'loading' | 'error' | 'ready'>('loading');
   const [book, setBook] = useState<FleetBook>(emptyFleetBook());
   const [role, setRole] = useState<FleetRole>('viewer');
+  const [roleResolved, setRoleResolved] = useState(false);
   const [pending, setPending] = useState(false);
   const [readiness, setReadiness] = useState<FleetReadiness | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
@@ -45,6 +46,7 @@ export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectI
     }
     if (body.ready === false) {
       setPending(true);
+      setRoleResolved(false);
       setBook(emptyFleetBook(Number(companyId) || 0));
       setPhase('ready');
       return;
@@ -54,6 +56,7 @@ export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectI
       delete (next as FleetBook & { cpk?: unknown }).cpk;
       setBook(next);
       setRole(body.role || 'viewer');
+      setRoleResolved(true);
       setReadiness(body.readiness);
       setWebPush(body.web_push === 'ready' ? 'ready' : 'not_configured');
       setPending(false);
@@ -75,6 +78,7 @@ export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectI
     const body = (await response.json()) as Payload;
     if (body.ready === false) {
       setPending(true);
+      setRoleResolved(false);
       setNotice('Database setup is still pending.');
       return false;
     }
@@ -87,6 +91,7 @@ export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectI
       delete (next as FleetBook & { cpk?: unknown }).cpk;
       setBook(next);
       setRole(body.role || role);
+      setRoleResolved(true);
       if (body.web_push) setWebPush(body.web_push === 'ready' ? 'ready' : 'not_configured');
       if (body.readiness) setReadiness(body.readiness);
       setNotice(null);
@@ -110,6 +115,7 @@ export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectI
         phase={phase}
         book={book}
         role={role}
+        roleResolved={roleResolved}
         caps={caps}
         periodId={periodId}
         hrefBase="/dashboard/fleetgraph"

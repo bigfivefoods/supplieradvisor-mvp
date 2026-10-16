@@ -1,4 +1,6 @@
+import { APPARELGRAPH_FLOW } from './apparelgraph';
 import { CONSTRUCTIONGRAPH_FLOW } from './constructiongraph';
+import { FLEETGRAPH_FLOW } from './fleetgraph';
 import { TRADEGRAPH_FLOW } from './tradegraph';
 import type { AdvisorFlowDef, AdvisorFlowModuleId } from './types';
 
@@ -10,6 +12,8 @@ import type { AdvisorFlowDef, AdvisorFlowModuleId } from './types';
 export const ADVISOR_FLOWS: Partial<Record<AdvisorFlowModuleId, AdvisorFlowDef>> = {
   tradegraph: TRADEGRAPH_FLOW,
   constructiongraph: CONSTRUCTIONGRAPH_FLOW,
+  fleetgraph: FLEETGRAPH_FLOW,
+  apparelgraph: APPARELGRAPH_FLOW,
 };
 
 export function getAdvisorFlow(id: AdvisorFlowModuleId): AdvisorFlowDef | null {

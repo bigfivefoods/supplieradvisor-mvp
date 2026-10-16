@@ -158,3 +158,19 @@ export function viewForRole<T extends FleetBook & { cpk?: unknown }>(
   }
   return view;
 }
+
+/**
+ * Role passed into the Fleet process flow.
+ * Unknown, still loading, or migrations-pending stays unset so the diagram
+ * is not drawn as a viewer. Preview omits roleResolved and still mounts.
+ */
+export function fleetProcessRole(input: {
+  role: FleetRole | null;
+  migrationPending?: boolean;
+  roleResolved?: boolean;
+}): FleetRole | undefined {
+  if (input.migrationPending || input.roleResolved === false || input.role == null || input.role === 'none') {
+    return undefined;
+  }
+  return input.role;
+}

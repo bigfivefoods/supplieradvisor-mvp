@@ -6,6 +6,7 @@ import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AdvisorProcessFlow } from '../../../components/advisors/AdvisorProcessFlow';
 import { capabilitiesFor } from '../../construction/roles';
+import { capabilitiesFor as fleetCaps } from '../../fleet/roles';
 
 function html(node: ReactElement): string {
   return renderToStaticMarkup(node);
@@ -107,5 +108,72 @@ assert.match(trade, /Exact count later/);
 assert.match(trade, /data-testid="advisor-flow-tradegraph"/);
 assert.equal(trade.includes('role="none"'), false);
 assertFlow(trade, 9);
+
+const fleetOwner = html(
+  createElement(AdvisorProcessFlow, {
+    module: 'fleetgraph',
+    role: 'owner',
+    caps: fleetCaps('owner'),
+    hrefBase: '/dashboard/fleetgraph',
+  })
+);
+assert.match(fleetOwner, /aria-expanded="true"/);
+assert.match(fleetOwner, /You are the owner/);
+assert.match(fleetOwner, /href="\/dashboard\/fleetgraph\/cpk"/);
+assert.match(fleetOwner, /href="\/dashboard\/fleetgraph\/vehicles"[^>]*>Running costs</);
+assertFlow(fleetOwner, 10);
+
+const dispatcher = html(
+  createElement(AdvisorProcessFlow, {
+    module: 'fleetgraph',
+    role: 'dispatcher',
+    caps: fleetCaps('dispatcher'),
+    hrefBase: '/dashboard/fleetgraph',
+  })
+);
+assert.match(dispatcher, /aria-expanded="false"/);
+assert.match(dispatcher, /Not available to your role/);
+assert.equal(dispatcher.includes('href="/dashboard/fleetgraph/cpk"'), false);
+assert.equal(dispatcher.includes('href="/dashboard/fleetgraph/import"'), false);
+assert.equal(/href="\/dashboard\/fleetgraph\/vehicles"[^>]*>Running costs</.test(dispatcher), false);
+assert.match(dispatcher, /Running costs/);
+assertFlow(dispatcher, 10);
+
+const fleetPreview = html(
+  createElement(AdvisorProcessFlow, {
+    module: 'fleetgraph',
+    role: 'owner',
+    caps: fleetCaps('owner'),
+    hrefBase: '/preview/fleetgraph',
+  })
+);
+assert.match(fleetPreview, /\/preview\/fleetgraph\/vehicles\?role=owner/);
+assert.equal(fleetPreview.includes('href="/dashboard/'), false);
+assertFlow(fleetPreview, 10);
+
+const apparel = html(
+  createElement(AdvisorProcessFlow, {
+    module: 'apparelgraph',
+    role: 'owner',
+    hrefBase: '/dashboard/apparelgraph',
+  })
+);
+assert.match(apparel, /aria-expanded="true"/);
+assert.match(apparel, /href="\/dashboard\/apparelgraph\/range"/);
+assert.match(apparel, /href="\/dashboard\/quality\/inspections"/);
+assert.match(apparel, /View only today/);
+assert.match(apparel, /Brand/);
+assert.match(apparel, /Factory/);
+assertFlow(apparel, 10);
+
+const apparelMember = html(
+  createElement(AdvisorProcessFlow, {
+    module: 'apparelgraph',
+    role: 'member',
+    hrefBase: '/dashboard/apparelgraph',
+  })
+);
+assert.match(apparelMember, /aria-expanded="false"/);
+assertFlow(apparelMember, 10);
 
 console.log('brief120-flow-ui.test.tsx ok');

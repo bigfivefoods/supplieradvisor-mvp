@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, Check, ChevronRight, ClipboardList, Gauge, Truck, Users } from 'lucide-react';
+import { AdvisorProcessFlow } from '@/components/advisors/AdvisorProcessFlow';
 import { cpkForBook } from '@/lib/fleet/book-cpk';
 import { complianceLabel, complianceStatus } from '@/lib/fleet/compliance';
 import { addDays, fleetHeadline, requiredRate, type VehicleCpk } from '@/lib/fleet/cpk';
@@ -21,7 +22,7 @@ import {
   vehicleStatusLabel,
 } from '@/lib/fleet/labels';
 import { nextMonth, periodFor, type PeriodId } from '@/lib/fleet/periods';
-import type { FleetCapabilities } from '@/lib/fleet/roles';
+import { fleetProcessRole, type FleetCapabilities } from '@/lib/fleet/roles';
 import type { FleetBook, FleetOp, FleetReadiness, FleetRole } from '@/lib/fleet/types';
 import { ComplianceView, DriverDetailView, ImportView, RemindersPanel, VehicleDetailView } from './ComplianceViews';
 import { CpkWaterfallArt, DispatchArt, ExpiryStripArt, FleetRegisterArt, MapSketchArt, PodArt } from './Illustrations';
@@ -64,6 +65,7 @@ export type FleetDeskProps = {
   today: string;
   notice?: string | null;
   migrationPending?: boolean;
+  roleResolved?: boolean;
   illustrate?: boolean;
   webPush?: 'ready' | 'not_configured';
   subjectId?: string;
@@ -182,24 +184,27 @@ function CommandView(props: FleetDeskProps) {
       ) : null}
       <Banners {...props} />
       {empty ? (
-        <FleetEmpty
-          testId="fleet-command-empty"
-          icon={<Truck />}
-          title="Your fleet desk is empty"
-          hint="Add a vehicle to start the register. Cost per kilometre shows Not enough data until odometer readings and costs exist."
-          illustration={
-            <div className="space-y-3">
-              <FleetRegisterArt />
-              <ExpiryStripArt />
-              <CpkWaterfallArt />
-            </div>
-          }
-          action={
-            <Link className={`${fleetBtn} ${fleetFocus}`} href={`${props.hrefBase}/vehicles`}>
-              Add your first vehicle
-            </Link>
-          }
-        />
+        <>
+          <FleetEmpty
+            testId="fleet-command-empty"
+            icon={<Truck />}
+            title="Your fleet desk is empty"
+            hint="Add a vehicle to start the register. Cost per kilometre shows Not enough data until odometer readings and costs exist."
+            illustration={
+              <div className="space-y-3">
+                <FleetRegisterArt />
+                <ExpiryStripArt />
+                <CpkWaterfallArt />
+              </div>
+            }
+            action={
+              <Link className={`${fleetBtn} ${fleetFocus}`} href={`${props.hrefBase}/vehicles`}>
+                Add your first vehicle
+              </Link>
+            }
+          />
+          <FleetFlow {...props} />
+        </>
       ) : (
         <>
           <section className="overflow-hidden rounded-3xl bg-[#0f172a] shadow-sm">
@@ -310,10 +315,21 @@ function CommandView(props: FleetDeskProps) {
           <FleetSection title="Setup">
             <SetupList {...props} />
           </FleetSection>
+          <FleetFlow {...props} />
         </>
       )}
     </main>
   );
+}
+
+function FleetFlow(props: FleetDeskProps) {
+  const flowRole = fleetProcessRole({
+    role: props.role,
+    migrationPending: props.migrationPending,
+    roleResolved: props.roleResolved,
+  });
+  if (!flowRole) return null;
+  return <AdvisorProcessFlow module="fleetgraph" role={flowRole} caps={props.caps} hrefBase={props.hrefBase} />;
 }
 
 function fleetRollup(rows: VehicleCpk[], periodId: PeriodId, windowDays: number): {
