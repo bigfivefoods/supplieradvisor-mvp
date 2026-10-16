@@ -1,14 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AlertTriangle, CreditCard, Clock, X } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import type { CompanySubscriptionInfo } from '@/lib/billing/company-subscription';
 import { formatZar, COMPANY_SUBSCRIPTION_MONTHLY_ZAR } from '@/lib/billing/company-subscription';
+import { bannerState } from '@/lib/billing/access-banner-state';
 
-/** Routes always usable when subscription lapsed */
+/**
+ * Routes always usable when subscription lapsed.
+ * /dashboard/my-business/modules is omitted on purpose (Brief 118): that page
+ * links to Add supplier, Add customer and Invite business, and it toggles trade
+ * hubs, so a locked company would see trade actions there.
+ */
 const ALWAYS_ALLOW = [
   '/dashboard/select-company',
   '/dashboard/my-business/billing',
@@ -29,14 +35,25 @@ function isAllowedPath(pathname: string | null): boolean {
   );
 }
 
+function trialAttemptKey(companyId: number): string {
+  return `sa-trial-autostart:${companyId}`;
+}
+
 /**
  * Sticky banner + soft gate when trial/subscription is expired or ending soon.
+ * status `none` is not expiry: one idempotent start is attempted, then a calm
+ * cyan bar if the company is still without a trial.
  */
 export default function SubscriptionAccessBanner() {
   const pathname = usePathname();
   const companyId = getSelectedCompanyId();
   const [sub, setSub] = useState<CompanySubscriptionInfo | null>(null);
   const [dismissWarn, setDismissWarn] = useState(false);
+  const [startAttempted, setStartAttempted] = useState(false);
+  const [canManageBilling, setCanManageBilling] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  const startedFor = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     if (!companyId) {
@@ -49,9 +66,43 @@ export default function SubscriptionAccessBanner() {
         { cache: 'no-store' }
       );
       const data = await res.json();
-      if (res.ok && data.subscription) {
-        setSub(data.subscription as CompanySubscriptionInfo);
+      if (!(res.ok && data.subscription)) return;
+      let next = data.subscription as CompanySubscriptionInfo;
+      if (typeof data.canManageBilling === 'boolean') {
+        setCanManageBilling(data.canManageBilling);
       }
+      let attempted = false;
+      if (next.status === 'none') {
+        const key = trialAttemptKey(companyId);
+        let already = startedFor.current === companyId;
+        try {
+          already = already || sessionStorage.getItem(key) === '1';
+        } catch {
+          /* private mode */
+        }
+        if (!already) {
+          startedFor.current = companyId;
+          try {
+            sessionStorage.setItem(key, '1');
+          } catch {
+            /* private mode */
+          }
+          const startRes = await fetch(
+            `/api/business/subscription?companyId=${companyId}`,
+            { cache: 'no-store' }
+          );
+          const startData = await startRes.json();
+          if (startRes.ok && startData.subscription) {
+            next = startData.subscription as CompanySubscriptionInfo;
+          }
+          if (typeof startData.canManageBilling === 'boolean') {
+            setCanManageBilling(startData.canManageBilling);
+          }
+        }
+        attempted = true;
+      }
+      setSub(next);
+      setStartAttempted(attempted);
     } catch {
       /* soft */
     }
@@ -61,24 +112,45 @@ export default function SubscriptionAccessBanner() {
     void load();
   }, [load, pathname]);
 
-  if (!companyId || !sub || sub.isLifetime) return null;
+  const startTrial = useCallback(async () => {
+    if (!companyId || starting) return;
+    setStarting(true);
+    setStartError(null);
+    try {
+      const res = await fetch('/api/business/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, action: 'start_trial' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStartError(
+          typeof data.error === 'string'
+            ? data.error
+            : 'Could not start your trial. Please try again.'
+        );
+        return;
+      }
+      if (data.subscription) {
+        setSub(data.subscription as CompanySubscriptionInfo);
+        setStartAttempted(true);
+      }
+    } catch {
+      setStartError('Could not start your trial. Please try again.');
+    } finally {
+      setStarting(false);
+    }
+  }, [companyId, starting]);
+
+  if (!companyId || !sub) return null;
+
+  const state = bannerState(sub, { startAttempted });
+  if (state === 'hidden' || state === 'resolving') return null;
+  if (state === 'ending_soon' && dismissWarn) return null;
 
   const days = sub.daysRemaining;
-  const endingSoon =
-    sub.hasAccess &&
-    days != null &&
-    days <= 7 &&
-    (sub.isTrial || sub.isActive || sub.status === 'cancelled');
-
-  const locked = !sub.hasAccess;
   const allow = isAllowedPath(pathname);
-
-  // Soft gate: block interaction outside allowlist when locked
-  const showGate = locked && !allow;
-
-  if (!locked && (!endingSoon || dismissWarn)) {
-    return null;
-  }
+  const showGate = state === 'locked' && !allow;
 
   const daysLabel =
     days == null
@@ -91,7 +163,50 @@ export default function SubscriptionAccessBanner() {
 
   return (
     <>
-      {locked && (
+      {state === 'start_trial' && (
+        <div
+          data-testid="trial-start-banner"
+          className="border-b border-[#0077b6] bg-[#00b4d8] px-3 sm:px-4 py-2.5"
+        >
+          <div className="max-w-screen-2xl mx-auto flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+            <div className="min-w-0 flex-1 text-sm text-[#0f172a]">
+              <strong className="font-bold">Setting up your free trial</strong>
+              <span>
+                {' '}
+                — your company is registered. Start the free trial to open the
+                workspace. Profile and billing stay open.
+              </span>
+              {startError ? (
+                <span className="block text-xs font-semibold mt-1">{startError}</span>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {canManageBilling ? (
+                <button
+                  type="button"
+                  onClick={() => void startTrial()}
+                  disabled={starting}
+                  className="inline-flex items-center justify-center rounded-full border border-[#0f172a] bg-white px-4 py-2 text-xs font-bold text-[#0f172a] disabled:opacity-60 touch-manipulation"
+                >
+                  {starting ? 'Starting…' : 'Start free trial'}
+                </button>
+              ) : (
+                <span className="text-xs font-bold text-[#0f172a]">
+                  Ask your company owner to start the trial
+                </span>
+              )}
+              <Link
+                href="/dashboard/my-business/billing"
+                className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-xs font-bold text-[#0f172a] touch-manipulation"
+              >
+                Billing
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {state === 'locked' && (
         <div className="border-b border-rose-200 bg-rose-50 px-3 sm:px-4 py-2.5">
           <div className="max-w-screen-2xl mx-auto flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
             <div className="flex items-start gap-2 min-w-0 flex-1">
@@ -122,7 +237,7 @@ export default function SubscriptionAccessBanner() {
         </div>
       )}
 
-      {!locked && endingSoon && !dismissWarn && (
+      {state === 'ending_soon' && !dismissWarn && (
         <div className="border-b border-amber-200 bg-amber-50 px-3 sm:px-4 py-2.5">
           <div className="max-w-screen-2xl mx-auto flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
             <div className="flex items-start gap-2 min-w-0 flex-1">
