@@ -3,7 +3,14 @@
  * Run: npx --yes tsx lib/business/brief122-me-companies.test.ts
  */
 import assert from 'node:assert/strict';
-import { loadMyCompanies, type MeCompaniesDb } from './me-companies';
+import { readFileSync } from 'node:fs';
+import {
+  loadMyCompanies,
+  resetMeCompaniesEmbedForTests,
+  type MeCompaniesDb,
+} from './me-companies';
+
+const EMBED_HINT = 'profiles!business_users_profile_id_fkey!inner(';
 
 type Row = Record<string, any>;
 
@@ -17,7 +24,14 @@ type Call = {
   patch?: Row;
 };
 
-function createDb(seed: { business_users?: Row[]; profiles?: Row[] }) {
+function createDb(
+  seed: { business_users?: Row[]; profiles?: Row[] },
+  opts: {
+    embedError?: { message: string; code: string } | null;
+    plainMemberError?: { message: string; code: string } | null;
+    profileError?: { message: string; code: string } | null;
+  } = {}
+) {
   const store: Record<string, Row[]> = {
     business_users: [...(seed.business_users || [])],
     profiles: [...(seed.profiles || [])],
@@ -113,6 +127,42 @@ function createDb(seed: { business_users?: Row[]; profiles?: Row[] }) {
             }
           }
         }
+        const embed =
+          state.op === 'select' &&
+          table === 'business_users' &&
+          state.select.includes('profiles!');
+        if (embed && !state.select.includes('business_users_profile_id_fkey')) {
+          finish();
+          resolve({
+            data: null,
+            error: {
+              message: 'Could not embed because more than one relationship was found',
+              code: 'PGRST201',
+            },
+          });
+          return;
+        }
+        if (embed && opts.embedError) {
+          finish();
+          resolve({ data: null, error: opts.embedError });
+          return;
+        }
+        if (
+          state.op === 'select' &&
+          table === 'business_users' &&
+          !embed &&
+          opts.plainMemberError &&
+          state.select.includes('role')
+        ) {
+          finish();
+          resolve({ data: null, error: opts.plainMemberError });
+          return;
+        }
+        if (state.op === 'select' && table === 'profiles' && opts.profileError) {
+          finish();
+          resolve({ data: null, error: opts.profileError });
+          return;
+        }
         if (state.op === 'update') {
           const ids = new Set(rows.map((row) => row.id));
           store[table] = (store[table] || []).map((row) =>
@@ -122,7 +172,7 @@ function createDb(seed: { business_users?: Row[]; profiles?: Row[] }) {
           resolve({ data: null, error: null });
           return;
         }
-        if (state.select.includes('profiles!inner')) {
+        if (embed) {
           rows = rows.flatMap((row) => {
             const profile = (store.profiles || []).find((item) => item.id === row.profile_id);
             if (!profile) return [];
@@ -181,6 +231,7 @@ async function run(
   db: ReturnType<typeof createDb>,
   extra: Partial<Parameters<typeof loadMyCompanies>[0]> = {}
 ) {
+  resetMeCompaniesEmbedForTests();
   let ensured = 0;
   const result = await loadMyCompanies({
     supabase: db as MeCompaniesDb,
@@ -204,8 +255,27 @@ async function main() {
   // Returning member: one round, no writes, no per-company profile follow-up.
   {
     const db = createDb({
-      business_users: [member()],
-      profiles: [profile(42)],
+      business_users: [
+        member({
+          id: 2,
+          user_id: 'did:privy:other-user',
+          profile_id: 55,
+          email: 'other@example.test',
+        }),
+        member({ id: 3, profile_id: 77, status: 'invited', role: 'owner' }),
+        member({ id: 4, profile_id: 88 }),
+        member(),
+      ],
+      profiles: [
+        profile(55, {
+          trading_name: 'Other Co',
+          email: 'other@example.test',
+          user_id: 'did:privy:other-user',
+        }),
+        profile(77, { trading_name: 'Invited Co' }),
+        profile(88, { trading_name: 'Gone Co', deleted_at: '2026-02-02T00:00:00.000Z' }),
+        profile(42),
+      ],
     });
     const { result, ensured } = await run(db);
     assert.equal(result.status, 200);
@@ -226,10 +296,11 @@ async function main() {
       (call) =>
         call.op === 'select' &&
         call.table === 'business_users' &&
-        call.select.includes('profiles!inner') &&
+        call.select.includes(EMBED_HINT) &&
         call.filters.some((filter) => filter[0] === 'in' && filter[1] === 'user_id')
     );
     assert.ok(userRead, 'membership read must embed the company');
+    assert.equal(userRead!.select.includes(EMBED_HINT), true);
     assert.equal(userRead!.limit, null, 'user membership read must not be truncated');
     const emailRead = db.calls.find(
       (call) =>
@@ -265,6 +336,13 @@ async function main() {
     assert.equal(companies[0].id, '42');
     const updates = db.updates();
     assert.equal(updates.length, 1);
+    assert.equal(
+      updates[0].filters.some(
+        (filter) => filter[0] === 'is' && filter[1] === 'user_id' && filter[2] == null
+      ),
+      true,
+      'bind must not rewrite a row that already has a user'
+    );
     assert.equal(updates[0].patch?.user_id, USER);
     assert.equal(updates[0].patch?.status, 'active');
     assert.equal(
@@ -329,8 +407,10 @@ async function main() {
     assert.equal(db.store.business_users[0].user_id, 'did:privy:someone-else');
   }
 
-  // Platform owner who already has the company: no ensure write.
+  // Platform owner who already has the company still runs ensure.
+  // That call refreshes platform metadata and re-promotes owner emails.
   {
+    resetMeCompaniesEmbedForTests();
     const db = createDb({
       business_users: [
         member({
@@ -362,7 +442,7 @@ async function main() {
         return { company: { id: 9 }, created: false, ownersAttached: ['ops@example.test'] };
       },
     });
-    assert.equal(ensured, 0);
+    assert.equal(ensured, 1, 'login must still refresh and re-promote platform owners');
     assert.equal(db.updates().length, 0);
     const bootstrap = result.body.platformBootstrap as {
       companyId: number;
@@ -371,7 +451,7 @@ async function main() {
     };
     assert.equal(bootstrap.companyId, 9);
     assert.equal(bootstrap.created, false);
-    assert.deepEqual(bootstrap.attached, []);
+    assert.deepEqual(bootstrap.attached, ['ops@example.test']);
     const companies = result.body.companies as Array<{ id: string; entity_kind: string }>;
     assert.equal(companies.some((company) => company.id === '9'), true);
     assert.equal(companies.find((company) => company.id === '9')?.entity_kind, 'platform');
@@ -379,6 +459,7 @@ async function main() {
 
   // Platform company missing: ensure runs once, then the new membership is visible.
   {
+    resetMeCompaniesEmbedForTests();
     const db = createDb({
       business_users: [],
       profiles: [
@@ -483,6 +564,114 @@ async function main() {
     assert.equal('deletedCompanies' in result.body, false);
     assert.equal(db.updates().length, 0);
   }
+
+  // Ambiguous embed: plain membership read, then one profile fetch. A later call skips the embed.
+  {
+    const db = createDb(
+      {
+        business_users: [
+          member({
+            id: 2,
+            user_id: 'did:privy:other-user',
+            profile_id: 55,
+            email: 'other@example.test',
+          }),
+          member(),
+        ],
+        profiles: [profile(42), profile(55, { trading_name: 'Other Co' })],
+      },
+      {
+        embedError: {
+          message: 'Could not embed because more than one relationship was found',
+          code: 'PGRST201',
+        },
+      }
+    );
+    const { result } = await run(db);
+    assert.equal(result.status, 200);
+    const companies = result.body.companies as Array<{ id: string }>;
+    assert.deepEqual(
+      companies.map((company) => company.id),
+      ['42']
+    );
+    assert.equal(
+      db.calls.some(
+        (call) =>
+          call.table === 'profiles' &&
+          call.filters.some((filter) => filter[1] === 'id' && filter[0] === 'in')
+      ),
+      true,
+      'plain rows must be hydrated from profiles'
+    );
+    const before = db.calls.length;
+    const second = await loadMyCompanies({
+      supabase: db,
+      userId: USER,
+      jwtEmails: ['owner@example.test'],
+      isPlatformEmail: () => false,
+      ensurePlatformCompany: async () => {
+        throw new Error('ensure must not run');
+      },
+    });
+    assert.equal(second.status, 200);
+    const added = db.calls.slice(before);
+    assert.equal(
+      added.some((call) => call.select.includes('profiles!')),
+      false,
+      'a known-bad embed must not be retried'
+    );
+  }
+
+  // A column error on the embed still falls back. A failed plain read stays closed.
+  {
+    const drift = createDb(
+      {
+        business_users: [member()],
+        profiles: [profile(42)],
+      },
+      { embedError: { message: 'column profiles.org_type does not exist', code: '42703' } }
+    );
+    const drifted = await run(drift);
+    assert.equal(drifted.result.status, 200);
+    const driftedCompanies = drifted.result.body.companies as Array<{ id: string }>;
+    assert.equal(driftedCompanies[0]?.id, '42');
+
+    const broken = createDb(
+      {
+        business_users: [member()],
+        profiles: [profile(42)],
+      },
+      {
+        embedError: {
+          message: 'Could not embed because more than one relationship was found',
+          code: 'PGRST201',
+        },
+        plainMemberError: { message: 'connection reset', code: '08006' },
+      }
+    );
+    const failed = await run(broken);
+    assert.equal(failed.result.status, 500);
+
+    const profilesDown = createDb(
+      {
+        business_users: [member()],
+        profiles: [profile(42)],
+      },
+      {
+        embedError: {
+          message: 'Could not embed because more than one relationship was found',
+          code: 'PGRST201',
+        },
+        profileError: { message: 'connection reset', code: '08006' },
+      }
+    );
+    const hydrated = await run(profilesDown);
+    assert.equal(hydrated.result.status, 500);
+  }
+
+  const network = readFileSync('app/dashboard/network/actions.ts', 'utf8');
+  assert.equal(network.includes(EMBED_HINT), true);
+  assert.equal(network.includes('profiles:profile_id'), false);
 
   console.log('brief122-me-companies.test.ts ok');
 }

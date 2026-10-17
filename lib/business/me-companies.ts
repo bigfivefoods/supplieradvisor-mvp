@@ -59,7 +59,18 @@ const MEMBER_COLS =
   'id, role, profile_id, status, user_id, email, invited_email, name, permissions';
 const PROFILE_COLS =
   'id, trading_name, legal_name, supplier_status, verification_status, deleted_at, business_type, org_type, metadata';
-const MEMBER_EMBED = `${MEMBER_COLS}, profiles!inner(${PROFILE_COLS})`;
+/**
+ * Production business_users has two foreign keys on profile_id, so the
+ * relationship must be named or PostgREST returns PGRST201.
+ */
+export const MEMBER_EMBED = `${MEMBER_COLS}, profiles!business_users_profile_id_fkey!inner(${PROFILE_COLS})`;
+
+/** null = unknown. false = this process already saw an ambiguous embed. */
+let memberEmbedSupported: boolean | null = null;
+
+export function resetMeCompaniesEmbedForTests(): void {
+  memberEmbedSupported = null;
+}
 
 export type PlatformBootstrap = {
   companyId?: number;
@@ -88,7 +99,7 @@ export type LoadMyCompaniesOpts = {
 function embedUnsupported(error: { message?: string; code?: string } | null | undefined): boolean {
   if (!error) return false;
   const msg = `${error.code || ''} ${error.message || ''}`;
-  return /PGRST200|relationship|embedded resource|schema cache|could not find/i.test(msg);
+  return /PGRST200|PGRST201|relationship|embedded resource|schema cache|could not find/i.test(msg);
 }
 
 function asProfile(raw: unknown): ProfileRow | null {
@@ -126,12 +137,18 @@ async function loadByUser(
   supabase: MeCompaniesDb,
   variants: string[]
 ): Promise<{ rows: MemberRow[]; error: string | null }> {
+  if (memberEmbedSupported === false) {
+    const plain = await readMembers(memberQuery(supabase, MEMBER_COLS).in('user_id', variants));
+    if (plain.error) return { rows: [], error: plain.error };
+    return { rows: plain.rows, error: null };
+  }
   const embedded = memberQuery(supabase, MEMBER_EMBED).in('user_id', variants);
   const first = await readMembers(embedded);
-  if (!first.error) return { rows: first.rows, error: null };
-  if (!embedUnsupported({ message: first.error })) {
-    return { rows: [], error: first.error };
+  if (!first.error) {
+    memberEmbedSupported = true;
+    return { rows: first.rows, error: null };
   }
+  if (embedUnsupported({ message: first.error })) memberEmbedSupported = false;
   const plain = await readMembers(memberQuery(supabase, MEMBER_COLS).in('user_id', variants));
   if (plain.error) return { rows: [], error: plain.error };
   return { rows: plain.rows, error: null };
@@ -142,21 +159,28 @@ async function loadByEmails(
   emails: string[]
 ): Promise<MemberRow[]> {
   if (!emails.length) return [];
-  const byEmail = memberQuery(supabase, MEMBER_EMBED).in('email', emails).limit(80);
-  const byInvited = memberQuery(supabase, MEMBER_EMBED).in('invited_email', emails).limit(80);
+  const select = memberEmbedSupported === false ? MEMBER_COLS : MEMBER_EMBED;
+  const byEmail = memberQuery(supabase, select).in('email', emails).limit(80);
+  const byInvited = memberQuery(supabase, select).in('invited_email', emails).limit(80);
   const [emailRes, invitedRes] = await Promise.all([
     readMembers(byEmail),
     readMembers(byInvited),
   ]);
-  let rows = [...emailRes.rows, ...invitedRes.rows];
-  if (emailRes.error || invitedRes.error) {
-    const [plainEmail, plainInvited] = await Promise.all([
-      readMembers(memberQuery(supabase, MEMBER_COLS).in('email', emails).limit(80)),
-      readMembers(memberQuery(supabase, MEMBER_COLS).in('invited_email', emails).limit(80)),
-    ]);
-    rows = [...plainEmail.rows, ...plainInvited.rows];
+  if (!emailRes.error && !invitedRes.error) {
+    if (select === MEMBER_EMBED) memberEmbedSupported = true;
+    return [...emailRes.rows, ...invitedRes.rows];
   }
-  return rows;
+  if (
+    embedUnsupported({ message: emailRes.error || '' }) ||
+    embedUnsupported({ message: invitedRes.error || '' })
+  ) {
+    memberEmbedSupported = false;
+  }
+  const [plainEmail, plainInvited] = await Promise.all([
+    readMembers(memberQuery(supabase, MEMBER_COLS).in('email', emails).limit(80)),
+    readMembers(memberQuery(supabase, MEMBER_COLS).in('invited_email', emails).limit(80)),
+  ]);
+  return [...plainEmail.rows, ...plainInvited.rows];
 }
 
 async function loadProfilesByIds(
@@ -301,17 +325,6 @@ async function loadDeleted(
   }
 }
 
-function visiblePlatform(memberships: MemberRow[]): MemberRow | null {
-  for (const row of memberships) {
-    const profile = row.profile;
-    if (!profile || profile.deleted_at) continue;
-    if (!isPlatformCompanyProfile(profile)) continue;
-    if (!canAppearInCompanySwitcher(row.role ? String(row.role) : null)) continue;
-    return row;
-  }
-  return null;
-}
-
 export async function loadMyCompanies(
   opts: LoadMyCompaniesOpts
 ): Promise<{ status: number; body: Record<string, unknown> }> {
@@ -403,8 +416,11 @@ export async function loadMyCompanies(
 
   const isPlatformUser = [...knownEmails].some((email) => isPlatformEmail(email));
   let platformBootstrap: PlatformBootstrap | null = null;
-  if (isPlatformUser && !visiblePlatform(memberships)) {
+  if (isPlatformUser) {
     try {
+      // Still runs when this user already has a visible platform membership.
+      // ensurePlatformCompany refreshes platform metadata and re-promotes
+      // owner emails. Skipping it would drop that login-time work.
       const result = await ensure({
         userId,
         jwtEmails: [...knownEmails],
@@ -415,8 +431,9 @@ export async function loadMyCompanies(
         attached: result.ownersAttached,
         knownEmails: [...knownEmails],
       };
+      const pullSelect = memberEmbedSupported === false ? MEMBER_COLS : MEMBER_EMBED;
       const pulled = await readMembers(
-        memberQuery(supabase, MEMBER_EMBED)
+        memberQuery(supabase, pullSelect)
           .eq('profile_id', result.company.id)
           .limit(20)
       );
@@ -443,14 +460,6 @@ export async function loadMyCompanies(
         knownEmails: [...knownEmails],
       };
     }
-  } else if (isPlatformUser) {
-    const existing = visiblePlatform(memberships);
-    platformBootstrap = {
-      companyId: existing ? Number(existing.profile_id) : undefined,
-      created: false,
-      attached: [],
-      knownEmails: [...knownEmails],
-    };
   }
 
   const hydrateError = await hydrateProfiles(supabase, memberships);
