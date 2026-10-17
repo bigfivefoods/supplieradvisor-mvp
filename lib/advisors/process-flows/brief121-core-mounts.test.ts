@@ -1,7 +1,7 @@
 /**
  * Run: npx --yes tsx lib/advisors/process-flows/brief121-core-mounts.test.ts
  * Every core id in MODULE_NAV is mounted, skipped with a reason, or held for a later change.
- * Later is not a skip: those modules still need a flow, and this change does not ship them.
+ * A core id is mounted or skipped. There is no later list left in this change.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -20,6 +20,11 @@ const MOUNTED: Record<string, string> = {
   inventory: 'app/dashboard/inventory/page.tsx',
   quality: 'app/dashboard/quality/page.tsx',
   sheq: 'app/dashboard/sheq/page.tsx',
+  projects: 'app/dashboard/projects/page.tsx',
+  accounting: 'app/dashboard/accounting/page.tsx',
+  people: 'app/dashboard/people/page.tsx',
+  sustainability: 'app/dashboard/sustainability/page.tsx',
+  network: 'app/dashboard/connections/page.tsx',
 };
 
 const SKIPPED: Record<string, string> = {
@@ -31,13 +36,7 @@ const SKIPPED: Record<string, string> = {
   guide: 'The page is the training diagram. A flow on top would repeat it.',
 };
 
-const LATER: Record<string, string> = {
-  projects: 'Later. Some screens depend on migrations.',
-  accounting: 'Later. Owner and finance only.',
-  people: 'Later. Payroll records pay and does not pay staff from a bank.',
-  sustainability: 'Later. The page guard uses the operations resource.',
-  network: 'Later. Discover, invite, accept, price and trade is a short chain.',
-};
+const LATER: Record<string, string> = {};
 
 const advisorIds = new Set<string>(ADVISOR_OS_MODULE_IDS);
 const coreIds = MODULE_NAV.map((item) => item.id).filter((id) => !advisorIds.has(id));
@@ -129,6 +128,37 @@ const sheqFlow = sheq.indexOf('<CoreProcessFlow module="sheq" />');
 assert.match(sheq, /<CoreProcessFlow module="sheq" \/>\s*<\/RelationshipPage>/);
 assert.ok(sheqFlow > sheq.indexOf('How this maps to standards'));
 assert.equal(sheq.includes('useCompanyRole'), false);
+
+const projects = readFileSync(MOUNTED.projects, 'utf8');
+assert.match(projects, /<CoreProcessFlow module="projects" \/>\s*<HubPrinciples/);
+assert.ok(projects.indexOf('<CoreProcessFlow') > projects.indexOf('<HubModuleGrid'));
+assert.equal(projects.includes('useCompanyRole'), false);
+
+const accounting = readFileSync(MOUNTED.accounting, 'utf8');
+assert.match(accounting, /<CoreProcessFlow module="accounting" \/>\s*<HubPrinciples/);
+assert.ok(accounting.indexOf('<CoreProcessFlow') > accounting.indexOf('<HubModuleGrid'));
+assert.equal(accounting.includes('useCompanyRole'), false);
+assert.equal(accounting.slice(0, accounting.indexOf('return (')).includes('<CoreProcessFlow'), false);
+
+const people = readFileSync(MOUNTED.people, 'utf8');
+const peopleSpin = people.indexOf('{loading ? (');
+const peopleElse = people.indexOf(') : (', peopleSpin);
+const peopleFlow = people.indexOf('<CoreProcessFlow module="people" />');
+assert.ok(peopleSpin > 0 && peopleElse > peopleSpin && peopleFlow > peopleElse);
+assert.equal(people.slice(peopleSpin, peopleElse).includes('CoreProcessFlow'), false);
+assert.match(people, /<CoreProcessFlow module="people" \/>\s*<\/>/);
+assert.equal(people.includes('useCompanyRole'), false);
+
+const sustainability = readFileSync(MOUNTED.sustainability, 'utf8');
+assert.match(sustainability, /<CoreProcessFlow module="sustainability" \/>\s*<HubPrinciples/);
+assert.ok(sustainability.indexOf('<CoreProcessFlow') > sustainability.indexOf('<HubModuleGrid'));
+assert.equal(sustainability.includes('useCompanyRole'), false);
+
+const network = readFileSync(MOUNTED.network, 'utf8');
+const networkFlow = network.indexOf('<CoreProcessFlow module="network" />');
+assert.ok(networkFlow > network.indexOf('<OperatingPrinciples'));
+assert.match(network, /<CoreProcessFlow module="network" \/>\s*<\/ConnectionsPage>/);
+assert.equal(network.includes('useCompanyRole'), false);
 
 const operations = readFileSync('app/dashboard/operations/page.tsx', 'utf8');
 assert.equal(operations.includes('CoreProcessFlow'), false);

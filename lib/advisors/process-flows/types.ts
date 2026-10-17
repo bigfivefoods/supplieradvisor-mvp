@@ -23,7 +23,12 @@ export type CoreFlowModuleId =
   | 'distribution'
   | 'inventory'
   | 'quality'
-  | 'sheq';
+  | 'sheq'
+  | 'projects'
+  | 'accounting'
+  | 'people'
+  | 'sustainability'
+  | 'network';
 
 export type AdvisorFlowModuleId = AdvisorModuleId | CoreFlowModuleId;
 

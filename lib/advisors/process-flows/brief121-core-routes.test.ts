@@ -62,6 +62,18 @@ assert.equal(
   CORE_FLOWS.customers.steps.find((step) => step.id === 'order')?.secondary?.find((target) => target.label === 'Inbound orders')?.path,
   'orders?tab=inbound'
 );
+assert.equal(CORE_FLOWS.people.steps.find((step) => step.id === 'directory')?.to?.path, 'directory?new=1');
+assert.equal(CORE_FLOWS.network.steps.find((step) => step.id === 'accept')?.to?.path, '?tab=pending_in');
+assert.equal(
+  CORE_FLOWS.network.steps.find((step) => step.id === 'invite')?.secondary?.[0]?.needs,
+  'canViewCustomers'
+);
+assert.equal(
+  CORE_FLOWS.network.steps.find((step) => step.id === 'trade')?.secondary?.[0]?.needs,
+  'canViewCustomers'
+);
+assert.equal(CORE_FLOWS.network.steps.find((step) => step.id === 'money')?.to?.needs, 'canViewCustomers');
+assert.equal(CORE_FLOWS.sustainability.steps.find((step) => step.id === 'carbon')?.to?.needs, 'canViewOperations');
 
 assert.equal(isRedirectStub('app/dashboard/suppliers/connect/page.tsx'), true);
 assert.equal(isRedirectStub('app/dashboard/suppliers/discover/page.tsx'), false);
@@ -113,6 +125,54 @@ const EXACT: Record<string, Record<string, { to: string | null; secondary: strin
     hazard: { to: 'hazards', secondary: [] },
     ncr: { to: 'ncrs', secondary: ['/dashboard/quality/inspections'] },
     capa: { to: 'capas', secondary: [] },
+  },
+  projects: {
+    portfolio: { to: 'portfolio', secondary: [] },
+    programmes: { to: 'programmes', secondary: [] },
+    method: { to: 'dmaic', secondary: ['sdg'] },
+    board: { to: 'kanban-boards', secondary: ['gantt', 'milestones'] },
+    time: { to: 'timesheets', secondary: [] },
+    riad: { to: 'risk-register', secondary: [] },
+    reporting: { to: 'reporting', secondary: [] },
+  },
+  accounting: {
+    chart: { to: 'chart-of-accounts', secondary: [] },
+    settings: { to: 'settings', secondary: [] },
+    journals: { to: 'journal-entries', secondary: [] },
+    ar: { to: 'accounts-receivable', secondary: [] },
+    ap: { to: 'accounts-payable', secondary: [] },
+    payments: { to: 'payments', secondary: [] },
+    bank: { to: 'bank-reconciliation', secondary: [] },
+    tax: { to: 'tax', secondary: [] },
+    management: { to: 'management', secondary: ['balance-sheet', 'cash-flow'] },
+    afs: { to: 'afs', secondary: [] },
+  },
+  people: {
+    directory: { to: 'directory?new=1', secondary: [] },
+    org: { to: 'org-chart', secondary: ['organisation'] },
+    onboarding: { to: 'onboarding', secondary: [] },
+    leave: { to: 'leave', secondary: [] },
+    payroll: { to: 'payroll', secondary: [] },
+    performance: { to: 'performance', secondary: [] },
+    training: { to: 'training', secondary: [] },
+    discipline: { to: 'disciplinary', secondary: [] },
+  },
+  sustainability: {
+    carbon: { to: 'carbon-tracking', secondary: [] },
+    resources: { to: 'water-waste', secondary: [] },
+    materiality: { to: 'materiality', secondary: [] },
+    targets: { to: 'regenerative-dashboard', secondary: [] },
+    initiatives: { to: 'initiatives', secondary: [] },
+    certificates: { to: 'green-certificates', secondary: [] },
+    pack: { to: 'reports', secondary: [] },
+  },
+  network: {
+    discover: { to: 'discover', secondary: ['marketplace'] },
+    invite: { to: '/dashboard/suppliers/invites', secondary: ['/dashboard/customers/invites'] },
+    accept: { to: '?tab=pending_in', secondary: [] },
+    prices: { to: 'pricing', secondary: [] },
+    trade: { to: '/dashboard/suppliers/po', secondary: ['/dashboard/customers/quotes'] },
+    money: { to: '/dashboard/customers/money', secondary: [] },
   },
 };
 

@@ -62,6 +62,11 @@ export const CORE_HREF_ROOT: Record<CoreFlowModuleId, string> = {
   inventory: '/dashboard/inventory',
   quality: '/dashboard/quality',
   sheq: '/dashboard/sheq',
+  projects: '/dashboard/projects',
+  accounting: '/dashboard/accounting',
+  people: '/dashboard/people',
+  sustainability: '/dashboard/sustainability',
+  network: '/dashboard/connections',
 };
 
 export const CORE_MODULE_RESOURCE: Record<CoreFlowModuleId, PermissionResource> = {
@@ -74,6 +79,11 @@ export const CORE_MODULE_RESOURCE: Record<CoreFlowModuleId, PermissionResource> 
   inventory: 'inventory',
   quality: 'sheq',
   sheq: 'sheq',
+  projects: 'projects',
+  accounting: 'accounting',
+  people: 'people',
+  sustainability: 'operations',
+  network: 'network',
 };
 
 const TEAM_IDS: readonly TeamRole[] = TEAM_ROLE_OPTIONS.map((option) => option.value);

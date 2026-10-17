@@ -26,6 +26,7 @@ import {
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 
 const MODULES: HubModule[] = [
   {
@@ -242,6 +243,7 @@ export default function SustainabilityHub() {
 
       <HubModuleGrid modules={MODULES} />
 
+      <CoreProcessFlow module="sustainability" />
       <HubPrinciples
         items={[
           {

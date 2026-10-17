@@ -92,11 +92,11 @@ Nothing mounts until the company role has finished loading and is a real role th
 | inventory | Mounted. Scan receive is partial: the lot is still received, and the response carries a warning the screen does not show yet. A transfer ship checks lines that carry a lot number. |
 | quality | Mounted. The recall screen is a drill. The regulatory export is a data file and a print view, not a submission. |
 | sheq | Mounted. Incident, hazard, non-conformance and corrective action. |
-| projects | Later. Some screens depend on migrations and must not claim more than the page shows. |
-| accounting | Later. Owner and finance only. Statements stay unaudited in the copy. |
-| people | Later. Payroll records pay and does not pay staff from a bank. |
-| sustainability | Later. Factors are estimates. The page guard uses the operations resource. |
-| network | Later. Discover, invite, accept, price and trade is a short chain. |
+| projects | Mounted. Portfolio, programmes, method and the risk log ask for a migration when their tables are missing. The report can show a zero when a table is missing. |
+| accounting | Mounted. Owner and finance only. Statements stay unaudited. A receipt is recorded and is not sent from a bank. |
+| people | Mounted. Payroll calculates a run, says the tax amounts are proxies, and can post a journal. It does not pay staff from a bank. |
+| sustainability | Mounted. Figures are estimates. The page guard uses the operations resource. The evidence pack is not an audit. |
+| network | Mounted. Discover, invite, accept, a price agreement and a first order. The price agreement needs an accepted connection. |
 | intelligence | Skipped. Read-only analysis. No hand-off and no job to do in order. |
 | my-business | Skipped. Settings and identity. It already has its own checklist, and Control Tower has the first-run checklist. |
 | platform | Skipped. Internal console for platform staff. Not a customer workflow. |
@@ -119,3 +119,15 @@ Quality is live except the recall drill and the regulatory export. The drill sea
 SHEQ is live. A hazard stores likelihood and severity and a score from them. A corrective action stores a root cause, a corrective action and a preventive action. Setting the status to effective records the check time. The page copy that names a standard is not repeated here.
 
 Gating of these links follows the page guard, which is a client check. Server enforcement varies by API and is not implied by a flow. Quality uses the same resource as SHEQ.
+
+Projects, Finance, People, Impact and Network are mounted in this change. No migration is included. Where a screen already asks you to apply a migration, the step says so and stays partly live.
+
+Projects is partly live on the portfolio, the programmes, the method screens, the risk log and the report. Those first four screens ask you to apply the migration when their tables are missing. The report does not, and a missing table can show a zero. The board moves a task with a column choice. The chart is read only. A gate checklist does not block a move. This change does not apply either migration.
+
+Finance mounts for the owner and for finance. The statements, the VAT worksheet and the annual pack say they are compiled and unaudited. A receipt and a supplier payment are recorded in the books and are not sent from a bank. A posted journal is refused when debits and credits differ. A locked month rejects a post. If the lock check cannot run, it does not block. Posting a journal and recording a payment use the accounting write check. Reading a journal, a payment or the annual statements checks company membership. The lock button is for the owner and for finance. The lock route also accepts an admin.
+
+People payroll is partly live. The screen calculates a run, says the tax amounts are illustrative proxies, and can post a journal when a labour account and a bank account both exist in the chart. It does not pay staff from a bank. The disciplinary screen sets a status and an outcome and does not keep a hearing log. The people routes check company membership. The page guard is what limits the link.
+
+Impact copy says estimate. The carbon screen says default factors are order-of-magnitude, and it labels shipment logistics as an estimate. A saved water, waste or energy row is stored as an estimate. The carbon, water, materiality, target, initiative and certificate screens ask you to apply the migration when their tables are missing. The evidence pack says the figures are estimates and that it is not an audit. It still builds when those tables are missing, and those sections are then empty. The links follow the operations page guard. The impact routes check company membership.
+
+Network is a short chain. The supplier and customer invite screens send a claim link. The discover screen sends the in-app request. A price agreement is refused until the connection is accepted and is not suspended. A quote does not need an accepted connection. When an accepted connection is suspended, a new purchase order for that business is refused. The connection routes check company membership.
