@@ -34,7 +34,7 @@ export async function fetchUserCompanies(userId: string) {
       role,
       status,
       joined_at,
-      profiles!business_users_profile_id_fkey!inner(
+      profiles:profile_id (
         id,
         trading_name,
         legal_name,

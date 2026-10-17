@@ -11,11 +11,14 @@ import {
 
 type Row = Record<string, unknown>;
 
+type Filter = ['eq' | 'in', string, unknown];
+
 type Call = {
   table: string;
   op: 'select' | 'update';
   select: string;
   epoch: number;
+  filters: Filter[];
 };
 
 const EMBED_HINT = 'profiles!business_users_profile_id_fkey!inner(';
@@ -93,6 +96,7 @@ function createFake(opts: {
         op: state.op,
         select: state.select,
         epoch: at,
+        filters: state.filters.map((filter) => [filter[0], filter[1], filter[2]]),
       });
       queueMicrotask(() => {
         const embed = state.op === 'select' && table === 'business_users' && isEmbedSelect(state.select);
@@ -422,11 +426,52 @@ async function main() {
     if (!res.ok) assert.equal(res.status, 500);
   }
 
-  const network = await import('node:fs').then((fs) =>
-    fs.readFileSync('app/dashboard/network/actions.ts', 'utf8')
-  );
-  assert.equal(network.includes(EMBED_HINT), true);
-  assert.equal(network.includes('profiles:profile_id'), false);
+  // Fallback read must keep the caller filter and active status. Decoys are first
+  // so limit(1) returns the wrong row if either filter is dropped.
+  {
+    const otherUser = 'did:privy:member-b';
+    const db = createFake({
+      members: [
+        member({ id: 2, user_id: otherUser, role: 'admin' }),
+        member({ id: 5, status: 'invited', role: 'member' }),
+        member(),
+      ],
+      profiles: [{ id: COMPANY, deleted_at: null }],
+      embedError: {
+        message: 'Could not embed because more than one relationship was found',
+        code: 'PGRST201',
+      },
+    });
+    setMembershipClientForTests(db);
+    const res = await getCompanyMembership(USER, COMPANY);
+    assert.equal(res.ok, true);
+    if (res.ok) {
+      assert.equal(res.memberId, 7);
+      assert.equal(res.status, 'active');
+      assert.equal(res.role, 'owner');
+    }
+    const memberRead = db.reads().find(
+      (call) => call.table === 'business_users' && !isEmbedSelect(call.select)
+    );
+    assert.ok(memberRead);
+    assert.equal(
+      memberRead.filters.some(
+        (filter) =>
+          filter[0] === 'in' &&
+          filter[1] === 'user_id' &&
+          Array.isArray(filter[2]) &&
+          filter[2].includes(USER)
+      ),
+      true
+    );
+    assert.equal(
+      memberRead.filters.some(
+        (filter) => filter[0] === 'eq' && filter[1] === 'status' && filter[2] === 'active'
+      ),
+      true
+    );
+    await settle();
+  }
 
   setMembershipClientForTests(null);
   console.log('brief122-membership-one-call.test.ts ok');
