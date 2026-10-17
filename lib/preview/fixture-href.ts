@@ -68,6 +68,12 @@ export function mapFixtureHref(href: string): string | null {
   return null;
 }
 
+/** True when a fixture click would leave this page for another preview screen. */
+export function isFixtureReachable(href: string): boolean {
+  const next = mapFixtureHref(href);
+  return typeof next === 'string' && next.length > 0 && next !== STAY;
+}
+
 /** Rewrite in-app links while a fixture route is open. Other pages are unchanged. */
 export function fixtureHref(href: string): string {
   if (!isFixturePath()) return href;

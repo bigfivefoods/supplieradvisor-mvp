@@ -4,7 +4,7 @@
  * FLOW_ICON_NAMES is the icon set. AdvisorProcessFlow maps every name;
  * a module that reuses a name needs no component edit.
  */
-export type AdvisorFlowModuleId =
+export type AdvisorModuleId =
   | 'tradegraph'
   | 'constructiongraph'
   | 'fleetgraph'
@@ -12,6 +12,11 @@ export type AdvisorFlowModuleId =
   | 'containers'
   | 'health'
   | 'recovergraph';
+
+/** Core workspace ids that use the shared flow. Skipped core ids stay off this union. */
+export type CoreFlowModuleId = 'home' | 'suppliers' | 'customers' | 'sales-portal';
+
+export type AdvisorFlowModuleId = AdvisorModuleId | CoreFlowModuleId;
 
 export type FlowStatus = 'live' | 'partial' | 'soon';
 
@@ -114,6 +119,11 @@ export type ResolveAdvisorFlowInput = {
   hrefBase?: string;
   audience?: string;
   chips?: Readonly<Record<string, readonly FlowChip[]>>;
+  /**
+   * When set, a resolved href this returns false for is plain text.
+   * Omitted, the resolver does not call it.
+   */
+  reachable?: (href: string) => boolean;
 };
 
 export type FlowSecondaryView = {

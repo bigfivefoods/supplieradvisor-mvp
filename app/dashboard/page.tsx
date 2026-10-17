@@ -42,6 +42,7 @@ import { osDashboardHome } from '@/lib/preview/os-fixtures';
 import FirstRunChecklist from '@/components/onboarding/FirstRunChecklist';
 import { TradeHomeWidget } from '@/components/trades/TradeHomeWidget';
 import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 
 type CompanyData = {
   id: number;
@@ -1640,6 +1641,7 @@ export default function DashboardCommandCenter() {
               />
             </ExpandableSection>
           </div>
+          <CoreProcessFlow module="home" />
         </>
       )}
     </RelationshipPage>

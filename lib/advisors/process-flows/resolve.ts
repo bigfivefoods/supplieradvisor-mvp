@@ -13,6 +13,7 @@ import type {
 
 const ROLE_NOTE = 'Not available to your role';
 const PREVIEW_NOTE = 'Open in the signed-in app';
+const HERE_NOTE = 'Not available here';
 const SOON_LABEL = 'Launching soon';
 
 export function flowStatusCounts(def: AdvisorFlowDef): FlowStatusCounts {
@@ -46,6 +47,7 @@ export function stepAriaLabel(step: Pick<FlowStepDef, 'n' | 'title' | 'status'>,
   if (step.status === 'soon' || reason === 'soon') return `${head} ${SOON_LABEL}.`;
   if (reason === 'role') return `${head} ${ROLE_NOTE}.`;
   if (reason === 'preview') return `${head} ${PREVIEW_NOTE}.`;
+  if (reason === 'here') return `${head} ${HERE_NOTE}.`;
   if (!href) return `${head} ${SOON_LABEL}.`;
   const opened = step.title.charAt(0).toLowerCase() + step.title.slice(1);
   return `${head} Opens the ${opened}.`;
@@ -87,7 +89,12 @@ function capBlocks(caps: FlowCaps | undefined, needs: string | undefined): boole
   return caps[needs] === false;
 }
 
-type ResolvedTarget = { href: string | null; reason: 'soon' | 'role' | 'preview' | null };
+type ResolvedTarget = { href: string | null; reason: 'soon' | 'role' | 'preview' | 'here' | null };
+
+function applyReachable(resolved: ResolvedTarget, input: ResolveAdvisorFlowInput): ResolvedTarget {
+  if (!input.reachable || !resolved.href || input.reachable(resolved.href)) return resolved;
+  return { href: null, reason: 'here' };
+}
 
 function resolveTarget(
   target: FlowTarget | null,
@@ -101,15 +108,15 @@ function resolveTarget(
   if (capBlocks(input.caps, target.needs)) return { href: null, reason: 'role' };
   if (preview) {
     if (target.scope === 'app') {
-      if (!target.previewHref) return { href: null, reason: 'preview' };
-      return { href: withRole(target.previewHref, input.role, true), reason: null };
+      if (!target.previewHref) return applyReachable({ href: null, reason: 'preview' }, input);
+      return applyReachable({ href: withRole(target.previewHref, input.role, true), reason: null }, input);
     }
     const key = pathKey(target.path);
-    if (!def.previewPaths.includes(key)) return { href: null, reason: 'preview' };
-    return { href: withRole(joinModule(hrefBase, target.path), input.role, true), reason: null };
+    if (!def.previewPaths.includes(key)) return applyReachable({ href: null, reason: 'preview' }, input);
+    return applyReachable({ href: withRole(joinModule(hrefBase, target.path), input.role, true), reason: null }, input);
   }
-  if (target.scope === 'app') return { href: target.path, reason: null };
-  return { href: joinModule(hrefBase, target.path), reason: null };
+  if (target.scope === 'app') return applyReachable({ href: target.path, reason: null }, input);
+  return applyReachable({ href: joinModule(hrefBase, target.path), reason: null }, input);
 }
 
 function chipsFor(step: FlowStepDef, reason: ResolvedTarget['reason'], extra: readonly FlowChip[] | undefined): FlowChip[] {
@@ -123,6 +130,7 @@ function chipsFor(step: FlowStepDef, reason: ResolvedTarget['reason'], extra: re
   }
   if (reason === 'role') chips.push({ id: 'role', label: ROLE_NOTE, tone: 'slate' });
   if (reason === 'preview') chips.push({ id: 'preview', label: PREVIEW_NOTE, tone: 'slate' });
+  if (reason === 'here') chips.push({ id: 'here', label: HERE_NOTE, tone: 'slate' });
   if (extra) {
     for (const chip of extra) chips.push(chip);
   }
@@ -139,7 +147,7 @@ function toNode(step: FlowStepDef, def: AdvisorFlowDef, input: ResolveAdvisorFlo
     return {
       label: target.label,
       href: resolved.href,
-      note: resolved.reason === 'role' ? ROLE_NOTE : resolved.reason === 'preview' ? PREVIEW_NOTE : null,
+      note: resolved.reason === 'role' ? ROLE_NOTE : resolved.reason === 'preview' ? PREVIEW_NOTE : resolved.reason === 'here' ? HERE_NOTE : null,
     };
   });
   const mine =
@@ -181,7 +189,7 @@ export function resolveAdvisorFlow(def: AdvisorFlowDef, input: ResolveAdvisorFlo
           return {
             label: target.label,
             href: resolved.href,
-            note: resolved.reason === 'role' ? ROLE_NOTE : resolved.reason === 'preview' ? PREVIEW_NOTE : null,
+            note: resolved.reason === 'role' ? ROLE_NOTE : resolved.reason === 'preview' ? PREVIEW_NOTE : resolved.reason === 'here' ? HERE_NOTE : null,
           };
         }),
       }

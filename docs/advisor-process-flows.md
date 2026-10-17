@@ -18,7 +18,7 @@ One shared diagram for an advisor Command page. The component draws whatever a t
 ## How to add a module
 
 1. Add `lib/advisors/process-flows/<module>.ts` exporting an `AdvisorFlowDef`. Read the screens before writing the copy. If a step is less built than it looks, mark it `partial` or `soon`.
-2. Register it in `ADVISOR_FLOWS` inside `lib/advisors/process-flows/index.ts`. That map is the only registry.
+2. Register it in `ADVISOR_FLOWS` inside `lib/advisors/process-flows/index.ts`. That map is the advisor registry. Core modules use `CORE_FLOWS` instead, as the next section describes.
 3. Mount `<AdvisorProcessFlow module="..." />` once on that module's Command page. Pass the role, capability object, and `hrefBase` the page already has.
 4. Add one row to `SHARED_MOUNTED` in `lib/advisors/process-flows/brief120-flow-mounts.test.ts`.
 
@@ -69,3 +69,39 @@ The ids live in `ADVISOR_OS_MODULE_IDS`. Own diagrams, including RecoverAdvisorÂ
 ## Left out on purpose
 
 Live counts on a step, a PDF of the diagram, a chain of pills, a separate "who does what" grid, and any progress percentage. The optional `chips` prop can show a count later, only where an exact scoped query already exists. Nothing in the current registry passes chips.
+
+## Core modules
+
+Core flows use the same component and the same icon list, `FLOW_ICON_NAMES`. They are not in `ADVISOR_FLOWS`. Each one is a data file under `lib/advisors/process-flows/core/`, a line in `CORE_FLOWS`, and one `<CoreProcessFlow module="..." />` on the page. `ALL_FLOWS` is the lookup the component uses. `getAdvisorFlow` reads that lookup. A new core id in `MODULE_NAV` fails `brief121-core-mounts.test.ts` until it is mounted, skipped with a reason, or listed for a later change.
+
+The flow stays closed until someone opens it. The header shows the title and the status line. The toggle is a button with `aria-expanded` and `aria-controls`, and the panel stays in the page.
+
+Nothing mounts until the company role has finished loading and is a real role that can open the page. A sales contractor does not get a flow on a dashboard page. Sales uses the server allow-list (`sales_contractor`, `owner`, `admin`, `finance`, `sales`), not the client matrix. In a signed-out preview the mount waits for an effect, then uses the sample owner, which is the same role the preview membership stub uses. A step is a link there only when the fixture can open it. Other steps stay plain text and say they are not available here.
+
+`coreFlowCaps` builds each view flag with `canView`, except `canUseSalesPortal`. The "who" chip on a step is the set of roles with write access on that step's resource. Gating of links follows the page guard, which is a client check. Server enforcement varies by API and is not implied by a flow.
+
+| id | Decision |
+| --- | --- |
+| home | Mounted on Control Tower. The buy chain is not drawn anywhere else. The first-run checklist stays. |
+| suppliers | Mounted. The journey checklist stays. |
+| customers | Mounted below the path strip. The strip stays. |
+| sales-portal | Mounted on the sales workspace. Links follow the server allow-list. |
+| operations | Later. The hub already has numbered stage cards. A flow would add the hand-offs. |
+| manufacturing | Later. The make screens are a real chain. |
+| distribution | Later. Proof of delivery is only an event label today. |
+| inventory | Later. Catalogue, stock, transfers and counts are a real chain. |
+| quality | Later. Inspection, trace and the recall drill are a real chain. |
+| sheq | Later. Incident to corrective action is a real loop. |
+| projects | Later. Some screens depend on migrations and must not claim more than the page shows. |
+| accounting | Later. Owner and finance only. Statements stay unaudited in the copy. |
+| people | Later. Payroll records pay and does not pay staff from a bank. |
+| sustainability | Later. Factors are estimates. The page guard uses the operations resource. |
+| network | Later. Discover, invite, accept, price and trade is a short chain. |
+| intelligence | Skipped. Read-only analysis. No hand-off and no job to do in order. |
+| my-business | Skipped. Settings and identity. It already has its own checklist, and Control Tower has the first-run checklist. |
+| platform | Skipped. Internal console for platform staff. Not a customer workflow. |
+| guide | Skipped. The page is the training diagram. A flow on top would repeat it. |
+
+Icons are reused from `FLOW_ICON_NAMES`. No new picture was added.
+
+Control Tower, Suppliers, Customers and Sales are the flows in this change. Suppliers documents are partly live: the vault stores the file, and the contracts screen only opens that vault. The other steps in these four flows are live. None of them is launching soon.

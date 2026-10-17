@@ -30,6 +30,7 @@ import {
 } from '@/components/chrome/CommandHubChrome';
 import RatingPromptBanner from '@/components/ratings/RatingPromptBanner';
 import { AdvisorCoreBridge } from '@/components/advisors/AdvisorCoreBridge';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 import {
   CrmEmpty,
   CrmKeysHint,
@@ -427,6 +428,7 @@ function HubInner() {
           </Link>
         </section>
       </div>
+      <CoreProcessFlow module="customers" />
     </CustomersPage>
   );
 }
