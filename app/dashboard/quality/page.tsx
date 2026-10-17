@@ -24,6 +24,7 @@ import {
   TelemetryCard,
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 
 const MODULES: HubModule[] = [
@@ -247,6 +248,7 @@ export default function QualityHub() {
 
       <HubModuleGrid modules={MODULES} />
 
+      <CoreProcessFlow module="quality" />
       <HubPrinciples
         items={[
           {

@@ -26,6 +26,22 @@ const flows = [
     heading: 'Customer book',
     plain: 'Send a quote',
   },
+  {
+    id: 'inventory',
+    path: '/preview/inventory',
+    openStep: 'Check stock and lots',
+    live: /\/preview\/inventory\?screen=stock$/,
+    heading: 'Live stock',
+    plain: '',
+  },
+  {
+    id: 'sheq',
+    path: '/preview/sheq',
+    openStep: 'Report an incident',
+    live: /\/preview\/sheq\?screen=incidents$/,
+    heading: 'Incidents',
+    plain: '',
+  },
 ] as const;
 
 function ignoreConsole(text: string): boolean {
@@ -145,7 +161,9 @@ for (const width of widths) {
         nodes.filter((node) => (node as HTMLElement).getBoundingClientRect().height < 40).map((node) => node.textContent || node.tagName)
       );
       expect(short).toEqual([]);
-      await expect(section.locator('a', { hasText: flow.plain })).toHaveCount(0);
+      if (flow.plain) await expect(section.locator('a', { hasText: flow.plain })).toHaveCount(0);
+      const previewHrefs = await section.locator('a').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href') || ''));
+      expect(previewHrefs.some((href) => href.startsWith('/dashboard') || href.startsWith('/sales'))).toBe(false);
       await expect(section.getByRole('link', { name: flow.openStep })).toHaveCount(1);
       await expect(section.locator('[aria-label]')).toHaveCount(0);
       await assertAxe(page, flow.id);

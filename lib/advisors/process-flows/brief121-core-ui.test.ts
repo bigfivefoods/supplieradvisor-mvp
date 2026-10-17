@@ -24,6 +24,13 @@ function paint(module: CoreFlowModuleId, role: string): string {
   );
 }
 
+function openingTag(markup: string, marker: string): string {
+  const at = markup.indexOf(marker);
+  assert.ok(at >= 0, marker);
+  const start = markup.lastIndexOf('<', at);
+  return markup.slice(start, markup.indexOf('>', start) + 1);
+}
+
 function assertClosed(markup: string, module: CoreFlowModuleId) {
   const flow = CORE_FLOWS[module];
   assert.match(markup, /aria-expanded="false"/);
@@ -34,8 +41,10 @@ function assertClosed(markup: string, module: CoreFlowModuleId) {
   assert.equal(markup.includes('aria-label='), false, module);
   assert.equal(markup.includes('<aside'), false, module);
   assert.equal(markup.includes('text-white'), false, module);
-  assert.match(markup, /background-color:#00b4d8/);
-  assert.match(markup, /color:#0f172a/);
+  const header = openingTag(markup, 'data-flow-header');
+  assert.match(header, /background-color:#00b4d8/, module);
+  assert.match(header, /color:#0f172a/, module);
+  assert.doesNotMatch(header, /color:#fff\b|color:#ffffff|color:white/i, module);
   const hrefs = [...markup.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
   const allowed = new Set<string>();
   for (const step of flow.steps) {
@@ -84,5 +93,39 @@ assert.match(contractorSuppliers, /Not available to your role/);
 const memberSales = paint('sales-portal', 'member');
 assert.equal(memberSales.includes('href='), false);
 assert.match(memberSales, /Not available to your role/);
+
+const viewerMake = paint('manufacturing', 'viewer');
+assert.match(viewerMake, /href="\/dashboard\/manufacturing\/bills-of-materials"/);
+assert.match(viewerMake, /href="\/dashboard\/manufacturing\/mrp"/);
+assert.match(viewerMake, /does not raise a purchase order/);
+assert.equal(viewerMake.includes('Not available to your role'), false);
+assert.equal(viewerMake.includes('You are the viewer'), true);
+
+const ownerShip = paint('distribution', 'owner');
+assert.match(ownerShip, /Capture proof of delivery/);
+assert.match(ownerShip, /Launching soon/);
+assert.equal(ownerShip.includes('href="/dashboard/distribution/tracking"'), true);
+assert.equal((ownerShip.match(/<a /g) || []).length, 6);
+
+const contractorInventory = paint('inventory', 'sales_contractor');
+assert.equal(contractorInventory.includes('href='), false);
+assert.match(contractorInventory, /Not available to your role/);
+
+const ownerInventory = paint('inventory', 'owner');
+assert.match(ownerInventory, /href="\/dashboard\/inventory\/stock"/);
+assert.match(ownerInventory, /href="\/dashboard\/inventory\/lots"/);
+assert.match(ownerInventory, /href="\/dashboard\/suppliers\/po"/);
+assert.match(ownerInventory, /Only the owner or an admin can override/);
+
+const viewerQuality = paint('quality', 'viewer');
+assert.match(viewerQuality, /href="\/dashboard\/quality\/inspections"/);
+assert.match(viewerQuality, /href="\/dashboard\/quality\/traceability-graph"/);
+assert.match(viewerQuality, /This is a drill/);
+assert.match(viewerQuality, /not a submission/);
+
+const ownerSheq = paint('sheq', 'owner');
+assert.match(ownerSheq, /href="\/dashboard\/sheq\/incidents"/);
+assert.match(ownerSheq, /href="\/dashboard\/quality\/inspections"/);
+assert.match(ownerSheq, /You are the owner/);
 
 console.log('brief121-core-ui.test.ts ok');

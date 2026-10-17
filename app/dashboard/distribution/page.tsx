@@ -26,6 +26,7 @@ import {
 import {
   OperatingPrinciples,
 } from '@/components/relationship/RelationshipChrome';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 
 type Summary = {
   shipments: number;
@@ -333,6 +334,7 @@ function CommandInner() {
             </div>
           </div>
 
+          <CoreProcessFlow module="distribution" />
           <OperatingPrinciples
             items={[
               {

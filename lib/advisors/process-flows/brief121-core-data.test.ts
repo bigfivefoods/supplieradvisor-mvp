@@ -127,6 +127,108 @@ const PINNED: Record<CoreFlowModuleId, { lead: string; outcome: string; guardrai
       },
     ],
   },
+  manufacturing: {
+    lead: 'From a bill of materials to a costed batch. The module cards on this page stay where they are.',
+    outcome: 'The bill is defined, the schedule is firmed, materials are netted, the work order is run, and cost is on the centre.',
+    guardrails: [
+      {
+        title: 'Suggestions only',
+        body: 'A material run suggests make and buy. It does not raise a purchase order.',
+      },
+      {
+        title: 'Work order stock',
+        body: 'Completing a work order posts finished stock only when the order has a product and a warehouse is available. The warehouse is the location sent with the completion, or else a company warehouse. Bill components are posted out of stock when the order has a bill.',
+      },
+      {
+        title: 'Labour rate',
+        body: 'Labour on a completed work order uses the station rate when that rate is set, and otherwise the cell rate. Nothing is recorded when neither rate is set. The cost screen shows those expenses with stations and assets.',
+      },
+    ],
+  },
+  distribution: {
+    lead: 'From the commercial terms and the carrier roster to a tracked shipment. Proof of delivery is not captured yet. The module cards on this page stay where they are.',
+    outcome: 'Commercial terms, carriers and vehicles are set, shipments are booked, and movement is in the event log.',
+    guardrails: [
+      {
+        title: 'Purchase order text',
+        body: 'A purchase-order reference on a shipment is free text. It is not a link to the purchase order.',
+      },
+      {
+        title: 'Proof of delivery',
+        body: 'Delivered is an event label. The log stores no signature and no photo.',
+      },
+      {
+        title: 'Events',
+        body: 'Advancing a shipment writes an event. The tracking screen reads that log.',
+      },
+    ],
+  },
+  inventory: {
+    lead: 'From the catalogue to a counted stock position. The module cards on this page stay where they are.',
+    outcome: 'Products and sites are set, stock is received and moved, and the count and the report are ready to read.',
+    guardrails: [
+      {
+        title: 'Catalogue',
+        body: 'The product catalogue is the products screen. The finished-goods and raw-materials addresses open a stock filter, not this catalogue.',
+      },
+      {
+        title: 'Transfer hold',
+        body: 'Shipping a transfer is refused when a line carries a lot number and that lot has an open or failed inspection. A line with no lot number is not checked. Only the owner or an admin can override that block, and the override is logged. Any error from the inspection query lets the transfer ship. On the signed-out preview, the transfer link opens the live stock screen. The signed-in link stays on transfers.',
+      },
+      {
+        title: 'Scan still receives',
+        body: 'A scan receive still receives the lot. The response carries a warning when that lot already has an open or failed inspection. The screen does not show that warning yet.',
+      },
+      {
+        title: 'Counts',
+        body: 'A count posts a changed quantity back to the amount on hand. The cycle-count address opens the count history, and the stock-take address opens this same screen.',
+      },
+    ],
+  },
+  quality: {
+    lead: 'From an inspection to a traced lot. The path cards on this page stay where they are.',
+    outcome: 'A lot is inspected, the plan and the monitoring are logged, and the trace and the drill are there to read.',
+    guardrails: [
+      {
+        title: 'Hold on a transfer',
+        body: 'An open or failed inspection blocks shipping a transfer line that carries that lot number. A line with no lot number is not checked. Any error from the inspection query lets the transfer ship. Only the owner or an admin can override the block, and the override is logged. A scan receive is not blocked, and the scan screen does not show the warning.',
+      },
+      {
+        title: 'Failed inspection',
+        body: 'A failed inspection raises a non-conformance and opens a corrective action. An open inspection does not.',
+      },
+      {
+        title: 'Operating log',
+        body: 'HACCP stores a plan, control points and monitoring logs. It does not issue a certificate.',
+      },
+      {
+        title: 'Recall drill',
+        body: 'The recall screen searches a lot and shows stock, inspections and monitoring. It does not run a recall.',
+      },
+      {
+        title: 'Export',
+        body: 'The regulatory screen downloads operating records as JSON and opens a print view. It is not a submission.',
+      },
+    ],
+  },
+  sheq: {
+    lead: 'From an incident to a closed action. The cards on this page stay where they are.',
+    outcome: 'The incident and the hazard are recorded, the non-conformance is raised, and the action can be closed.',
+    guardrails: [
+      {
+        title: 'Score',
+        body: 'A hazard stores likelihood and severity, and a score from them. This picture states no scale.',
+      },
+      {
+        title: 'Failed inspection',
+        body: 'A failed inspection raises a non-conformance and opens a corrective action. You can also raise a non-conformance on this screen.',
+      },
+      {
+        title: 'Close the action',
+        body: 'A corrective action stores a root cause, a corrective action and a preventive action. Setting the status to effective records the check time.',
+      },
+    ],
+  },
 };
 
 const STATUS: Record<CoreFlowModuleId, Record<string, FlowStepDef['status']>> = {
@@ -143,6 +245,17 @@ const STATUS: Record<CoreFlowModuleId, Record<string, FlowStepDef['status']>> = 
     agreement: 'live', pipeline: 'live', diary: 'live', quote: 'live', order: 'live',
     invoice: 'live', earnings: 'live', subscribe: 'live',
   },
+  manufacturing: { bom: 'live', mps: 'live', mrp: 'partial', orders: 'live', cells: 'live', cost: 'live' },
+  distribution: {
+    incoterms: 'live', carriers: 'live', fleet: 'live', inbound: 'live', outbound: 'live',
+    tracking: 'live', pod: 'soon',
+  },
+  inventory: {
+    products: 'live', sites: 'live', scan: 'partial', stock: 'live', transfer: 'live',
+    count: 'live', report: 'live', storefront: 'live',
+  },
+  quality: { inspect: 'live', haccp: 'live', trace: 'live', drill: 'partial', pack: 'partial' },
+  sheq: { incident: 'live', hazard: 'live', ncr: 'live', capa: 'live' },
 };
 
 const NEEDS: Record<CoreFlowModuleId, Record<string, string>> = {
@@ -165,6 +278,24 @@ const NEEDS: Record<CoreFlowModuleId, Record<string, string>> = {
     quote: 'canUseSalesPortal', order: 'canUseSalesPortal', invoice: 'canUseSalesPortal',
     earnings: 'canUseSalesPortal', subscribe: 'canUseSalesPortal',
   },
+  manufacturing: {
+    bom: 'canViewManufacturing', mps: 'canViewManufacturing', mrp: 'canViewManufacturing',
+    orders: 'canViewManufacturing', cells: 'canViewManufacturing', cost: 'canViewManufacturing',
+  },
+  distribution: {
+    incoterms: 'canViewDistribution', carriers: 'canViewDistribution', fleet: 'canViewDistribution',
+    inbound: 'canViewDistribution', outbound: 'canViewDistribution', tracking: 'canViewDistribution',
+    pod: 'canViewDistribution',
+  },
+  inventory: {
+    products: 'canViewInventory', sites: 'canViewInventory', scan: 'canViewInventory',
+    stock: 'canViewInventory', transfer: 'canViewInventory', count: 'canViewInventory',
+    report: 'canViewInventory', storefront: 'canViewInventory',
+  },
+  quality: {
+    inspect: 'canViewSheq', haccp: 'canViewSheq', trace: 'canViewSheq', drill: 'canViewSheq', pack: 'canViewSheq',
+  },
+  sheq: { incident: 'canViewSheq', hazard: 'canViewSheq', ncr: 'canViewSheq', capa: 'canViewSheq' },
 };
 
 /** Literal chip lists. Not derived from writeRolesForCap. */
@@ -185,10 +316,36 @@ const WHO: Record<string, { roles: readonly string[]; who: string }> = {
     roles: ['sales_contractor', 'owner', 'admin', 'finance', 'sales'],
     who: 'sales contractor, owner, admin, finance, sales',
   },
+  canViewManufacturing: {
+    roles: ['owner', 'admin', 'member', 'operations'],
+    who: 'owner, admin, member, operations',
+  },
+  canViewDistribution: {
+    roles: ['owner', 'admin', 'member', 'operations'],
+    who: 'owner, admin, member, operations',
+  },
+  canViewInventory: {
+    roles: ['owner', 'admin', 'member', 'operations'],
+    who: 'owner, admin, member, operations',
+  },
+  canViewSheq: {
+    roles: ['owner', 'admin', 'member', 'operations'],
+    who: 'owner, admin, member, operations',
+  },
 };
 
 const ids = Object.keys(CORE_FLOWS) as CoreFlowModuleId[];
-assert.deepEqual(ids, ['home', 'suppliers', 'customers', 'sales-portal']);
+assert.deepEqual(ids, [
+  'home',
+  'suppliers',
+  'customers',
+  'sales-portal',
+  'manufacturing',
+  'distribution',
+  'inventory',
+  'quality',
+  'sheq',
+]);
 
 for (const id of ids) {
   const flow = CORE_FLOWS[id];
@@ -219,20 +376,24 @@ for (const id of ids) {
     counts.set(step.phase, (counts.get(step.phase) || 0) + 1);
     assert.equal(step.status, STATUS[id][step.id], `${id} ${step.id}`);
     assert.equal((FLOW_ICON_NAMES as readonly string[]).includes(step.icon), true, step.icon);
-    assert.equal(step.to == null, false, step.id);
-    assert.ok(step.to);
-    assert.equal(step.to.needs, NEEDS[id][step.id], `${id} ${step.id}`);
-    assert.equal((CORE_CAP_KEYS as readonly string[]).includes(step.to.needs || ''), true, step.id);
+    const cap = NEEDS[id][step.id];
+    assert.equal((CORE_CAP_KEYS as readonly string[]).includes(cap), true, `${id} ${step.id}`);
+    if (step.status === 'soon') {
+      assert.equal(step.to, null, step.id);
+      assert.equal(step.secondary, undefined, step.id);
+    } else {
+      assert.ok(step.to, step.id);
+      assert.equal(step.to?.needs, cap, `${id} ${step.id}`);
+    }
     for (const extra of step.secondary || []) {
       assert.equal((CORE_CAP_KEYS as readonly string[]).includes(extra.needs || ''), true, extra.path);
       assert.equal(extra.path.includes('®'), false);
     }
-    const pinnedWho = WHO[step.to.needs || ''];
-    assert.ok(pinnedWho, `${id} ${step.id} ${step.to.needs}`);
+    const pinnedWho = WHO[cap];
+    assert.ok(pinnedWho, `${id} ${step.id} ${cap}`);
     assert.deepEqual(step.roles, pinnedWho.roles);
     assert.equal(step.who, pinnedWho.who);
     if (step.status === 'partial' || step.status === 'soon') assert.ok(step.note && step.note.length > 0, step.id);
-    if (step.status === 'soon') assert.equal(step.to, null);
     for (const source of step.sources) {
       assert.equal(existsSync(source), true, source);
       assert.equal(source.includes('®'), false, source);
@@ -283,5 +444,64 @@ assert.equal(
     CORE_FLOWS['sales-portal'].steps.filter((step) => step.status !== 'live').length,
   0
 );
+
+assert.equal(
+  CORE_FLOWS.manufacturing.steps.find((step) => step.id === 'mrp')?.desc,
+  'Net demand against stock on hand and scheduled receipts. The run suggests make and buy. It does not raise a purchase order.'
+);
+assert.equal(
+  CORE_FLOWS.manufacturing.steps.find((step) => step.id === 'mrp')?.note,
+  'The run suggests make and buy. It does not raise a purchase order.'
+);
+assert.equal(CORE_FLOWS.distribution.steps.find((step) => step.id === 'pod')?.to, null);
+assert.equal(
+  CORE_FLOWS.distribution.steps.find((step) => step.id === 'pod')?.note,
+  'Delivered is an event label only. There is no signature and no photo.'
+);
+assert.equal(
+  CORE_FLOWS.quality.steps.find((step) => step.id === 'drill')?.note,
+  'This is a drill. It does not run a recall.'
+);
+assert.equal(
+  CORE_FLOWS.quality.steps.find((step) => step.id === 'pack')?.note,
+  'The export is JSON and a print view. It is not a submission.'
+);
+assert.equal(
+  CORE_FLOWS.quality.steps.filter((step) => step.status === 'partial').map((step) => step.id).join(','),
+  'drill,pack'
+);
+assert.equal(
+  CORE_FLOWS.sheq.steps.find((step) => step.id === 'capa')?.desc,
+  'Record the root cause, the corrective action and the preventive action. Setting the status to effective records the check time.'
+);
+assert.equal(
+  CORE_FLOWS.inventory.steps.find((step) => step.id === 'scan')?.desc,
+  'Scan a code to receive stock onto a location, with a lot when you enter one. A lot that already has an open or failed inspection is still received. The response carries a warning that the screen does not show yet.'
+);
+assert.equal(
+  CORE_FLOWS.inventory.steps.find((step) => step.id === 'scan')?.note,
+  'The response carries a warning that the screen does not show yet.'
+);
+assert.equal(CORE_FLOWS.inventory.steps.find((step) => step.id === 'scan')?.status, 'partial');
+assert.equal(
+  CORE_FLOWS.inventory.steps.filter((step) => step.status !== 'live').map((step) => step.id).join(','),
+  'scan'
+);
+assert.equal(
+  CORE_FLOWS.manufacturing.steps.find((step) => step.id === 'orders')?.desc,
+  'Release, start and complete a work order. Completing it posts finished stock only when the order has a product and a warehouse is available, and posts bill components out of stock when the order has a bill.'
+);
+assert.equal(CORE_FLOWS.sheq.steps.filter((step) => step.status !== 'live').length, 0);
+for (const step of [...CORE_FLOWS.quality.steps, ...CORE_FLOWS.sheq.steps, ...CORE_FLOWS.manufacturing.steps]) {
+  assert.equal(step.roles.includes('sales'), false, step.id);
+  assert.equal(step.who.includes('viewer'), false, step.id);
+}
+const copyBan = ['certified', 'compliant', 'auditor-ready', 'iso ', 'grn'];
+for (const id of ['manufacturing', 'distribution', 'inventory', 'quality', 'sheq'] as const) {
+  for (const line of visibleLines(CORE_FLOWS[id])) {
+    const lower = line.toLowerCase();
+    for (const word of copyBan) assert.equal(lower.includes(word), false, `${id} ${word} ${line}`);
+  }
+}
 
 console.log('brief121-core-data.test.ts ok');

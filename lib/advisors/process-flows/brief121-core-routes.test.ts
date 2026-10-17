@@ -12,10 +12,13 @@ export function isRedirectStub(file: string): boolean {
   if (!existsSync(file)) return false;
   const text = readFileSync(file, 'utf8');
   if (text.split('\n').length >= 60) return false;
-  const calls = [...text.matchAll(/(?:router\.replace|redirect)\(\s*['"`]([^'"`]+)['"`]/g)];
-  if (calls.length === 0) return false;
   const own = `/${file.replace(/^app\//, '').replace(/\/page\.tsx$/, '')}`;
-  return calls.some((match) => match[1].replace(/\/$/, '') !== own.replace(/\/$/, ''));
+  const calls = [
+    ...text.matchAll(/(?:router\.replace|redirect)\(\s*['"`]([^'"`]+)['"`]/g),
+    ...text.matchAll(/<LegacyRedirect\s+to=["']([^"']+)["']/g),
+  ];
+  if (calls.length === 0) return false;
+  return calls.some((match) => match[1].split('?')[0].replace(/\/$/, '') !== own.replace(/\/$/, ''));
 }
 
 const NAMED_STUBS = [
@@ -63,6 +66,65 @@ assert.equal(
 assert.equal(isRedirectStub('app/dashboard/suppliers/connect/page.tsx'), true);
 assert.equal(isRedirectStub('app/dashboard/suppliers/discover/page.tsx'), false);
 assert.equal(isRedirectStub('app/dashboard/customers/leads/page.tsx'), false);
+assert.equal(isRedirectStub('app/dashboard/inventory/finished-goods/page.tsx'), true);
+assert.equal(isRedirectStub('app/dashboard/inventory/raw-materials/page.tsx'), true);
+assert.equal(isRedirectStub('app/dashboard/inventory/cycle-counts/page.tsx'), true);
+assert.equal(isRedirectStub('app/dashboard/inventory/stock-take/page.tsx'), true);
+assert.equal(isRedirectStub('app/dashboard/inventory/products/page.tsx'), false);
+assert.equal(isRedirectStub('app/dashboard/inventory/counts/page.tsx'), false);
+
+const EXACT: Record<string, Record<string, { to: string | null; secondary: string[] }>> = {
+  manufacturing: {
+    bom: { to: 'bills-of-materials', secondary: [] },
+    mps: { to: 'master-production-schedules', secondary: [] },
+    mrp: { to: 'mrp', secondary: [] },
+    orders: { to: 'production-orders', secondary: [] },
+    cells: { to: 'work-centers', secondary: [] },
+    cost: { to: 'cost-centres', secondary: [] },
+  },
+  distribution: {
+    incoterms: { to: 'incoterms', secondary: [] },
+    carriers: { to: 'carriers', secondary: [] },
+    fleet: { to: 'fleet-drivers', secondary: [] },
+    inbound: { to: 'inbound', secondary: [] },
+    outbound: { to: 'outbound', secondary: [] },
+    tracking: { to: 'tracking', secondary: [] },
+    pod: { to: null, secondary: [] },
+  },
+  inventory: {
+    products: { to: 'products', secondary: [] },
+    sites: { to: 'warehouses', secondary: [] },
+    scan: { to: 'scan', secondary: ['/dashboard/suppliers/po'] },
+    stock: { to: 'stock', secondary: ['lots'] },
+    transfer: { to: 'stock-transfers', secondary: [] },
+    count: { to: 'counts', secondary: [] },
+    report: { to: 'report', secondary: [] },
+    storefront: { to: 'storefront', secondary: [] },
+  },
+  quality: {
+    inspect: { to: 'inspections', secondary: [] },
+    haccp: { to: 'haccp', secondary: [] },
+    trace: { to: 'traceability', secondary: ['traceability-graph'] },
+    drill: { to: 'recall-simulator', secondary: [] },
+    pack: { to: 'regulatory-reports', secondary: [] },
+  },
+  sheq: {
+    incident: { to: 'incidents', secondary: [] },
+    hazard: { to: 'hazards', secondary: [] },
+    ncr: { to: 'ncrs', secondary: ['/dashboard/quality/inspections'] },
+    capa: { to: 'capas', secondary: [] },
+  },
+};
+
+for (const [module, steps] of Object.entries(EXACT)) {
+  const flow = CORE_FLOWS[module as keyof typeof CORE_FLOWS];
+  assert.deepEqual(flow.steps.map((step) => step.id), Object.keys(steps), module);
+  for (const [id, spec] of Object.entries(steps)) {
+    const step = flow.steps.find((item) => item.id === id);
+    assert.equal(step?.to?.path ?? null, spec.to, `${module} ${id}`);
+    assert.deepEqual((step?.secondary || []).map((target) => target.path), spec.secondary, `${module} ${id}`);
+  }
+}
 
 for (const file of NAMED_STUBS) assert.equal(existsSync(file), true, file);
 
