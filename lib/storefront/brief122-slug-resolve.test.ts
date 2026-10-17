@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { resolveStoreCompany } from './catalog';
+import { persistStorefrontCatalog, resolveStoreCompany, seedBigFiveFoodsCatalog } from './catalog';
 import {
   normaliseStoreSlug,
   storeSlugLookupValues,
@@ -18,6 +18,10 @@ import {
   writeStoreSlugCache,
 } from './slug-cache';
 import type { StoreCompany } from './types';
+import {
+  mergeProfileMetadata,
+  setCompanyDataClientForTests,
+} from '@/lib/business/company-data';
 
 const T0 = 1_700_000_000_000;
 let now = T0;
@@ -144,9 +148,7 @@ assert.deepEqual(storeSlugLookupValues('Cafe\u0301/'), ['caf\u00e9', 'Caf\u00e9'
   assert.equal(hit?.id, 42);
   assert.equal(db.calls.length, 1);
   const filter = db.calls[0].filters.find((f) => f.method === 'filter');
-  assert.equal(filter?.args[1], 'in');
-  assert.equal(String(filter?.args[2]).includes('northwind'), true);
-  assert.equal(String(filter?.args[2]).includes('Northwind'), true);
+  assert.deepEqual(filter?.args, ['metadata->>store_slug', 'eq', 'northwind']);
   const again = await resolveStoreCompany('northwind', db);
   assert.equal(again?.id, 42);
   assert.equal(db.calls.length, 1);
@@ -262,6 +264,37 @@ assert.deepEqual(storeSlugLookupValues('Cafe\u0301/'), ['caf\u00e9', 'Caf\u00e9'
   assert.equal(readStoreSlugCache('northwind').hit, true);
   now += 1_000;
   assert.equal(readStoreSlugCache('northwind').hit, false);
+  writeStoreSlugCache('northwind', sampleCompany(7, 'northwind'));
+  now += 59_000;
+  assert.equal(readStoreSlugCache('northwind').hit, true);
+  now += 1_000;
+  assert.equal(readStoreSlugCache('northwind').hit, false);
+}
+
+{
+  reset();
+  writeStoreSlugCache('shop', sampleCompany(7, 'other-co'));
+  const db = fakeDb((call) => {
+    const filter = call.filters.find((item) => item.method === 'filter');
+    if (filter && filter.args[1] === 'eq' && filter.args[2] === 'shop') {
+      return { data: [profileRow({ id: 8, trading_name: 'Tenant B', metadata: { store_slug: 'shop' } })] };
+    }
+    return { data: [] };
+  });
+  const served = await resolveStoreCompany('shop', db);
+  assert.equal(served?.id, 8);
+  assert.equal(db.calls.length, 1);
+}
+
+{
+  reset();
+  for (let n = 0; n < 2_000; n += 1) {
+    writeStoreSlugCache(`co-${n}`, sampleCompany(7, `co-${n}`));
+  }
+  assert.equal(readStoreSlugCache('co-0').hit, true);
+  writeStoreSlugCache('co-2000', sampleCompany(7, 'co-2000'));
+  assert.equal(readStoreSlugCache('co-0').hit, false);
+  assert.equal(readStoreSlugCache('co-2000').hit, true);
 }
 
 assert.equal(storefrontMetaTouchesSlugCache({ store_slug: 'northwind' }), true);
@@ -269,12 +302,144 @@ assert.equal(storefrontMetaTouchesSlugCache({ storefront_catalog: { mode: 'all' 
 assert.equal(storefrontMetaTouchesSlugCache({ store_tagline: 'Desk' }), true);
 assert.equal(storefrontMetaTouchesSlugCache({ city: 'Durban' }), false);
 
+{
+  reset();
+  const mixed = profileRow({
+    id: 7,
+    trading_name: 'Tenant A',
+    metadata: { store_slug: 'Shop' },
+  });
+  const lower = profileRow({
+    id: 8,
+    trading_name: 'Tenant B',
+    metadata: { store_slug: 'shop' },
+  });
+  const db = fakeDb((call) => {
+    const filter = call.filters.find((item) => item.method === 'filter');
+    if (!filter) return { data: [] };
+    if (filter.args[1] === 'in') return { data: [mixed] };
+    if (filter.args[1] === 'eq' && filter.args[2] === 'shop') return { data: [lower] };
+    return { data: [mixed] };
+  });
+  const fromMixed = await resolveStoreCompany('Shop', db);
+  assert.equal(fromMixed?.id, 8);
+  assert.equal(fromMixed?.tradingName, 'Tenant B');
+  const fromLower = await resolveStoreCompany('shop', db);
+  assert.equal(fromLower?.id, 8);
+  assert.equal(db.calls.length, 1, 'the lower-case slug must reuse the cached company');
+}
+
+function sampleCompany(id: number, slug: string): StoreCompany {
+  return {
+    id,
+    slug,
+    tradingName: 'Northwind',
+    legalName: null,
+    logoUrl: null,
+    shortDescription: null,
+    verificationStatus: null,
+    city: null,
+    country: null,
+    tagline: 'Desk',
+  };
+}
+
+function metadataClient(mode: 'rpc' | 'direct') {
+  function builder(result: { data: unknown; error: { message: string; code?: string } | null }) {
+    const b: Record<string, unknown> = {
+      select() {
+        return b;
+      },
+      update() {
+        return b;
+      },
+      insert() {
+        return b;
+      },
+      eq() {
+        return b;
+      },
+      maybeSingle() {
+        return Promise.resolve(result);
+      },
+      single() {
+        return Promise.resolve(result);
+      },
+      then(onFulfilled: (value: unknown) => unknown) {
+        return Promise.resolve(result).then(onFulfilled);
+      },
+    };
+    return b;
+  }
+  return {
+    rpc() {
+      if (mode === 'rpc') return Promise.resolve({ error: null });
+      return Promise.resolve({
+        error: { code: 'PGRST202', message: 'Could not find the function sa_merge_profile_metadata' },
+      });
+    },
+    from() {
+      return builder({ data: { metadata: {}, id: 7 }, error: null });
+    },
+  };
+}
+
+async function expectDrop(patch: Record<string, unknown>, mode: 'rpc' | 'direct') {
+  reset();
+  writeStoreSlugCache('northwind', sampleCompany(7, 'northwind'));
+  setCompanyDataClientForTests(metadataClient(mode));
+  await mergeProfileMetadata(7, patch);
+  setCompanyDataClientForTests(null);
+  assert.equal(readStoreSlugCache('northwind').hit, false, JSON.stringify(patch));
+}
+
+await expectDrop({ store_slug: 'other-co' }, 'rpc');
+await expectDrop({ storefront_catalog: { mode: 'all' } }, 'rpc');
+await expectDrop({ store_tagline: 'Desk line' }, 'rpc');
+await expectDrop({ store_slug: 'other-co' }, 'direct');
+await expectDrop({ storefront_catalog: { mode: 'all' } }, 'direct');
+await expectDrop({ store_tagline: 'Desk line' }, 'direct');
+
+{
+  reset();
+  writeStoreSlugCache('northwind', sampleCompany(7, 'northwind'));
+  setCompanyDataClientForTests(metadataClient('rpc'));
+  await mergeProfileMetadata(7, { city: 'Durban' });
+  setCompanyDataClientForTests(null);
+  assert.equal(readStoreSlugCache('northwind').hit, true);
+}
+
+{
+  reset();
+  writeStoreSlugCache('northwind', sampleCompany(7, 'northwind'));
+  const saved = await persistStorefrontCatalog(metadataClient('rpc'), 7, {
+    mode: 'all',
+    product_ids: [],
+    seed_keys: [],
+    gym_item_ids: [],
+  });
+  assert.equal(saved, null);
+  assert.equal(readStoreSlugCache('northwind').hit, false);
+}
+
+{
+  reset();
+  writeStoreSlugCache('big-five-foods', sampleCompany(7, 'big-five-foods'));
+  const seeded = await seedBigFiveFoodsCatalog({
+    profileId: 7,
+    client: metadataClient('rpc'),
+  });
+  assert.equal(seeded.profileId, 7);
+  assert.equal(readStoreSlugCache('big-five-foods').hit, false);
+}
+
 const catalogSrc = readFileSync('lib/storefront/catalog.ts', 'utf8');
 assert.equal(catalogSrc.includes('%'), false);
 assert.equal(catalogSrc.includes('.ilike('), false);
 assert.equal(catalogSrc.includes('invalidateStoreSlugCache'), true);
 const inventorySrc = readFileSync('app/api/inventory/storefront/route.ts', 'utf8');
-assert.equal(inventorySrc.includes('invalidateStoreSlugCache'), true);
+assert.equal(inventorySrc.includes('persistStorefrontCatalog'), true);
+assert.equal(inventorySrc.includes('.update('), false);
 const companyDataSrc = readFileSync('lib/business/company-data.ts', 'utf8');
 assert.equal(companyDataSrc.includes('dropCachedStoreCompany'), true);
 

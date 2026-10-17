@@ -18,7 +18,7 @@ import {
   storefrontCatalogFromProfileMetadata,
   type StorefrontCatalogPick,
 } from './catalog-pick';
-import { storeSlugLookupValues } from './public-store';
+import { normaliseStoreSlug } from './public-store';
 import {
   invalidateStoreSlugCache,
   readStoreSlugCache,
@@ -116,7 +116,9 @@ async function fallbackStoreCompany(
       const { data, error } = await query.or(bigFiveNameOr()).limit(1);
       if (error) return { company: null, failed: true };
       const hit = (data || [])[0];
-      if (hit) return { company: mapCompany(hit, BIG_FIVE_FOODS_SLUG), failed: false };
+      if (hit && storedSlugMatches(hit, key)) {
+        return { company: mapCompany(hit, BIG_FIVE_FOODS_SLUG), failed: false };
+      }
       return { company: virtualBigFiveCompany(), failed: false };
     } catch {
       return { company: null, failed: true };
@@ -144,7 +146,7 @@ async function fallbackStoreCompany(
     if (error) return { company: null, failed: true };
     for (const candidate of data || []) {
       const name = String(candidate.trading_name || candidate.legal_name || '');
-      if (slugifyCompanyName(name) === key) {
+      if (slugifyCompanyName(name) === key && storedSlugMatches(candidate, key)) {
         return { company: mapCompany(candidate, key), failed: false };
       }
     }
@@ -154,27 +156,50 @@ async function fallbackStoreCompany(
   }
 }
 
+function storedSlugMatches(row: Record<string, unknown>, key: string): boolean {
+  const meta =
+    row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>)
+      : {};
+  const stored = normaliseStoreSlug(String(meta.store_slug || ''));
+  if (stored) return stored === key;
+  const name = String(row.trading_name || row.legal_name || '');
+  return slugifyCompanyName(name) === key;
+}
+
+function cacheableCompany(company: StoreCompany | null, key: string): boolean {
+  if (!company) return true;
+  return normaliseStoreSlug(company.slug) === key;
+}
+
 export async function resolveStoreCompany(
   slug: string,
   client?: StoreLookupDb
 ): Promise<StoreCompany | null> {
-  const values = storeSlugLookupValues(slug);
-  const key = values[0] || '';
+  const key = normaliseStoreSlug(slug);
   if (!key) return null;
 
   const cached = readStoreSlugCache(key);
-  if (cached.hit) return cached.company;
+  if (cached.hit) {
+    if (cacheableCompany(cached.company, key)) return cached.company;
+    invalidateStoreSlugCache({ slug: key });
+  }
 
   const supabase = client || (supabaseClient(true) as StoreLookupDb);
-  const exact = await lookupStoreSlug(supabase, values);
-  if (exact.row) {
+  // Equality on the normalised slug only. Matching the caller's original
+  // casing as well aliases two tenants onto this one cache key.
+  const exact = await lookupStoreSlug(supabase, [key]);
+  if (exact.row && storedSlugMatches(exact.row, key)) {
     const company = mapCompany(exact.row, key);
-    writeStoreSlugCache(key, company);
-    return company;
+    if (cacheableCompany(company, key)) {
+      writeStoreSlugCache(key, company);
+      return company;
+    }
   }
 
   const fallback = await fallbackStoreCompany(supabase, key);
   if (fallback.failed) return null;
+  if (!cacheableCompany(fallback.company, key)) return null;
   writeStoreSlugCache(key, fallback.company);
   return fallback.company;
 }
@@ -506,22 +531,53 @@ export async function getStoreProduct(
   return hit || null;
 }
 
+export async function persistStorefrontCatalog(
+  supabase: { from: (table: string) => any },
+  companyId: number,
+  pick: StorefrontCatalogPick
+): Promise<string | null> {
+  const loaded = await supabase
+    .from('profiles')
+    .select('id, metadata')
+    .eq('id', companyId)
+    .maybeSingle();
+  if (loaded?.error) return String(loaded.error.message || 'load failed');
+  if (!loaded?.data) return 'Company not found';
+  const raw = loaded.data.metadata;
+  const prev =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? { ...(raw as Record<string, unknown>) }
+      : {};
+  prev.storefront_catalog = pick;
+  const saved = await supabase
+    .from('profiles')
+    .update({
+      metadata: prev,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', companyId);
+  if (saved?.error) return String(saved.error.message || 'save failed');
+  invalidateStoreSlugCache({ companyId });
+  return null;
+}
+
 /** Ensure Big Five Foods profile has store_slug + seed products (admin). */
 export async function seedBigFiveFoodsCatalog(opts?: {
   profileId?: number;
+  client?: StoreLookupDb;
 }): Promise<{
   profileId: number | null;
   productsUpserted: number;
   createdProfile: boolean;
   warning?: string;
 }> {
-  const supabase = supabaseClient(true);
+  const supabase = (opts?.client as ReturnType<typeof supabaseClient> | undefined) || supabaseClient(true);
   let profileId = opts?.profileId != null ? Number(opts.profileId) : 0;
   let createdProfile = false;
   let wroteSlug = false;
 
   if (!profileId) {
-    const company = await resolveStoreCompany(BIG_FIVE_FOODS_SLUG);
+    const company = await resolveStoreCompany(BIG_FIVE_FOODS_SLUG, opts?.client);
     profileId = company?.id || 0;
   }
 

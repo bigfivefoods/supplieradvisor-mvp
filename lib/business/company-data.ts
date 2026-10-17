@@ -322,11 +322,25 @@ function dropCachedStoreCompany(
   invalidateStoreSlugCache({ slug, companyId });
 }
 
+type CompanyDataDb = {
+  from: (table: string) => any;
+  rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ error?: { message?: string; code?: string } | null }>;
+};
+
+let companyDataClientForTests: CompanyDataDb | null = null;
+
+export function setCompanyDataClientForTests(client: CompanyDataDb | null): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Company data test client cannot be installed in production');
+  }
+  companyDataClientForTests = client;
+}
+
 export async function mergeProfileMetadata(
   companyId: number,
   patch: Record<string, unknown>
 ): Promise<void> {
-  const supabase = getSupabaseServer();
+  const supabase = companyDataClientForTests || getSupabaseServer();
   const rpc = await supabase.rpc('sa_merge_profile_metadata', {
     p_company_id: companyId,
     p_patch: patch,
