@@ -70,7 +70,7 @@ const owner = html(
     hrefBase: '/dashboard/constructiongraph',
   })
 );
-assert.match(owner, /aria-expanded="true"/);
+assert.match(owner, /aria-expanded="false"/);
 assertFlow(owner, 10);
 assert.match(owner, /You are the owner/);
 
@@ -106,7 +106,7 @@ const trade = html(
     chips: { customers: [{ id: 'later', label: 'Exact count later', tone: 'slate' }] },
   })
 );
-assert.match(trade, /aria-expanded="true"/);
+assert.match(trade, /aria-expanded="false"/);
 assert.match(trade, /Exact count later/);
 assert.match(trade, /data-testid="advisor-flow-tradegraph"/);
 assert.equal(trade.includes('role="none"'), false);
@@ -120,7 +120,7 @@ const fleetOwner = html(
     hrefBase: '/dashboard/fleetgraph',
   })
 );
-assert.match(fleetOwner, /aria-expanded="true"/);
+assert.match(fleetOwner, /aria-expanded="false"/);
 assert.match(fleetOwner, /You are the owner/);
 assert.match(fleetOwner, /href="\/dashboard\/fleetgraph\/cpk"/);
 assert.match(fleetOwner, /href="\/dashboard\/fleetgraph\/vehicles"[^>]*>Running costs</);
@@ -161,7 +161,7 @@ const apparel = html(
     hrefBase: '/dashboard/apparelgraph',
   })
 );
-assert.match(apparel, /aria-expanded="true"/);
+assert.match(apparel, /aria-expanded="false"/);
 assert.match(apparel, /href="\/dashboard\/apparelgraph\/range"/);
 assert.match(apparel, /href="\/dashboard\/quality\/inspections"/);
 assert.match(apparel, /View only today/);
@@ -186,7 +186,7 @@ const containersOwner = html(
     hrefBase: '/dashboard/containers',
   })
 );
-assert.match(containersOwner, /aria-expanded="true"/);
+assert.match(containersOwner, /aria-expanded="false"/);
 assert.match(containersOwner, /href="\/dashboard\/containers\/add"/);
 assert.match(containersOwner, /not a head count/);
 assert.equal(containersOwner.includes('/dashboard/containers/list'), false);
@@ -210,7 +210,7 @@ for (const audience of ['department', 'facility', 'sp'] as const) {
     hrefBase: '/dashboard/health',
   });
   const markup = html(createElement(AdvisorProcessFlow, { view }));
-  assert.match(markup, /aria-expanded="true"/);
+  assert.match(markup, /aria-expanded="false"/);
   assertFlow(markup, view.phases.reduce((sum, phase) => sum + phase.steps.length, 0));
   assert.equal(markup.includes('/dashboard/health/facilities'), false, audience);
   assert.equal(markup.includes('/dashboard/health/map'), false, audience);

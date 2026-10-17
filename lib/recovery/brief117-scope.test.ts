@@ -125,9 +125,14 @@ const markup = renderToStaticMarkup(createElement(RecoverProcessFlow, { desk }))
 assert.match(markup, /background-color:#00b4d8;color:#0f172a/);
 assert.doesNotMatch(markup, /color:#fff|color:#ffffff|color:white|text-white/i);
 const flow = readFileSync(resolve('components/recovery/RecoverProcessFlow.tsx'), 'utf8');
-assert.match(flow, /setOpen\(!collapsed\)/);
-assert.match(flow, /desk\.role, collapsed/);
-assert.match(flow, /open \? \{ 'aria-controls': 'recover-process-flow-body' \}/);
+assert.equal(/setOpen\(!collapsed\)/.test(flow), false);
+assert.equal(/desk\.role, collapsed/.test(flow), false);
+assert.equal(/open \? \{ 'aria-controls': 'recover-process-flow-body' \}/.test(flow), false);
+assert.match(flow, /aria-controls="recover-process-flow-body"/);
+assert.match(flow, /id="recover-process-flow-body"/);
+assert.match(flow, /hidden=\{!open\}/);
+assert.match(markup, /aria-expanded="false"/);
+assert.match(markup, /id="recover-process-flow-body"/);
 assert.match(flow, /allowInstalled=\{desk\.ready && desk\.reason !== 'migration_pending'\}/);
 
 console.log('brief117-scope.test.ts ok');

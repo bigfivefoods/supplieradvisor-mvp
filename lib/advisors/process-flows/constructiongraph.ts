@@ -32,12 +32,11 @@ export const CONSTRUCTIONGRAPH_FLOW: AdvisorFlowDef = {
     'work',
   ],
   roles: [
-    { id: 'owner', label: 'owner', openByDefault: true },
-    { id: 'site_manager', label: 'site manager', openByDefault: true },
-    { id: 'office', label: 'office', openByDefault: false },
-    { id: 'viewer', label: 'viewer', openByDefault: false },
+    { id: 'owner', label: 'owner' },
+    { id: 'site_manager', label: 'site manager' },
+    { id: 'office', label: 'office' },
+    { id: 'viewer', label: 'viewer' },
   ],
-  openWhenRoleUnknown: true,
   phases: [
     { id: 'win', title: 'Win the work', subtitle: 'The client, the quote, and the project.' },
     { id: 'build', title: 'Plan and build', subtitle: 'The programme, the trades, and the site.' },

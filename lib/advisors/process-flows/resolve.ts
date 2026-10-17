@@ -41,13 +41,6 @@ export function flowSrSummary(def: AdvisorFlowDef): string {
   return `This process has ${counts.total} steps in ${phases} ${phaseWord}. ${counts.live} are live, ${counts.partial} are partly live and ${counts.soon} are launching soon.`;
 }
 
-export function flowDefaultOpen(def: AdvisorFlowDef, role: string | undefined): boolean {
-  if (role === undefined) return def.openWhenRoleUnknown;
-  const found = def.roles.find((item) => item.id === role);
-  if (!found) return false;
-  return found.openByDefault;
-}
-
 export function stepAriaLabel(step: Pick<FlowStepDef, 'n' | 'title' | 'status'>, href: string | null, reason: string | null): string {
   const head = `Step ${step.n}, ${step.title}.`;
   if (step.status === 'soon' || reason === 'soon') return `${head} ${SOON_LABEL}.`;
@@ -199,7 +192,6 @@ export function resolveAdvisorFlow(def: AdvisorFlowDef, input: ResolveAdvisorFlo
     anchorId: def.anchorId,
     title: def.title,
     lead: def.lead,
-    open: flowDefaultOpen(def, input.role),
     roleLabel: known ? `You are the ${known.label}` : null,
     phases,
     around,

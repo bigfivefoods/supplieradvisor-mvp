@@ -14,13 +14,12 @@ export const FLEETGRAPH_FLOW: AdvisorFlowDef = {
   previewRoot: '/preview/fleetgraph',
   previewPaths: ['map', 'vehicles', 'drivers', 'jobs', 'cpk', 'settings', 'compliance', 'import'],
   roles: [
-    { id: 'owner', label: 'owner', openByDefault: true },
-    { id: 'manager', label: 'manager', openByDefault: true },
-    { id: 'dispatcher', label: 'dispatcher', openByDefault: false },
-    { id: 'office', label: 'office', openByDefault: false },
-    { id: 'viewer', label: 'viewer', openByDefault: false },
+    { id: 'owner', label: 'owner' },
+    { id: 'manager', label: 'manager' },
+    { id: 'dispatcher', label: 'dispatcher' },
+    { id: 'office', label: 'office' },
+    { id: 'viewer', label: 'viewer' },
   ],
-  openWhenRoleUnknown: true,
   phases: [
     { id: 'register', title: 'Set up the register', subtitle: 'The vehicles, the drivers, and the dates.' },
     { id: 'run', title: 'Run the work', subtitle: 'Jobs on the board, and the map.' },

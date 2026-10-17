@@ -146,14 +146,20 @@ for (const width of widths) {
       await expect(section).toHaveAttribute('data-flow-ready', '1');
       const toggle = section.getByTestId('advisor-flow-toggle');
       await expect(toggle).toBeVisible();
-      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
       const panel = section.locator(`#${flow.id}-process-flow-panel`);
-      await expect(panel).toBeVisible();
+      await expect(panel).toBeHidden();
+      await expect(toggle).toHaveAttribute('aria-controls', `${flow.id}-process-flow-panel`);
       await toggle.focus();
       await page.keyboard.press('Enter');
-      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-      await page.keyboard.press(' ');
       await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      await expect(panel).toBeVisible();
+      await page.keyboard.press(' ');
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      await expect(panel).toBeHidden();
+      await page.keyboard.press('Enter');
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      await expect(panel).toBeVisible();
       await noHorizontalOverflow(page);
       await expect(section.locator('[aria-label]')).toHaveCount(0);
       await expect(section.locator('a[aria-disabled="true"]')).toHaveCount(0);
@@ -169,4 +175,22 @@ for (const width of widths) {
       expect(errors).toEqual([]);
     });
   }
+}
+
+for (const flow of flows) {
+  test(`${flow.id} signed-out preview starts closed`, async ({ page }) => {
+    await blockPreviewToolbar(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(flow.path);
+    const section = page.getByTestId(`advisor-flow-${flow.id}`);
+    await expect(section).toBeVisible();
+    await expect(section).toHaveAttribute('data-flow-ready', '1');
+    const toggle = section.getByTestId('advisor-flow-toggle');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toHaveAttribute('aria-controls', `${flow.id}-process-flow-panel`);
+    const panel = section.locator(`#${flow.id}-process-flow-panel`);
+    await expect(panel).toHaveCount(1);
+    await expect(panel).toBeHidden();
+    await expect(section.getByRole('heading', { level: 2 })).toBeVisible();
+  });
 }

@@ -5,14 +5,14 @@ function screen(path: string, label: string): FlowTarget {
 }
 
 const companyRoles: AdvisorFlowDef['roles'] = [
-  { id: 'owner', label: 'owner', openByDefault: true },
-  { id: 'admin', label: 'admin', openByDefault: true },
-  { id: 'member', label: 'member', openByDefault: false },
-  { id: 'viewer', label: 'viewer', openByDefault: false },
-  { id: 'finance', label: 'finance', openByDefault: false },
-  { id: 'operations', label: 'operations', openByDefault: false },
-  { id: 'sales', label: 'sales', openByDefault: false },
-  { id: 'sales_contractor', label: 'sales contractor', openByDefault: false },
+  { id: 'owner', label: 'owner' },
+  { id: 'admin', label: 'admin' },
+  { id: 'member', label: 'member' },
+  { id: 'viewer', label: 'viewer' },
+  { id: 'finance', label: 'finance' },
+  { id: 'operations', label: 'operations' },
+  { id: 'sales', label: 'sales' },
+  { id: 'sales_contractor', label: 'sales contractor' },
 ];
 
 export const TRADEGRAPH_FLOW: AdvisorFlowDef = {
@@ -45,7 +45,6 @@ export const TRADEGRAPH_FLOW: AdvisorFlowDef = {
     'website',
   ],
   roles: companyRoles,
-  openWhenRoleUnknown: true,
   phases: [
     { id: 'win', title: 'Win the job', subtitle: 'The customer, the job, and the quote.' },
     { id: 'do', title: 'Do the work', subtitle: 'The visit, the materials, and the work on site.' },

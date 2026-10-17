@@ -79,9 +79,11 @@ function step(markup: string, id: string) {
   return rest.slice(0, cut);
 }
 
-const owner = html(createElement(RecoverProcessFlow, { desk: desk('owner', book) }));
+const owner = html(createElement(RecoverProcessFlow, { desk: desk('owner', book), defaultCollapsed: false }));
 assert.match(owner, /id="recover-process-flow"/);
 assert.match(owner, /aria-expanded="true"/);
+assert.match(owner, /aria-controls="recover-process-flow-body"/);
+assert.match(owner, /id="recover-process-flow-body"/);
 assert.match(owner, /background-color:#00b4d8;color:#0f172a/);
 assert.doesNotMatch(owner, /color:#fff|color:#ffffff|color:white|text-white/i);
 assert.equal(owner.includes('aria-label="Step '), false);
@@ -128,8 +130,17 @@ assert.match(filtered, /selected/);
 
 const shut = html(createElement(RecoverProcessFlow, { desk: desk('viewer', book) }));
 assert.match(shut, /aria-expanded="false"/);
-assert.equal(shut.includes('aria-controls'), false);
-assert.equal(shut.includes('recover-process-flow-body'), false);
+assert.match(shut, /aria-controls="recover-process-flow-body"/);
+assert.match(shut, /id="recover-process-flow-body"[^>]*hidden/);
+assert.match(shut, /From placement to payment/);
+
+const closedOwner = html(createElement(RecoverProcessFlow, { desk: desk('owner', book) }));
+assert.match(closedOwner, /aria-expanded="false"/);
+assert.match(closedOwner, /aria-controls="recover-process-flow-body"/);
+assert.match(closedOwner, /id="recover-process-flow-body"[^>]*hidden/);
+assert.match(closedOwner, /From placement to payment/);
+assert.match(closedOwner, /steps are live/);
+assert.equal(closedOwner.includes('<li'), false);
 
 const pendingDesk = blankDesk('pending', 'owner');
 const pending = html(

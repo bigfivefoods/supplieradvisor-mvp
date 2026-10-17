@@ -83,7 +83,6 @@ export type FlowPhaseDef = {
 export type FlowRoleDef = {
   id: string;
   label: string;
-  openByDefault: boolean;
 };
 
 export type AdvisorFlowDef = {
@@ -96,7 +95,6 @@ export type AdvisorFlowDef = {
   previewRoot: string | null;
   previewPaths: readonly string[];
   roles: readonly FlowRoleDef[];
-  openWhenRoleUnknown: boolean;
   phases: readonly FlowPhaseDef[];
   steps: readonly FlowStepDef[];
   around?: {
@@ -160,7 +158,6 @@ export type AdvisorFlowView = {
   anchorId: string;
   title: string;
   lead: string;
-  open: boolean;
   roleLabel: string | null;
   phases: FlowPhaseView[];
   around: { title: string; links: FlowSecondaryView[] } | null;

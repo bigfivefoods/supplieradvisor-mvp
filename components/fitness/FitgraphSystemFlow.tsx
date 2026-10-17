@@ -596,6 +596,8 @@ export default function FitgraphSystemFlow({
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls="fitgraph-system-flow-panel"
             className="text-left min-w-0 flex-1"
           >
             <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
@@ -616,6 +618,8 @@ export default function FitgraphSystemFlow({
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              aria-controls="fitgraph-system-flow-panel"
               className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-white/25"
             >
               {open ? 'Hide' : 'Show'} full process
@@ -629,6 +633,7 @@ export default function FitgraphSystemFlow({
         </div>
       </div>
 
+      <div id="fitgraph-system-flow-panel" hidden={!open}>
       {open ? (
         <div className="p-4 sm:p-6 space-y-8">
           <div className="flex flex-wrap items-center justify-center gap-2 text-center">
@@ -837,6 +842,7 @@ export default function FitgraphSystemFlow({
           </div>
         </div>
       ) : null}
+      </div>
     </section>
   );
 }

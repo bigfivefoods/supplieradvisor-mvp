@@ -107,7 +107,7 @@ const PHASES = [
 
 export default function RetailgraphSystemFlow({
   compact,
-  defaultCollapsed = false,
+  defaultCollapsed = true,
 }: Props) {
   const [open, setOpen] = useState(!defaultCollapsed);
 
@@ -123,6 +123,8 @@ export default function RetailgraphSystemFlow({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls="retailgraph-system-flow-panel"
           className="flex w-full items-start justify-between gap-3 text-left"
         >
           <div className="min-w-0">
@@ -146,6 +148,7 @@ export default function RetailgraphSystemFlow({
         </button>
       </div>
 
+      <div id="retailgraph-system-flow-panel" hidden={!open}>
       {open ? (
         <div className="space-y-6 p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-center gap-2 text-center">
@@ -232,6 +235,7 @@ export default function RetailgraphSystemFlow({
           </div>
         </div>
       ) : null}
+      </div>
     </section>
   );
 }

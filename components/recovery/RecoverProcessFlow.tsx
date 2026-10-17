@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   Archive,
@@ -69,9 +69,6 @@ export function RecoverProcessFlow({ desk, defaultCollapsed }: Props) {
   });
   const collapsed = defaultCollapsed ?? view.defaultCollapsed;
   const [open, setOpen] = useState(!collapsed);
-  useEffect(() => {
-    setOpen(!collapsed);
-  }, [desk.role, collapsed]);
   const demo =
     preview === 'harbour'
       ? 'Demo data. No messages are sent.'
@@ -113,7 +110,7 @@ export function RecoverProcessFlow({ desk, defaultCollapsed }: Props) {
             type="button"
             className="recover-focus inline-flex min-h-11 shrink-0 items-center justify-center gap-1 self-start rounded-full bg-white px-3 text-sm font-bold text-[#0f172a]"
             aria-expanded={open}
-            {...(open ? { 'aria-controls': 'recover-process-flow-body' } : {})}
+            aria-controls="recover-process-flow-body"
             data-testid="recover-flow-toggle"
             onClick={() => setOpen((value) => !value)}
           >
@@ -122,8 +119,9 @@ export function RecoverProcessFlow({ desk, defaultCollapsed }: Props) {
           </button>
         </div>
       </div>
-      {open ? (
-        <div id="recover-process-flow-body" className="min-w-0 space-y-6 p-4 sm:p-6">
+      <div id="recover-process-flow-body" hidden={!open} className="min-w-0 space-y-6 p-4 sm:p-6">
+        {open ? (
+          <>
           <p className="sr-only">{view.srSummary}</p>
           <ExtraCard node={quiet(view.foundation, links)} />
           {view.phases.map((phase) => (
@@ -171,8 +169,9 @@ export function RecoverProcessFlow({ desk, defaultCollapsed }: Props) {
           <p className="min-w-0 break-words rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3 text-sm leading-relaxed text-[#0f172a]">
             {view.outcome}
           </p>
-        </div>
-      ) : null}
+          </>
+        ) : null}
+      </div>
     </section>
   );
 }

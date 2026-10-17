@@ -150,6 +150,7 @@ jobs:
         run: |
           set -e
           for file in \
+            lib/advisors/process-flows/brief121-closed-by-default.test.ts \
             lib/advisors/process-flows/brief120-flow-data.test.ts \
             lib/advisors/process-flows/brief120-flow-routes.test.ts \
             lib/advisors/process-flows/brief120-flow-resolve.test.ts \

@@ -464,7 +464,7 @@ export function resolveProcessFlow(input: {
     runs: runsFor(input),
     outcome: FLOW_OUTCOME,
     guardrails: FLOW_GUARDRAILS,
-    defaultCollapsed: input.role !== 'owner' && input.role !== 'manager',
+    defaultCollapsed: true,
   };
 }
 

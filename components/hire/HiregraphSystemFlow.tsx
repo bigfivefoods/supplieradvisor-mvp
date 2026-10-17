@@ -133,7 +133,7 @@ const PHASES = [
 
 export default function HiregraphSystemFlow({
   compact,
-  defaultCollapsed = false,
+  defaultCollapsed = true,
 }: Props) {
   const [open, setOpen] = useState(!defaultCollapsed);
 
@@ -150,6 +150,8 @@ export default function HiregraphSystemFlow({
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls="hiregraph-system-flow-panel"
             className="min-w-0 flex-1 text-left"
           >
             <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
@@ -182,6 +184,8 @@ export default function HiregraphSystemFlow({
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              aria-controls="hiregraph-system-flow-panel"
               className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-white/25"
             >
               {open ? 'Hide' : 'Show'} process
@@ -193,6 +197,7 @@ export default function HiregraphSystemFlow({
         </div>
       </div>
 
+      <div id="hiregraph-system-flow-panel" hidden={!open}>
       {open ? (
         <div className="space-y-4 p-4 sm:p-5">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm dark:border-emerald-400/30 dark:bg-gradient-to-r dark:from-emerald-950 dark:to-teal-900/40">
@@ -261,6 +266,7 @@ export default function HiregraphSystemFlow({
           ))}
         </div>
       ) : null}
+      </div>
     </section>
   );
 }
