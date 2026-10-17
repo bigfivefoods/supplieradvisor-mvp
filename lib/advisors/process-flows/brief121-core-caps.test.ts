@@ -150,8 +150,13 @@ assert.equal(CORE_MODULE_RESOURCE.sustainability, resourceForPath('/dashboard/su
 assert.equal(resourceForPath('/dashboard/connections'), 'network');
 assert.equal(CORE_MODULE_RESOURCE.network, 'network');
 assert.equal(resourceForPath('/dashboard/accounting'), 'accounting');
+assert.equal(CORE_MODULE_RESOURCE.accounting, 'accounting');
 assert.equal(resourceForPath('/dashboard/people'), 'people');
+assert.equal(CORE_MODULE_RESOURCE.people, 'people');
+assert.equal(CORE_MODULE_RESOURCE.people, resourceForPath('/dashboard/people'));
 assert.equal(resourceForPath('/dashboard/projects'), 'projects');
+assert.equal(CORE_MODULE_RESOURCE.projects, 'projects');
+assert.equal(CORE_MODULE_RESOURCE.projects, resourceForPath('/dashboard/projects'));
 
 assert.equal(
   coreFlowMountState({ role: 'admin', loading: false, module: 'accounting', fixture: false }).mount,

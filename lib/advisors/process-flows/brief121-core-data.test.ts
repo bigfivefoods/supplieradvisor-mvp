@@ -235,7 +235,7 @@ const PINNED: Record<CoreFlowModuleId, { lead: string; outcome: string; guardrai
     guardrails: [
       {
         title: 'Migration notice',
-        body: 'The portfolio, the programmes, the method screens and the risk log ask you to apply the migration when their tables are missing. The board, the chart, the milestones and the time log do not. A missing table can show a zero, because the report does not show the notice.',
+        body: 'The portfolio, the programmes, the method screens and the risk log ask you to apply the migration when a query fails. The board, the chart, the milestones and the time log do not. A failed read can show a zero, because the report does not show the notice.',
       },
       {
         title: 'Gate checklist',
@@ -269,7 +269,7 @@ const PINNED: Record<CoreFlowModuleId, { lead: string; outcome: string; guardrai
       },
       {
         title: 'Owner and finance',
-        body: 'The page guard opens these screens for the owner and for finance. Posting a journal and recording a payment use that same accounting write check. Reading a journal, a payment or the annual statements checks company membership. The lock button on the settings screen is for the owner and for finance. The lock route also accepts an admin.',
+        body: 'The page guard opens these screens for the owner and for finance. The server restricts posting and editing a journal, recording a payment, allocating a bank line, and saving settings to the owner and to finance. Creating an account, an invoice, a bill, a bank line, a bank import and a VAT row checks company membership only. The screen is what hides those actions. The lock button is for the owner and for finance. The lock route also accepts an admin.',
       },
     ],
   },
@@ -305,11 +305,11 @@ const PINNED: Record<CoreFlowModuleId, { lead: string; outcome: string; guardrai
       },
       {
         title: 'Missing tables',
-        body: 'The carbon, water, materiality, target, initiative and certificate screens ask you to apply the migration when their tables are missing. The evidence pack does not. It still builds, and those sections are then empty.',
+        body: 'The carbon, water, materiality, target, initiative and certificate screens ask you to apply the migration when a query fails. The evidence pack does not. It still builds, and those sections are then empty.',
       },
       {
         title: 'Certificate record',
-        body: 'The certificate screen stores a name, an issuer and an expiry. It does not issue a certificate and it does not check one.',
+        body: 'The certificate screen stores a name, an issuer and an expiry. It does not issue a certificate and it does not verify it with the issuer. It flags the expiry date.',
       },
       {
         title: 'Page guard',
@@ -501,6 +501,149 @@ const WHO: Record<string, { roles: readonly string[]; who: string }> = {
   },
 };
 
+const STEP_COPY: Partial<Record<CoreFlowModuleId, Record<string, { desc: string; note?: string }>>> = {
+  projects: {
+    portfolio: {
+      desc: 'Create a project and filter the list by programme and method. When a query fails, the screen asks you to apply the migration.',
+      note: 'When a query fails, the screen asks you to apply the migration.',
+    },
+    programmes: {
+      desc: 'Create a programme and open the projects in it. This screen does not edit a programme after you save it. When a query fails, the screen asks you to apply the migration.',
+      note: 'This screen does not edit a programme after you save it.',
+    },
+    method: {
+      desc: 'Charter a project on the method board and move it between gates. The checklist on a gate is reference text and does not block the move. The goal screen creates a project against a goal. It does not edit an existing project. Both screens ask you to apply the migration when a query fails.',
+      note: 'The gate checklist does not block a move. Both screens ask you to apply the migration when a query fails.',
+    },
+    board: {
+      desc: 'Add a task and move it with the column choice. The chart is read only. A milestone can be added and marked done.',
+    },
+    time: {
+      desc: 'Log hours on a date, with a project when you choose one. This screen does not change or remove an entry.',
+    },
+    riad: {
+      desc: 'Log a risk, an issue, an action or a decision, and close or reopen it. When a query fails, the screen asks you to apply the migration.',
+      note: 'When a query fails, the screen asks you to apply the migration.',
+    },
+    reporting: {
+      desc: 'Read counts of projects, logged hours and open items on this screen. It does not export a file. A failed read can show a zero, because this screen does not show the migration notice.',
+      note: 'It does not export a file. A failed read can show a zero.',
+    },
+  },
+  accounting: {
+    chart: {
+      desc: 'Add accounts and read period totals from posted journals.',
+    },
+    settings: {
+      desc: 'Set a lock date and open or close a month. A locked month rejects a posted journal. The screen always prints a note that tells you to apply the migration if the lock list is empty. If the lock check cannot run, it does not block a post.',
+      note: 'The screen always prints a note that tells you to apply the migration if the lock list is empty. If the lock check cannot run, it does not block a post.',
+    },
+    journals: {
+      desc: 'Save a draft, then post it when debits match credits. A draft may stay out of balance. A locked month rejects the post.',
+    },
+    ar: {
+      desc: 'Record a customer invoice and a receipt against it. Recording a receipt updates the books. It does not send money.',
+    },
+    ap: {
+      desc: 'Record a supplier bill and a payment against it. Recording a payment updates the books. It does not send money.',
+    },
+    payments: {
+      desc: 'Record a receipt or a supplier payment in the books. This screen does not send money from a bank.',
+    },
+    bank: {
+      desc: 'Match a bank line to an invoice or allocate it to an account. You can import a statement on this screen.',
+    },
+    tax: {
+      desc: 'Build a VAT worksheet for the period from invoices and classified bank lines. The screen says the worksheet is unaudited. This screen does not submit the return.',
+    },
+    management: {
+      desc: 'Read the profit and loss for the period from posted journals. The balance sheet and the cash flow sit beside it. Each of these screens says the statement is unaudited.',
+    },
+    afs: {
+      desc: 'Compile the annual statements from posted journals and print them. The screen says they are compiled and unaudited. It does not file them.',
+      note: 'The screen says they are compiled and unaudited. It does not file them.',
+    },
+  },
+  people: {
+    directory: {
+      desc: 'Add an employee on the directory. A business unit is required before the record saves. The other employee address only opens this directory.',
+    },
+    org: {
+      desc: 'The chart shows who reports to whom. You change a manager on the directory. The organisation screen keeps the business units, work cells, stations and assets.',
+    },
+    onboarding: {
+      desc: 'Tick onboarding items on the employee record. The ticks do not store the documents.',
+    },
+    leave: {
+      desc: 'Request leave and approve or reject a pending request. Approval reduces the stored balance.',
+    },
+    payroll: {
+      desc: 'Calculate a payroll run and store it. The screen says the tax amounts are illustrative proxies. Marking the run paid can post a journal when a labour account and a bank account both exist in the chart. It does not pay staff from a bank.',
+      note: 'The screen says the tax amounts are illustrative proxies. It does not pay staff from a bank.',
+    },
+    performance: {
+      desc: 'Record a rating. Formal reviews appear in the list. This screen does not edit a review.',
+    },
+    training: {
+      desc: 'Assign a course and mark it complete. This screen does not attach a certificate.',
+    },
+    discipline: {
+      desc: 'Open a case and set its status and outcome. The status list includes a hearing. The screen does not keep a hearing log.',
+      note: 'The screen does not keep a hearing log.',
+    },
+  },
+  sustainability: {
+    carbon: {
+      desc: 'Record an emission line from an activity and a factor, or type a direct amount. The screen says default factors are order-of-magnitude. Shipment logistics sit beside the ledger as an estimate. When a query fails, the screen asks you to apply the migration.',
+      note: 'The screen says default factors are order-of-magnitude. Shipment logistics are an estimate.',
+    },
+    resources: {
+      desc: 'Record water, waste and energy amounts. Diversion and renewable share are calculated from those amounts. A saved row is stored as an estimate. When a query fails, the screen asks you to apply the migration.',
+      note: 'A saved row is stored as an estimate. When a query fails, the screen asks you to apply the migration.',
+    },
+    materiality: {
+      desc: 'Score topics for impact and for money. The scores are your estimate of what matters. When a query fails, the screen asks you to apply the migration.',
+      note: 'The scores are your estimate. When a query fails, the screen asks you to apply the migration.',
+    },
+    targets: {
+      desc: 'Set a target and read progress from the emission ledger and the resource totals. Those totals are estimates. This screen does not check the target against an outside standard. When a query fails, the screen asks you to apply the migration.',
+      note: 'The totals are estimates. When a query fails, the screen asks you to apply the migration.',
+    },
+    initiatives: {
+      desc: 'Record an initiative and set its progress yourself. The impact note is text you type, and it is an estimate. When a query fails, the screen asks you to apply the migration.',
+      note: 'The impact note is an estimate you type. When a query fails, the screen asks you to apply the migration.',
+    },
+    certificates: {
+      desc: 'Store a certificate name, an issuer and an expiry. This screen does not issue a certificate and does not verify it with the issuer. It flags the expiry date. When a query fails, the screen asks you to apply the migration.',
+      note: 'This screen does not issue a certificate and does not verify it with the issuer. It flags the expiry date.',
+    },
+    pack: {
+      desc: 'Export operating data as JSON and open a print view. The pack says the figures are estimates and that it is not an audit. It still builds when a query fails, and those sections are then empty.',
+      note: 'The pack says the figures are estimates and that it is not an audit.',
+    },
+  },
+  network: {
+    discover: {
+      desc: 'Find a business that is open to trade and send a request with a note. The marketplace lists products and can send an inquiry.',
+    },
+    invite: {
+      desc: 'Invite a supplier who is not on the book yet, or invite a customer from the other link. Those screens send a claim link. An in-app request is the discover step.',
+    },
+    accept: {
+      desc: 'Accept or decline an incoming request on this page. The address can open the incoming list.',
+    },
+    prices: {
+      desc: 'Agree prices with a connected buyer. The agreement is refused until the connection is accepted and not suspended. It is not a public price list.',
+    },
+    trade: {
+      desc: 'Raise a purchase order for a supplier on the book, or send a quote from the customer desk. A quote does not need an accepted connection. When an accepted connection is suspended, a new purchase order for that business is refused.',
+    },
+    money: {
+      desc: 'Follow invoices and collections on the customer money screen. This step does not send money.',
+    },
+  },
+};
+
 const ids = Object.keys(CORE_FLOWS) as CoreFlowModuleId[];
 assert.deepEqual(ids, [
   'home',
@@ -536,6 +679,18 @@ for (const id of ids) {
     flow.guardrails.map((item) => ({ title: item.title, body: item.body })),
     PINNED[id].guardrails
   );
+  const stepCopy = STEP_COPY[id];
+  if (stepCopy) {
+    assert.deepEqual(
+      flow.steps.map((step) => step.id),
+      Object.keys(stepCopy),
+      `${id} step ids`
+    );
+    for (const step of flow.steps) {
+      assert.equal(step.desc, stepCopy[step.id].desc, `${id} ${step.id} desc`);
+      assert.equal(step.note ?? null, stepCopy[step.id].note ?? null, `${id} ${step.id} note`);
+    }
+  }
   assert.deepEqual(flow.roles, flowRoleDefs(id));
   const phaseIds = new Set(flow.phases.map((phase) => phase.id));
   const counts = new Map<string, number>();
@@ -678,7 +833,7 @@ for (const id of ['manufacturing', 'distribution', 'inventory', 'quality', 'sheq
 
 assert.equal(
   CORE_FLOWS.projects.steps.find((step) => step.id === 'method')?.desc,
-  'Charter a project on the method board and move it between gates. The checklist on a gate is reference text and does not block the move. The goal screen creates a project against a goal. It does not edit an existing project. Both screens ask you to apply the migration when the tables are missing.'
+  'Charter a project on the method board and move it between gates. The checklist on a gate is reference text and does not block the move. The goal screen creates a project against a goal. It does not edit an existing project. Both screens ask you to apply the migration when a query fails.'
 );
 assert.equal(
   CORE_FLOWS.projects.steps.find((step) => step.id === 'board')?.desc,
@@ -686,7 +841,7 @@ assert.equal(
 );
 assert.equal(
   CORE_FLOWS.projects.steps.find((step) => step.id === 'reporting')?.note,
-  'It does not export a file. A missing table can show a zero.'
+  'It does not export a file. A failed read can show a zero.'
 );
 {
   const projectsSrc = readFileSync('lib/advisors/process-flows/core/projects.ts', 'utf8');
@@ -722,7 +877,7 @@ assert.equal(CORE_FLOWS.people.steps.filter((step) => step.roles.includes('sales
 assert.equal(CORE_FLOWS.people.steps.filter((step) => step.who.includes('viewer')).length, 0);
 assert.equal(
   CORE_FLOWS.sustainability.steps.find((step) => step.id === 'carbon')?.desc,
-  'Record an emission line from an activity and a factor, or type a direct amount. The screen says default factors are order-of-magnitude. Shipment logistics sit beside the ledger as an estimate. When the table is missing, the screen asks you to apply the migration.'
+  'Record an emission line from an activity and a factor, or type a direct amount. The screen says default factors are order-of-magnitude. Shipment logistics sit beside the ledger as an estimate. When a query fails, the screen asks you to apply the migration.'
 );
 assert.equal(
   CORE_FLOWS.sustainability.steps.find((step) => step.id === 'pack')?.note,
@@ -730,7 +885,7 @@ assert.equal(
 );
 assert.equal(
   CORE_FLOWS.sustainability.steps.find((step) => step.id === 'resources')?.note,
-  'A saved row is stored as an estimate. When the table is missing, the screen asks you to apply the migration.'
+  'A saved row is stored as an estimate. When a query fails, the screen asks you to apply the migration.'
 );
 assert.equal(
   CORE_FLOWS.sustainability.steps.filter((step) => step.status === 'partial').length,
@@ -759,7 +914,7 @@ assert.match(lockSrc, /table missing/);
 assert.equal((lockSrc.match(/return \{ locked: false, period_key \}/g) || []).length, 2);
 assert.equal(
   CORE_FLOWS.accounting.steps.find((step) => step.id === 'settings')?.note,
-  'If the lock list is empty, the screen tells you to apply the migration. If the lock check cannot run, it does not block a post.'
+  'The screen always prints a note that tells you to apply the migration if the lock list is empty. If the lock check cannot run, it does not block a post.'
 );
 assert.match(
   readFileSync('app/api/sustainability/resources/route.ts', 'utf8'),
@@ -784,5 +939,38 @@ assert.match(readFileSync('app/api/sustainability/esg-pack/route.ts', 'utf8'), /
 assert.match(readFileSync('app/dashboard/projects/kanban-boards/page.tsx', 'utf8'), /column choice|column_key/);
 assert.match(readFileSync('app/dashboard/projects/gantt/page.tsx', 'utf8'), /<WaterfallGantt groups=\{groups\}/);
 assert.equal(readFileSync('app/dashboard/projects/gantt/page.tsx', 'utf8').includes('onSelect'), false);
+
+const membershipWriteRoutes = [
+  'app/api/accounting/chart-of-accounts/route.ts',
+  'app/api/accounting/invoices/route.ts',
+  'app/api/accounting/bank/route.ts',
+  'app/api/accounting/bank/import/route.ts',
+  'app/api/accounting/tax/route.ts',
+];
+for (const file of membershipWriteRoutes) {
+  const src = readFileSync(file, 'utf8');
+  assert.match(src, /import \{ assertAccountingAccess \} from '@\/lib\/accounting\/access'/);
+  assert.equal(src.includes('assertAccountingAccess('), false, file);
+  assert.match(src, /requireCompanyAccess/);
+  assert.equal(src.includes('requireCompanyPermission'), false, file);
+}
+assert.match(readFileSync('app/api/accounting/payments/route.ts', 'utf8'), /requireCompanyPermission\(\s*request,\s*companyId,\s*'accounting',\s*'write'/);
+assert.match(readFileSync('app/api/accounting/bank/allocate/route.ts', 'utf8'), /requireCompanyPermission\(\s*request,\s*companyId,\s*'accounting',\s*'write'/);
+assert.match(
+  readFileSync('app/api/accounting/settings/route.ts', 'utf8'),
+  /assertAccountingAccess\(_gate\.userId, companyId, 'write'\)/
+);
+const ownerFinance = CORE_FLOWS.accounting.guardrails.find((item) => item.title === 'Owner and finance')?.body || '';
+assert.match(ownerFinance, /Creating an account, an invoice, a bill, a bank line, a bank import and a VAT row checks company membership only/);
+assert.match(ownerFinance, /posting and editing a journal, recording a payment, allocating a bank line, and saving settings/);
+assert.match(
+  readFileSync('app/dashboard/accounting/settings/page.tsx', 'utf8'),
+  /<p className="text-xs text-neutral-500">[\s\S]*if this is/
+);
+assert.match(readFileSync('app/api/projects/route.ts', 'utf8'), /if \(error\) \{[\s\S]*warning: error\.message/);
+assert.match(readFileSync('app/api/sustainability/inventory/route.ts', 'utf8'), /if \(error\) \{\s*warning = error\.message/);
+assert.match(readFileSync('app/dashboard/sustainability/carbon-tracking/page.tsx', 'utf8'), /setWarning\(json\.warning \|\| json\.hint/);
+assert.match(readFileSync('app/dashboard/sustainability/green-certificates/page.tsx', 'utf8'), /expiry_status === 'expired'/);
+assert.match(readFileSync('app/dashboard/sustainability/green-certificates/page.tsx', 'utf8'), /Expires in/);
 
 console.log('brief121-core-data.test.ts ok');
