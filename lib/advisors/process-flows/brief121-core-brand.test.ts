@@ -14,6 +14,11 @@ const files = [
   'lib/advisors/process-flows/core/suppliers.ts',
   'lib/advisors/process-flows/core/customers.ts',
   'lib/advisors/process-flows/core/sales-portal.ts',
+  'lib/advisors/process-flows/core/manufacturing.ts',
+  'lib/advisors/process-flows/core/distribution.ts',
+  'lib/advisors/process-flows/core/inventory.ts',
+  'lib/advisors/process-flows/core/quality.ts',
+  'lib/advisors/process-flows/core/sheq.ts',
   'docs/advisor-process-flows.md',
   'e2e/core-process-flows.spec.ts',
 ];

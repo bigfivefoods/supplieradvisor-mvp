@@ -27,6 +27,7 @@ import {
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { isFixturePath } from '@/lib/preview/fixture-href';
 import { osSheqSummary } from '@/lib/preview/os-fixtures';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 
 type Summary = {
   migration_required?: boolean;
@@ -233,6 +234,8 @@ export default function SheqHubPage() {
           </div>
         </div>
       </div>
+
+      <CoreProcessFlow module="sheq" />
     </RelationshipPage>
   );
 }

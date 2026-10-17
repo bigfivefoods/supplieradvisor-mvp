@@ -136,6 +136,50 @@ async function main() {
   assert.equal(fixtureHrefs.includes('/preview/po'), true);
   fixture.unmount();
 
+  companyRoleState.loading = false;
+  companyRoleState.role = 'owner';
+  at('/');
+  const make = show(createElement(CoreProcessFlow, { module: 'manufacturing' }));
+  const makeToggle = make.container.querySelector('[data-testid="advisor-flow-toggle"]');
+  assert.equal(makeToggle?.getAttribute('aria-expanded'), 'false');
+  fireEvent.click(makeToggle as Element);
+  assert.equal(makeToggle?.getAttribute('aria-expanded'), 'true');
+  companyRoleState.role = 'viewer';
+  make.rerender(createElement(Host, null, createElement(CoreProcessFlow, { module: 'manufacturing' })));
+  assert.equal(makeToggle?.getAttribute('aria-expanded'), 'true');
+  assert.ok(make.container.querySelector('a[href="/dashboard/manufacturing/mrp"]'));
+  make.unmount();
+
+  companyRoleState.loading = false;
+  companyRoleState.role = 'sales_contractor';
+  at('/');
+  const contractorInventory = show(createElement(CoreProcessFlow, { module: 'inventory' }));
+  assert.equal(contractorInventory.container.querySelector('[data-testid="advisor-flow-inventory"]'), null);
+  contractorInventory.unmount();
+
+  companyRoleState.loading = true;
+  companyRoleState.role = null;
+  at('/preview/inventory');
+  const inventoryFixture = show(createElement(CoreProcessFlow, { module: 'inventory' }));
+  assert.match(inventoryFixture.container.textContent || '', /You are the owner/);
+  assert.equal(inventoryFixture.container.querySelector('[aria-expanded]')?.getAttribute('aria-expanded'), 'false');
+  const inventoryHrefs = [...inventoryFixture.container.querySelectorAll('a')].map((node) => node.getAttribute('href') || '');
+  assert.equal(inventoryHrefs.some((href) => href.startsWith('/dashboard')), false);
+  assert.equal(inventoryHrefs.includes('/preview/inventory?screen=stock'), true);
+  assert.equal(inventoryHrefs.includes('/preview/po'), true);
+  inventoryFixture.unmount();
+
+  companyRoleState.loading = true;
+  companyRoleState.role = null;
+  at('/preview/sheq');
+  const sheqFixture = show(createElement(CoreProcessFlow, { module: 'sheq' }));
+  assert.equal(sheqFixture.container.querySelector('[aria-expanded]')?.getAttribute('aria-expanded'), 'false');
+  const sheqHrefs = [...sheqFixture.container.querySelectorAll('a')].map((node) => node.getAttribute('href') || '');
+  assert.equal(sheqHrefs.some((href) => href.startsWith('/dashboard')), false);
+  assert.equal(sheqHrefs.includes('/preview/sheq?screen=incidents'), true);
+  assert.equal(sheqHrefs.includes('/preview/sheq?screen=capas'), true);
+  sheqFixture.unmount();
+
   cleanup();
   console.log('brief121-core-client.test.ts ok');
 }

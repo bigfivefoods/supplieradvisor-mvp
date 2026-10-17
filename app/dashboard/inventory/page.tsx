@@ -34,6 +34,7 @@ import {
   TelemetryCard,
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 
 type Summary = {
   products: number;
@@ -273,6 +274,7 @@ function HubInner() {
 
           <HubModuleGrid modules={modules} />
 
+          <CoreProcessFlow module="inventory" />
           <HubPrinciples
             items={[
               {

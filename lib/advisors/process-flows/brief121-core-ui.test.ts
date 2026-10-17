@@ -85,4 +85,38 @@ const memberSales = paint('sales-portal', 'member');
 assert.equal(memberSales.includes('href='), false);
 assert.match(memberSales, /Not available to your role/);
 
+const viewerMake = paint('manufacturing', 'viewer');
+assert.match(viewerMake, /href="\/dashboard\/manufacturing\/bills-of-materials"/);
+assert.match(viewerMake, /href="\/dashboard\/manufacturing\/mrp"/);
+assert.match(viewerMake, /does not raise a purchase order/);
+assert.equal(viewerMake.includes('Not available to your role'), false);
+assert.equal(viewerMake.includes('You are the viewer'), true);
+
+const ownerShip = paint('distribution', 'owner');
+assert.match(ownerShip, /Capture proof of delivery/);
+assert.match(ownerShip, /Launching soon/);
+assert.equal(ownerShip.includes('href="/dashboard/distribution/tracking"'), true);
+assert.equal((ownerShip.match(/<a /g) || []).length, 6);
+
+const contractorInventory = paint('inventory', 'sales_contractor');
+assert.equal(contractorInventory.includes('href='), false);
+assert.match(contractorInventory, /Not available to your role/);
+
+const ownerInventory = paint('inventory', 'owner');
+assert.match(ownerInventory, /href="\/dashboard\/inventory\/stock"/);
+assert.match(ownerInventory, /href="\/dashboard\/inventory\/lots"/);
+assert.match(ownerInventory, /href="\/dashboard\/suppliers\/po"/);
+assert.match(ownerInventory, /Only the owner or an admin can override/);
+
+const viewerQuality = paint('quality', 'viewer');
+assert.match(viewerQuality, /href="\/dashboard\/quality\/inspections"/);
+assert.match(viewerQuality, /href="\/dashboard\/quality\/traceability-graph"/);
+assert.match(viewerQuality, /This is a drill/);
+assert.match(viewerQuality, /not a submission/);
+
+const ownerSheq = paint('sheq', 'owner');
+assert.match(ownerSheq, /href="\/dashboard\/sheq\/incidents"/);
+assert.match(ownerSheq, /href="\/dashboard\/quality\/inspections"/);
+assert.match(ownerSheq, /You are the owner/);
+
 console.log('brief121-core-ui.test.ts ok');

@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { TEAM_ROLE_OPTIONS, canView, type TeamRole } from '../../business/permissions';
+import { TEAM_ROLE_OPTIONS, canView, resourceForPath, type TeamRole } from '../../business/permissions';
 import {
   CORE_CAP_KEYS,
   CORE_CAP_RESOURCE,
@@ -12,6 +12,7 @@ import {
   coreFlowCaps,
   coreFlowMountState,
   isExactTeamRole,
+  writeRolesForCap,
   type CoreCapKey,
 } from './core-caps';
 import type { CoreFlowModuleId } from './types';
@@ -113,5 +114,26 @@ assert.equal(
   coreFlowMountState({ role: 'member', loading: false, module: 'sales-portal', fixture: false }).mount,
   false
 );
+assert.equal(
+  coreFlowMountState({ role: 'sales_contractor', loading: false, module: 'inventory', fixture: false }).mount,
+  false
+);
+assert.equal(
+  coreFlowMountState({ role: 'sales_contractor', loading: false, module: 'quality', fixture: false }).mount,
+  false
+);
+assert.equal(
+  coreFlowMountState({ role: 'viewer', loading: false, module: 'manufacturing', fixture: false }).mount,
+  true
+);
+assert.equal(resourceForPath('/dashboard/quality'), 'sheq');
+assert.equal(CORE_MODULE_RESOURCE.quality, resourceForPath('/dashboard/quality'));
+assert.equal(CORE_MODULE_RESOURCE.sheq, 'sheq');
+assert.deepEqual(writeRolesForCap('canViewManufacturing'), ['owner', 'admin', 'member', 'operations']);
+assert.deepEqual(writeRolesForCap('canViewDistribution'), ['owner', 'admin', 'member', 'operations']);
+assert.deepEqual(writeRolesForCap('canViewInventory'), ['owner', 'admin', 'member', 'operations']);
+assert.deepEqual(writeRolesForCap('canViewSheq'), ['owner', 'admin', 'member', 'operations']);
+assert.equal(writeRolesForCap('canViewSheq').includes('sales'), false);
+assert.equal(writeRolesForCap('canViewManufacturing').includes('viewer'), false);
 
 console.log('brief121-core-caps.test.ts ok');

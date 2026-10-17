@@ -14,7 +14,16 @@ export type AdvisorModuleId =
   | 'recovergraph';
 
 /** Core workspace ids that use the shared flow. Skipped core ids stay off this union. */
-export type CoreFlowModuleId = 'home' | 'suppliers' | 'customers' | 'sales-portal';
+export type CoreFlowModuleId =
+  | 'home'
+  | 'suppliers'
+  | 'customers'
+  | 'sales-portal'
+  | 'manufacturing'
+  | 'distribution'
+  | 'inventory'
+  | 'quality'
+  | 'sheq';
 
 export type AdvisorFlowModuleId = AdvisorModuleId | CoreFlowModuleId;
 

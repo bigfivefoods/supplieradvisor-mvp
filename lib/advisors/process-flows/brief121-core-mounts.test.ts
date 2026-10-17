@@ -15,9 +15,16 @@ const MOUNTED: Record<string, string> = {
   suppliers: 'app/dashboard/suppliers/page.tsx',
   customers: 'app/dashboard/customers/page.tsx',
   'sales-portal': 'app/sales/page.tsx',
+  manufacturing: 'app/dashboard/manufacturing/page.tsx',
+  distribution: 'app/dashboard/distribution/page.tsx',
+  inventory: 'app/dashboard/inventory/page.tsx',
+  quality: 'app/dashboard/quality/page.tsx',
+  sheq: 'app/dashboard/sheq/page.tsx',
 };
 
 const SKIPPED: Record<string, string> = {
+  operations:
+    'The hub already draws numbered stage cards, an exceptions card, and links into the owning modules. A second picture would repeat those cards.',
   intelligence: 'Read-only analysis. No hand-off and no job to do in order.',
   'my-business': 'Settings and identity. It already has its own checklist.',
   platform: 'Internal console for platform staff. Not a customer workflow.',
@@ -25,12 +32,6 @@ const SKIPPED: Record<string, string> = {
 };
 
 const LATER: Record<string, string> = {
-  operations: 'Later. The hub already has numbered stage cards.',
-  manufacturing: 'Later. The make screens are a real chain.',
-  distribution: 'Later. Proof of delivery is only an event label today.',
-  inventory: 'Later. Catalogue, stock, transfers and counts are a real chain.',
-  quality: 'Later. Inspection, trace and the recall drill are a real chain.',
-  sheq: 'Later. Incident to corrective action is a real loop.',
   projects: 'Later. Some screens depend on migrations.',
   accounting: 'Later. Owner and finance only.',
   people: 'Later. Payroll records pay and does not pay staff from a bank.',
@@ -98,6 +99,40 @@ assert.ok(salesFlow < sales.indexOf('function Kpi'));
 assert.equal(sales.slice(sales.indexOf('if (loading) {'), sales.indexOf('if (error || !summary)')).includes('<CoreProcessFlow'), false);
 assert.equal(sales.slice(sales.indexOf('if (error || !summary)'), sales.indexOf('Highest-value opportunities')).includes('<CoreProcessFlow'), false);
 assert.equal(sales.includes('useCompanyRole'), false);
+
+const manufacturing = readFileSync(MOUNTED.manufacturing, 'utf8');
+assert.match(manufacturing, /<CoreProcessFlow module="manufacturing" \/>\s*<OperatingPrinciples/);
+assert.equal(manufacturing.includes('useCompanyRole'), false);
+assert.ok(manufacturing.indexOf('<CoreProcessFlow') > manufacturing.indexOf('Open system'));
+
+const distribution = readFileSync(MOUNTED.distribution, 'utf8');
+assert.match(distribution, /<CoreProcessFlow module="distribution" \/>\s*<OperatingPrinciples/);
+assert.equal(distribution.includes('useCompanyRole'), false);
+assert.ok(distribution.indexOf('<CoreProcessFlow') > distribution.indexOf('Inventory bridge'));
+
+const inventory = readFileSync(MOUNTED.inventory, 'utf8');
+const spinStart = inventory.indexOf('{loading && !summary ? (');
+const elseAt = inventory.indexOf(') : (', spinStart);
+const inventoryFlow = inventory.indexOf('<CoreProcessFlow module="inventory" />');
+assert.ok(spinStart > 0 && elseAt > spinStart && inventoryFlow > elseAt);
+assert.equal(inventory.slice(spinStart, elseAt).includes('CoreProcessFlow'), false);
+assert.match(inventory, /<CoreProcessFlow module="inventory" \/>\s*<HubPrinciples/);
+assert.equal(inventory.includes('useCompanyRole'), false);
+
+const quality = readFileSync(MOUNTED.quality, 'utf8');
+assert.match(quality, /<CoreProcessFlow module="quality" \/>\s*<HubPrinciples/);
+assert.equal(quality.includes('useCompanyRole'), false);
+assert.ok(quality.indexOf('<CoreProcessFlow') > quality.indexOf('<HubModuleGrid'));
+
+const sheq = readFileSync(MOUNTED.sheq, 'utf8');
+const sheqFlow = sheq.indexOf('<CoreProcessFlow module="sheq" />');
+assert.match(sheq, /<CoreProcessFlow module="sheq" \/>\s*<\/RelationshipPage>/);
+assert.ok(sheqFlow > sheq.indexOf('How this maps to standards'));
+assert.equal(sheq.includes('useCompanyRole'), false);
+
+const operations = readFileSync('app/dashboard/operations/page.tsx', 'utf8');
+assert.equal(operations.includes('CoreProcessFlow'), false);
+assert.equal(operations.includes('<CoreProcessFlow'), false);
 
 const landing = readFileSync('app/page.tsx', 'utf8');
 assert.equal(landing.includes('lib/advisors/process-flows'), false);

@@ -86,12 +86,12 @@ Nothing mounts until the company role has finished loading and is a real role th
 | suppliers | Mounted. The journey checklist stays. |
 | customers | Mounted below the path strip. The strip stays. |
 | sales-portal | Mounted on the sales workspace. Links follow the server allow-list. |
-| operations | Later. The hub already has numbered stage cards. A flow would add the hand-offs. |
-| manufacturing | Later. The make screens are a real chain. |
-| distribution | Later. Proof of delivery is only an event label today. |
-| inventory | Later. Catalogue, stock, transfers and counts are a real chain. |
-| quality | Later. Inspection, trace and the recall drill are a real chain. |
-| sheq | Later. Incident to corrective action is a real loop. |
+| operations | Skipped. The hub already draws numbered stage cards, an exceptions card, and links into the owning modules. A second picture would repeat those cards. |
+| manufacturing | Mounted on Make. Material planning suggests make and buy and does not raise a purchase order. |
+| distribution | Mounted on Ship. Proof of delivery is an event label only, so that step is launching soon. |
+| inventory | Mounted. A transfer ship is blocked by an open or failed inspection unless the owner or an admin overrides it, and that override is logged. |
+| quality | Mounted. The recall screen is a drill. The regulatory export is a data file and a print view, not a submission. |
+| sheq | Mounted. Incident, hazard, non-conformance and corrective action. |
 | projects | Later. Some screens depend on migrations and must not claim more than the page shows. |
 | accounting | Later. Owner and finance only. Statements stay unaudited in the copy. |
 | people | Later. Payroll records pay and does not pay staff from a bank. |
@@ -104,4 +104,18 @@ Nothing mounts until the company role has finished loading and is a real role th
 
 Icons are reused from `FLOW_ICON_NAMES`. No new picture was added.
 
-Control Tower, Suppliers, Customers and Sales are the flows in this change. Suppliers documents are partly live: the vault stores a record and a pasted file link, and it does not store the file. The contracts screen only opens that vault. The other steps in these four flows are live. None of them is launching soon.
+Control Tower, Suppliers, Customers and Sales are the flows from the previous change. Suppliers documents are partly live: the vault stores a record and a pasted file link, and it does not store the file. The contracts screen only opens that vault. The other steps in these four flows are live. None of them is launching soon.
+
+Make, Ship, Inventory, Quality and SHEQ are mounted in this change. Operations is not. Its hub already draws the numbered stage cards, an exceptions card, and links into Suppliers, Inventory, Make, Ship and Quality. Each stage page lists the owning module. A flow under those cards would repeat them.
+
+Make is live except material planning, which suggests make and buy and does not raise a purchase order. Completing a work order posts finished stock, and posts bill components out of stock when the order has a bill. Labour is recorded at the cell rate when that rate is set.
+
+Ship is live except proof of delivery. Delivered is an event label. The log stores no signature and no photo, so that step is launching soon and has no link. A purchase-order reference on a shipment is free text.
+
+Inventory is live. Shipping a transfer is refused when a lot on it has an open or failed inspection. Only the owner or an admin can override that block, and the override is logged. If the inspection table is missing, the check does not block the transfer. A scan receive warns and still receives. The finished-goods and raw-materials addresses open a stock filter. The cycle-count address opens count history. The stock-take address opens the counts screen.
+
+Quality is live except the recall drill and the regulatory export. The drill searches a lot and does not run a recall. The export downloads operating records as JSON and opens a print view. It is not a submission. HACCP stores a plan, control points and monitoring logs. It does not issue a certificate. A failed inspection raises a non-conformance and opens a corrective action. An open inspection does not. The hold applies when a transfer ships.
+
+SHEQ is live. A hazard stores likelihood and severity and a score from them. A corrective action stores a root cause, a corrective action and a preventive action. Setting the status to effective records the check time. The page copy that names a standard is not repeated here.
+
+Gating of these links follows the page guard, which is a client check. Server enforcement varies by API and is not implied by a flow. Quality uses the same resource as SHEQ.
