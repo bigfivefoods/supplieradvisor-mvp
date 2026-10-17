@@ -18,6 +18,11 @@ import {
   hasServiceRole,
 } from '@/lib/supabase/server-client';
 import { ttlDel, ttlGet, ttlSet } from '@/lib/system/memory-ttl';
+import { normaliseStoreSlug } from '@/lib/storefront/public-store';
+import {
+  invalidateStoreSlugCache,
+  storefrontMetaTouchesSlugCache,
+} from '@/lib/storefront/slug-cache';
 
 export const COMPANY_CHROME_META_KEYS = [
   'enabled_modules',
@@ -305,6 +310,18 @@ export async function putCompanyChrome(
   await mergeProfileMetadata(companyId, patch);
 }
 
+function dropCachedStoreCompany(
+  companyId: number,
+  patch: Record<string, unknown>
+): void {
+  if (!storefrontMetaTouchesSlugCache(patch)) return;
+  const slug =
+    patch.store_slug != null
+      ? normaliseStoreSlug(String(patch.store_slug))
+      : null;
+  invalidateStoreSlugCache({ slug, companyId });
+}
+
 export async function mergeProfileMetadata(
   companyId: number,
   patch: Record<string, unknown>
@@ -314,7 +331,10 @@ export async function mergeProfileMetadata(
     p_company_id: companyId,
     p_patch: patch,
   });
-  if (!rpc.error) return;
+  if (!rpc.error) {
+    dropCachedStoreCompany(companyId, patch);
+    return;
+  }
   if (!isMissingRelation(rpc.error)) {
     throw new Error(rpc.error.message);
   }
@@ -333,6 +353,7 @@ export async function mergeProfileMetadata(
     })
     .eq('id', companyId);
   if (upErr) throw new Error(upErr.message);
+  dropCachedStoreCompany(companyId, patch);
 }
 
 const MODULE_STORE_TTL_MS = 25_000;

@@ -14,6 +14,7 @@ import {
   BIG_FIVE_FOODS_SEED,
   BIG_FIVE_FOODS_SLUG,
 } from '@/lib/storefront/big-five-foods-seed';
+import { invalidateStoreSlugCache } from '@/lib/storefront/slug-cache';
 
 /**
  * GET ?companyId= — catalogue picker rows + current storefront allowlist.
@@ -184,6 +185,8 @@ export async function PATCH(request: NextRequest) {
     if (saveErr) {
       return NextResponse.json({ error: saveErr.message }, { status: 500 });
     }
+
+    invalidateStoreSlugCache({ companyId });
 
     return NextResponse.json({ success: true, catalog: pick });
   } catch (e: unknown) {

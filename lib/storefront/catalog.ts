@@ -18,6 +18,23 @@ import {
   storefrontCatalogFromProfileMetadata,
   type StorefrontCatalogPick,
 } from './catalog-pick';
+import { storeSlugLookupValues } from './public-store';
+import {
+  invalidateStoreSlugCache,
+  readStoreSlugCache,
+  writeStoreSlugCache,
+} from './slug-cache';
+
+const EXACT_PROFILE_COLUMNS =
+  'id, trading_name, legal_name, logo_url, short_description, description, verification_status, city, country, metadata, is_discoverable';
+const FALLBACK_PROFILE_COLUMNS =
+  'id, trading_name, legal_name, logo_url, short_description, description, verification_status, city, country, metadata';
+
+type StoreLookupDb = {
+  from: (table: string) => {
+    select: (columns: string) => unknown;
+  };
+};
 
 function supabaseClient(preferAdmin = false) {
   try {
@@ -27,87 +44,139 @@ function supabaseClient(preferAdmin = false) {
   }
 }
 
-export async function resolveStoreCompany(
-  slug: string
-): Promise<StoreCompany | null> {
-  const raw = String(slug || '')
-    .toLowerCase()
-    .trim()
-    .replace(/^\/+|\/+$/g, '');
-  if (!raw) return null;
+function quotePostgrest(value: string): string {
+  return `"${value.replace(/"/g, '')}"`;
+}
 
-  const supabase = supabaseClient(true);
+function bigFiveNameOr(): string {
+  return BIG_FIVE_FOODS_TRADING_NAMES.map(
+    (name) => `trading_name.ilike.${quotePostgrest(name)}`
+  ).join(',');
+}
 
-  // 1) metadata.store_slug exact
+function virtualBigFiveCompany(): StoreCompany {
+  return {
+    id: 0,
+    slug: BIG_FIVE_FOODS_SLUG,
+    tradingName: 'Big Five Foods',
+    legalName: 'Big Five Foods',
+    logoUrl: null,
+    shortDescription:
+      'Order on the verified network — one OS for trade and proof.',
+    verificationStatus: 'verified',
+    city: null,
+    country: 'South Africa',
+    tagline: 'Order on the verified network — one OS for trade and proof',
+  };
+}
+
+async function lookupStoreSlug(
+  supabase: StoreLookupDb,
+  values: string[]
+): Promise<{ row: Record<string, unknown> | null; failed: boolean }> {
   try {
-    const { data: byMeta } = await supabase
-      .from('profiles')
-      .select(
-        'id, trading_name, legal_name, logo_url, short_description, description, verification_status, city, country, metadata, is_discoverable'
-      )
-      .filter('metadata->>store_slug', 'eq', raw)
-      .limit(5);
-    const hit = (byMeta || [])[0];
-    if (hit) return mapCompany(hit, raw);
-  } catch {
-    /* soft */
-  }
-
-  // 2) Big Five Foods known names
-  if (raw === BIG_FIVE_FOODS_SLUG) {
-    for (const name of BIG_FIVE_FOODS_TRADING_NAMES) {
-      const { data } = await supabase
-        .from('profiles')
-        .select(
-          'id, trading_name, legal_name, logo_url, short_description, description, verification_status, city, country, metadata'
-        )
-        .ilike('trading_name', name)
-        .limit(1)
-        .maybeSingle();
-      if (data) return mapCompany(data, BIG_FIVE_FOODS_SLUG);
-    }
-    // fuzzy
-    const { data: fuzzy } = await supabase
-      .from('profiles')
-      .select(
-        'id, trading_name, legal_name, logo_url, short_description, description, verification_status, city, country, metadata'
-      )
-      .ilike('trading_name', '%big five%food%')
-      .limit(3);
-    if (fuzzy?.[0]) return mapCompany(fuzzy[0], BIG_FIVE_FOODS_SLUG);
-
-    // Virtual company shell so storefront still renders before profile seed
-    return {
-      id: 0,
-      slug: BIG_FIVE_FOODS_SLUG,
-      tradingName: 'Big Five Foods',
-      legalName: 'Big Five Foods',
-      logoUrl: null,
-      shortDescription:
-        'Order on the verified network — one OS for trade and proof.',
-      verificationStatus: 'verified',
-      city: null,
-      country: 'South Africa',
-      tagline: 'Order on the verified network — one OS for trade and proof',
+    const selected = supabase.from('profiles').select(EXACT_PROFILE_COLUMNS) as {
+      filter: (col: string, op: string, value: string) => {
+        limit: (n: number) => Promise<{
+          data?: Record<string, unknown>[] | null;
+          error?: { message?: string } | null;
+        }>;
+      };
     };
+    const filtered =
+      values.length === 1
+        ? selected.filter('metadata->>store_slug', 'eq', values[0])
+        : selected.filter(
+            'metadata->>store_slug',
+            'in',
+            `(${values.map(quotePostgrest).join(',')})`
+          );
+    const { data, error } = await filtered.limit(1);
+    if (error) return { row: null, failed: true };
+    return { row: (data || [])[0] || null, failed: false };
+  } catch {
+    return { row: null, failed: true };
+  }
+}
+
+async function fallbackStoreCompany(
+  supabase: StoreLookupDb,
+  key: string
+): Promise<{ company: StoreCompany | null; failed: boolean }> {
+  if (key === BIG_FIVE_FOODS_SLUG) {
+    try {
+      const query = supabase.from('profiles').select(FALLBACK_PROFILE_COLUMNS) as {
+        or: (expr: string) => {
+          limit: (n: number) => Promise<{
+            data?: Record<string, unknown>[] | null;
+            error?: { message?: string } | null;
+          }>;
+        };
+      };
+      const { data, error } = await query.or(bigFiveNameOr()).limit(1);
+      if (error) return { company: null, failed: true };
+      const hit = (data || [])[0];
+      if (hit) return { company: mapCompany(hit, BIG_FIVE_FOODS_SLUG), failed: false };
+      return { company: virtualBigFiveCompany(), failed: false };
+    } catch {
+      return { company: null, failed: true };
+    }
   }
 
-  // 3) slugify trading_name match (scan recent discoverable)
-  const { data: candidates } = await supabase
-    .from('profiles')
-    .select(
-      'id, trading_name, legal_name, logo_url, short_description, description, verification_status, city, country, metadata'
-    )
-    .not('trading_name', 'is', null)
-    .order('id', { ascending: false })
-    .limit(400);
+  try {
+    const query = supabase.from('profiles').select(FALLBACK_PROFILE_COLUMNS) as {
+      not: (col: string, op: string, value: null) => {
+        order: (
+          col: string,
+          opts: { ascending: boolean }
+        ) => {
+          limit: (n: number) => Promise<{
+            data?: Record<string, unknown>[] | null;
+            error?: { message?: string } | null;
+          }>;
+        };
+      };
+    };
+    const { data, error } = await query
+      .not('trading_name', 'is', null)
+      .order('id', { ascending: false })
+      .limit(400);
+    if (error) return { company: null, failed: true };
+    for (const candidate of data || []) {
+      const name = String(candidate.trading_name || candidate.legal_name || '');
+      if (slugifyCompanyName(name) === key) {
+        return { company: mapCompany(candidate, key), failed: false };
+      }
+    }
+    return { company: null, failed: false };
+  } catch {
+    return { company: null, failed: true };
+  }
+}
 
-  for (const c of candidates || []) {
-    const n = String(c.trading_name || c.legal_name || '');
-    if (slugifyCompanyName(n) === raw) return mapCompany(c, raw);
+export async function resolveStoreCompany(
+  slug: string,
+  client?: StoreLookupDb
+): Promise<StoreCompany | null> {
+  const values = storeSlugLookupValues(slug);
+  const key = values[0] || '';
+  if (!key) return null;
+
+  const cached = readStoreSlugCache(key);
+  if (cached.hit) return cached.company;
+
+  const supabase = client || (supabaseClient(true) as StoreLookupDb);
+  const exact = await lookupStoreSlug(supabase, values);
+  if (exact.row) {
+    const company = mapCompany(exact.row, key);
+    writeStoreSlugCache(key, company);
+    return company;
   }
 
-  return null;
+  const fallback = await fallbackStoreCompany(supabase, key);
+  if (fallback.failed) return null;
+  writeStoreSlugCache(key, fallback.company);
+  return fallback.company;
 }
 
 function mapCompany(
@@ -449,6 +518,7 @@ export async function seedBigFiveFoodsCatalog(opts?: {
   const supabase = supabaseClient(true);
   let profileId = opts?.profileId != null ? Number(opts.profileId) : 0;
   let createdProfile = false;
+  let wroteSlug = false;
 
   if (!profileId) {
     const company = await resolveStoreCompany(BIG_FIVE_FOODS_SLUG);
@@ -489,6 +559,7 @@ export async function seedBigFiveFoodsCatalog(opts?: {
     }
     profileId = Number(created.id);
     createdProfile = true;
+    wroteSlug = true;
   } else {
     // Patch store_slug on existing
     try {
@@ -503,7 +574,7 @@ export async function seedBigFiveFoodsCatalog(opts?: {
         store_tagline:
           'Order on the verified network — one OS for trade and proof',
       };
-      await supabase
+      const { error: slugError } = await supabase
         .from('profiles')
         .update({
           metadata: meta,
@@ -511,9 +582,17 @@ export async function seedBigFiveFoodsCatalog(opts?: {
           updated_at: new Date().toISOString(),
         })
         .eq('id', profileId);
+      if (!slugError) wroteSlug = true;
     } catch {
       /* soft */
     }
+  }
+
+  if (wroteSlug && profileId) {
+    invalidateStoreSlugCache({
+      slug: BIG_FIVE_FOODS_SLUG,
+      companyId: profileId,
+    });
   }
 
   let productsUpserted = 0;

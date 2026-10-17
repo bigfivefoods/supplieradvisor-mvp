@@ -11,6 +11,7 @@
  * dashboard Messages view for users who also have a company workspace.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { profileEmailEqValues } from '@/lib/profiles/email-match';
 import {
   appendCompanyMessage,
   createCompanyThread,
@@ -215,10 +216,11 @@ export async function resolveCompanyIdsForEmail(
   const supabase = getSupabaseServer();
   const ids = new Set<number>();
 
+  const emailValues = profileEmailEqValues(email);
   const { data: byProfile } = await supabase
     .from('profiles')
     .select('id')
-    .eq('email', normalized)
+    .in('email', emailValues.length ? emailValues : [normalized])
     .limit(20);
   for (const p of byProfile || []) {
     const n = Number(p.id);
