@@ -19,7 +19,7 @@ type Row = {
   name: string;
   vercelEnv: string;
   url: string;
-  enforce: string;
+  enforce?: string;
   payment?: string;
   action: 'ok' | 'warn' | 'throw';
 };
@@ -28,7 +28,9 @@ const rows: Row[] = [
   { name: 'production with prod url and enforce', vercelEnv: 'production', url: prodUrl, enforce: '1', payment: liveKey, action: 'ok' },
   { name: 'production with prod url warn mode', vercelEnv: 'production', url: prodUrl, enforce: '0', action: 'ok' },
   { name: 'production never throws on a live key', vercelEnv: 'production', url: stagingUrl, enforce: '1', payment: liveKey, action: 'ok' },
-  { name: 'preview prod url warn', vercelEnv: 'preview', url: prodUrl, enforce: '0', action: 'warn' },
+  { name: 'preview prod url enforce unset', vercelEnv: 'preview', url: prodUrl, action: 'warn' },
+  { name: 'preview prod url enforce empty', vercelEnv: 'preview', url: prodUrl, enforce: '', action: 'warn' },
+  { name: 'preview prod url enforce zero', vercelEnv: 'preview', url: prodUrl, enforce: '0', action: 'warn' },
   { name: 'preview prod url enforce', vercelEnv: 'preview', url: prodUrl, enforce: '1', action: 'throw' },
   { name: 'preview staging url enforce', vercelEnv: 'preview', url: stagingUrl, enforce: '1', action: 'ok' },
   { name: 'preview live key warn', vercelEnv: 'preview', url: stagingUrl, enforce: '0', payment: liveKey, action: 'warn' },
@@ -100,6 +102,21 @@ try {
     assertDeploymentEnv({
       supabaseUrl: prodUrl,
       env: { VERCEL_ENV: 'production', ENV_GUARD_ENFORCE: '1', PAYSTACK_SECRET_KEY: liveKey },
+    })
+  );
+  warnings.length = 0;
+  resetDeploymentEnvForTests();
+  assert.doesNotThrow(() =>
+    assertDeploymentEnv({
+      supabaseUrl: prodUrl,
+      env: { VERCEL_ENV: 'preview', PAYSTACK_SECRET_KEY: liveKey },
+    })
+  );
+  assert.equal(warnings.length, 1, 'missing ENV_GUARD_ENFORCE stays warn-only');
+  assert.doesNotThrow(() =>
+    assertDeploymentEnv({
+      supabaseUrl: prodUrl,
+      env: { VERCEL_ENV: 'preview', ENV_GUARD_ENFORCE: '', PAYSTACK_SECRET_KEY: liveKey },
     })
   );
 } finally {
