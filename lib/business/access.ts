@@ -1,5 +1,6 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
+import { activityTouchDecision } from '@/lib/business/activity-touch';
 import {
   canAccess,
   canManageTeam,
@@ -33,15 +34,18 @@ const membershipMemo = new Map<
   { at: number; value: Promise<MembershipOk | MembershipFail> }
 >();
 
-const MEMBERSHIP_COLUMNS =
+const MEMBERSHIP_COLUMNS_NO_ACTIVITY =
   'id, user_id, profile_id, status, role, email, name, invited_email, permissions';
+const MEMBERSHIP_COLUMNS = `${MEMBERSHIP_COLUMNS_NO_ACTIVITY}, last_active_at`;
 
 /**
  * One PostgREST embed on business_users.profile_id → profiles.deleted_at.
  * Production has two identical foreign keys, so the relationship name is required.
  * Without it PostgREST returns PGRST201 and the read falls back to two queries.
+ * last_active_at is included so the activity stamp can skip a fresh value.
  */
 export const MEMBERSHIP_EMBED_SELECT = `${MEMBERSHIP_COLUMNS}, profiles!business_users_profile_id_fkey!inner(deleted_at)`;
+const MEMBERSHIP_EMBED_NO_ACTIVITY = `${MEMBERSHIP_COLUMNS_NO_ACTIVITY}, profiles!business_users_profile_id_fkey!inner(deleted_at)`;
 
 type MembershipDb = {
   from: (table: string) => any;
@@ -128,6 +132,7 @@ type MembershipRow = {
   invited_email?: string | null;
   name?: string | null;
   permissions?: unknown;
+  last_active_at?: string | null;
   profiles?: { deleted_at?: string | null } | Array<{ deleted_at?: string | null }> | null;
 };
 
@@ -163,7 +168,7 @@ function verifyFailed(): MembershipFail {
 
 function membershipFromRow(userId: string, row: MembershipRow): MembershipOk {
   const memberId = Number(row.id);
-  touchMemberActivity(memberId);
+  touchMemberActivity(memberId, row.last_active_at);
   return {
     ok: true,
     userId,
@@ -210,13 +215,23 @@ async function loadCompanyMembership(
   const variants = userIdMatchVariants(userId);
 
   if (membershipEmbedSupported !== false) {
-    const embedded = await supabase
+    let embedded = await supabase
       .from('business_users')
       .select(MEMBERSHIP_EMBED_SELECT)
       .eq('profile_id', companyId)
       .eq('status', 'active')
       .in('user_id', variants)
       .limit(1);
+
+    if (embedded.error && /last_active_at/i.test(embedded.error.message || '')) {
+      embedded = await supabase
+        .from('business_users')
+        .select(MEMBERSHIP_EMBED_NO_ACTIVITY)
+        .eq('profile_id', companyId)
+        .eq('status', 'active')
+        .in('user_id', variants)
+        .limit(1);
+    }
 
     if (embedded.error && embedUnsupported(embedded.error)) {
       membershipEmbedSupported = false;
@@ -237,28 +252,83 @@ async function loadCompanyMembership(
   return loadMembershipFallback(supabase, userId, companyId, variants);
 }
 
-const ACTIVITY_TOUCH_MS = 5 * 60 * 1000;
 const activityTouchMemo = new Map<number, number>();
 
-/** Stamp last_active_at at most every 5 minutes per member. */
-function touchMemberActivity(memberId: number): void {
-  if (!Number.isFinite(memberId) || memberId <= 0) return;
-  const now = Date.now();
-  const prev = activityTouchMemo.get(memberId) || 0;
-  if (now - prev < ACTIVITY_TOUCH_MS) return;
+type ActivityTouchRuntime = {
+  now: () => number;
+  schedule: (task: () => Promise<void>) => void;
+  update: (memberId: number, stamp: string) => Promise<void>;
+};
+
+let activityTouchRuntime: ActivityTouchRuntime | null = null;
+let activityScheduler: ((task: () => Promise<void>) => void) | null = null;
+
+/**
+ * Installed from instrumentation on the Node server. The client bundle must
+ * not import next/server's after(), so this module only calls a callback.
+ */
+export function setActivityScheduler(
+  schedule: ((task: () => Promise<void>) => void) | null
+): void {
+  activityScheduler = schedule;
+}
+
+/** Unit tests supply a clock, a late scheduler, and a fake update. */
+export function setActivityTouchRuntimeForTests(runtime: ActivityTouchRuntime | null): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Activity test runtime cannot be installed in production');
+  }
+  activityTouchRuntime = runtime;
+  activityTouchMemo.clear();
+}
+
+/** Drops only the touch throttle, not the membership memo. */
+export function clearActivityTouchMemoForTests(): void {
+  activityTouchMemo.clear();
+}
+
+function scheduleAfterResponse(task: () => Promise<void>): void {
+  if (activityScheduler) {
+    activityScheduler(task);
+    return;
+  }
+  void task().catch(() => undefined);
+}
+
+async function defaultActivityUpdate(memberId: number, stamp: string): Promise<void> {
+  const supabase = membershipDb();
+  await supabase
+    .from('business_users')
+    .update({ last_active_at: stamp, updated_at: stamp })
+    .eq('id', memberId);
+}
+
+/**
+ * Stamp last_active_at at most once per five minutes per member.
+ * The team list reads this at minute resolution, so the floor stays five
+ * minutes. The write is handed to the server scheduler so the response
+ * does not drop it, and it is skipped when the stored stamp is already fresh.
+ */
+function touchMemberActivity(memberId: number, lastActiveAt?: string | null): void {
+  const now = activityTouchRuntime ? activityTouchRuntime.now() : Date.now();
+  const decision = activityTouchDecision({
+    memberId,
+    lastActiveAt,
+    now,
+    lastScheduledAt: activityTouchMemo.get(memberId),
+  });
+  if (!decision.write) return;
   activityTouchMemo.set(memberId, now);
-  void (async () => {
+  const schedule = activityTouchRuntime?.schedule || scheduleAfterResponse;
+  const update = activityTouchRuntime?.update || defaultActivityUpdate;
+  const stamp = new Date(now).toISOString();
+  schedule(async () => {
     try {
-      const supabase = membershipDb();
-      const stamp = new Date().toISOString();
-      await supabase
-        .from('business_users')
-        .update({ last_active_at: stamp, updated_at: stamp })
-        .eq('id', memberId);
+      await update(memberId, stamp);
     } catch {
       /* column or network — last login stays stale */
     }
-  })();
+  });
 }
 
 /**
