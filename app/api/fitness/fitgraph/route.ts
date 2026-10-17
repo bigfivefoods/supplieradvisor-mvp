@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   requireCompanyRoles,
@@ -298,6 +299,10 @@ async function stampOwnerEmails(companyId: number, store: FitgraphStore): Promis
 }
 
 export async function GET(request: NextRequest) {
+  return withRequestTiming('/api/fitness/fitgraph', request, () => fitgraphGet(request));
+}
+
+async function fitgraphGet(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     if (!Number.isFinite(companyId)) {
@@ -375,6 +380,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  return withRequestTiming('/api/fitness/fitgraph', request, () => fitgraphPost(request));
+}
+
+function fitgraphPost(request: NextRequest) {
   return runFitgraphDeskPost(async () => {
     const response = await postFitgraph(request);
     response.headers.set('Server-Timing', fitgraphServerTimingHeader());
