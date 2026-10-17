@@ -133,7 +133,8 @@ jobs:
             lib/onboarding/brief118-write-order.test.ts \
             lib/billing/brief118-access.test.ts \
             lib/onboarding/brief118-profile-columns.test.ts \
-            lib/onboarding/register-profile.test.ts
+            lib/onboarding/register-profile.test.ts \
+            lib/marketing/brief121a-no-link-to-static-html.test.ts
           do
             if [ -f "$file" ]; then
               if [ "$file" = "lib/recovery/brief116-pii.test.ts" ]; then
