@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withRequestTiming } from '@/lib/observability/request-timing';
+import { withRequestTiming } from '@/lib/observability/request-timing-server';
 import { randomUUID } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { hashProductIdentity } from '@/lib/inventory/hash';

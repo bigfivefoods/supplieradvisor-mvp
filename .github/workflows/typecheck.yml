@@ -202,6 +202,15 @@ jobs:
           do
             npx --yes tsx "$file"
           done
+      - name: Brief 122 F1 request timing tests
+        run: |
+          set -euo pipefail
+          for file in \
+            lib/observability/request-timing.test.ts \
+            lib/observability/request-timing-client-graph.test.ts
+          do
+            npx --yes tsx "$file"
+          done
 
   trade-portal-db:
     name: trade portal Postgres

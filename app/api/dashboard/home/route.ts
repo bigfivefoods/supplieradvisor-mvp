@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withRequestTiming } from '@/lib/observability/request-timing';
+import { withRequestTiming } from '@/lib/observability/request-timing-server';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { jsonKpi } from '@/lib/http/response-cache';
 import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';

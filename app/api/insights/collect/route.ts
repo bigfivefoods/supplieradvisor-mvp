@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withRequestTiming } from '@/lib/observability/request-timing';
+import { withRequestTiming } from '@/lib/observability/request-timing-server';
 import type { NextRequest } from 'next/server';
 import { forwardInsights } from '@/lib/insights/forward';
 import { lookupNetwork } from '@/lib/insights/ipinfo';

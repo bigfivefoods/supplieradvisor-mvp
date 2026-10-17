@@ -5,16 +5,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   buildTimingLog,
-  companyIdFromRequest,
   countedFetch,
   formatServerTiming,
-  hashCompanyId,
-  requestTimingStore,
   safeRoutePattern,
   sampleRateFromEnv,
   shouldSample,
-  withRequestTiming,
 } from './request-timing';
+import { requestTimingStore, withRequestTiming } from './request-timing-server';
 
 const previousRate = process.env.REQUEST_TIMING_SAMPLE_RATE;
 
@@ -60,7 +57,7 @@ assert.equal(logs.length, 1);
 const parsed = JSON.parse(logs[0]) as { route: string; company?: string; status: number };
 assert.equal(parsed.route, '/api/customers/:id');
 assert.equal(parsed.status, 201);
-assert.equal(parsed.company, hashCompanyId('4242'));
+assert.equal('company' in parsed, false);
 assert.equal(logs[0].includes('4242'), false);
 assert.equal(logs[0].includes('person@loadtest.invalid'), false);
 assert.equal(logs[0].includes('user-sample'), false);
@@ -161,15 +158,12 @@ const countedInside = await withRequestTiming(
 assert.match(countedInside.headers.get('Server-Timing') || '', /dbcalls;desc=2/);
 assert.equal(await countedInside.text(), 'listed');
 
-assert.equal(companyIdFromRequest(new Request('https://example.test/api/geo')), null);
-assert.equal(companyIdFromRequest(new Request('https://example.test/api/x?companyId=abc')), null);
 const built = buildTimingLog({
   routePattern: '/api/me/companies',
   totalMs: 2,
   dbMs: 1,
   dbCalls: 1,
   status: 200,
-  companyId: null,
 });
 assert.equal('company' in built, false);
 assert.equal(JSON.stringify(built).includes('@'), false);
