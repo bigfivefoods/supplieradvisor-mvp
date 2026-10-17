@@ -6,6 +6,7 @@ import {
   type MembershipOk,
 } from '@/lib/business/access';
 import type { AccessLevel } from '@/lib/business/permissions';
+import { profileEmailEqValues } from '@/lib/profiles/email-match';
 
 /**
  * Active business_users membership for a Privy user + company profile.
@@ -270,11 +271,12 @@ export async function resolveSoleTargetProfileIdByEmail(
   if (!normalized.includes('@')) return null;
 
   const supabase = getSupabaseServer();
-  // Exact equality only. Invite/profile writers store emails lowercased.
+  // Exact equality. Match the lower-case form and the caller's original casing.
+  const values = profileEmailEqValues(email);
   const { data, error } = await supabase
     .from('profiles')
     .select('id, email')
-    .eq('email', normalized)
+    .in('email', values)
     .limit(5);
 
   if (error) {

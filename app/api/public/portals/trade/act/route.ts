@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { profileEmailEqValues } from '@/lib/profiles/email-match';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { resolveGuestViewer } from '@/lib/portals/portal-guest';
@@ -2145,21 +2146,30 @@ export async function POST(request: NextRequest) {
       let buyerProfileId =
         Number(linkedProfileId) > 0 ? Number(linkedProfileId) : 0;
       if (!(buyerProfileId > 0) && viewer.email) {
-        const { data: byEmail } = await supabase
-          .from('profiles')
-          .select('id, email, contact_email')
-          .ilike('email', String(viewer.email).trim())
-          .limit(1)
-          .maybeSingle();
-        if (byEmail?.id) buyerProfileId = Number(byEmail.id);
-        if (!(buyerProfileId > 0)) {
-          const { data: byContact } = await supabase
+        const emailValues = profileEmailEqValues(viewer.email);
+        if (emailValues.length) {
+          let byEmailQuery = supabase
             .from('profiles')
-            .select('id, contact_email')
-            .ilike('contact_email', String(viewer.email).trim())
-            .limit(1)
-            .maybeSingle();
-          if (byContact?.id) buyerProfileId = Number(byContact.id);
+            .select('id, email, contact_email');
+          byEmailQuery =
+            emailValues.length > 1
+              ? byEmailQuery.in('email', emailValues)
+              : byEmailQuery.eq('email', emailValues[0]);
+          const { data: byEmail } = await byEmailQuery.limit(1).maybeSingle();
+          if (byEmail?.id) buyerProfileId = Number(byEmail.id);
+          if (!(buyerProfileId > 0)) {
+            let byContactQuery = supabase
+              .from('profiles')
+              .select('id, contact_email');
+            byContactQuery =
+              emailValues.length > 1
+                ? byContactQuery.in('contact_email', emailValues)
+                : byContactQuery.eq('contact_email', emailValues[0]);
+            const { data: byContact } = await byContactQuery
+              .limit(1)
+              .maybeSingle();
+            if (byContact?.id) buyerProfileId = Number(byContact.id);
+          }
         }
       }
       if (!(buyerProfileId > 0)) {
