@@ -25,5 +25,6 @@
   { "route": "/api/reseller/invite", "methods": ["GET"], "reason": "Token-based invite preview is intentionally public" },
   { "route": "/api/banking/cron-sync", "methods": ["GET", "POST"], "reason": "Cron secret protected sync endpoint" },
   { "route": "/api/fleet/fleetgraph/cron/reminders", "methods": ["GET", "POST"], "reason": "FleetAdvisor® reminder cron. Secret check runs before any company work." },
-  { "route": "/api/banking/webhooks/banklink", "methods": ["GET", "POST"], "reason": "Banking webhook" }
+  { "route": "/api/banking/webhooks/banklink", "methods": ["GET", "POST"], "reason": "Banking webhook" },
+  { "route": "/api/_loadtest/whoami", "methods": ["GET"], "reason": "Public load-test identity. Returns 404 unless LOADTEST_ENDPOINTS is 1. The 200 body is only the public project ref and the word staging." }
 ]
