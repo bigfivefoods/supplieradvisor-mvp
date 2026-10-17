@@ -24,7 +24,7 @@ export const QUALITY_FLOW: AdvisorFlowDef = {
       n: 1,
       phase: 'inspect',
       title: 'Inspect a lot',
-      desc: 'Record an inspection against a lot. An open or failed result holds that lot when a transfer ships. A failed result raises a non-conformance and opens a corrective action.',
+      desc: 'Record an inspection against a lot. An open or failed result can block a transfer ship for a line that carries that lot number. A failed result raises a non-conformance and opens a corrective action.',
       status: 'live',
       icon: 'clipboard-check',
       needs: sheq,
@@ -86,7 +86,7 @@ export const QUALITY_FLOW: AdvisorFlowDef = {
   guardrails: [
     {
       title: 'Hold on a transfer',
-      body: 'An open or failed inspection holds the lot when a transfer ships. Only the owner or an admin can override that block, and the override is logged. The inspection does not by itself hold stock on another screen.',
+      body: 'An open or failed inspection blocks shipping a transfer line that carries that lot number. A line with no lot number is not checked. Any error from the inspection query lets the transfer ship. Only the owner or an admin can override the block, and the override is logged. A scan receive is not blocked, and the scan screen does not show the warning.',
       source: 'app/api/inventory/transfers/route.ts',
     },
     {

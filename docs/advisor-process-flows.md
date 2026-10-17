@@ -89,7 +89,7 @@ Nothing mounts until the company role has finished loading and is a real role th
 | operations | Skipped. The hub already draws numbered stage cards, an exceptions card, and links into the owning modules. A second picture would repeat those cards. |
 | manufacturing | Mounted on Make. Material planning suggests make and buy and does not raise a purchase order. |
 | distribution | Mounted on Ship. Proof of delivery is an event label only, so that step is launching soon. |
-| inventory | Mounted. A transfer ship is blocked by an open or failed inspection unless the owner or an admin overrides it, and that override is logged. |
+| inventory | Mounted. Scan receive is partial: the lot is still received, and the response carries a warning the screen does not show yet. A transfer ship checks lines that carry a lot number. |
 | quality | Mounted. The recall screen is a drill. The regulatory export is a data file and a print view, not a submission. |
 | sheq | Mounted. Incident, hazard, non-conformance and corrective action. |
 | projects | Later. Some screens depend on migrations and must not claim more than the page shows. |
@@ -108,13 +108,13 @@ Control Tower, Suppliers, Customers and Sales are the flows from the previous ch
 
 Make, Ship, Inventory, Quality and SHEQ are mounted in this change. Operations is not. Its hub already draws the numbered stage cards, an exceptions card, and links into Suppliers, Inventory, Make, Ship and Quality. Each stage page lists the owning module. A flow under those cards would repeat them.
 
-Make is live except material planning, which suggests make and buy and does not raise a purchase order. Completing a work order posts finished stock, and posts bill components out of stock when the order has a bill. Labour is recorded at the cell rate when that rate is set.
+Make is live except material planning, which suggests make and buy and does not raise a purchase order. Completing a work order posts finished stock only when the order has a product and a warehouse is available, and posts bill components out of stock when the order has a bill. Labour uses the station rate when that rate is set, and otherwise the cell rate.
 
 Ship is live except proof of delivery. Delivered is an event label. The log stores no signature and no photo, so that step is launching soon and has no link. A purchase-order reference on a shipment is free text.
 
-Inventory is live. Shipping a transfer is refused when a lot on it has an open or failed inspection. Only the owner or an admin can override that block, and the override is logged. If the inspection table is missing, the check does not block the transfer. A scan receive warns and still receives. The finished-goods and raw-materials addresses open a stock filter. The cycle-count address opens count history. The stock-take address opens the counts screen.
+Inventory is live except scan receive. The lot is still received. The response carries a warning that the screen does not show yet. Shipping a transfer is refused when a line carries a lot number and that lot has an open or failed inspection. A line with no lot number is not checked. Only the owner or an admin can override that block, and the override is logged. Any error from the inspection query lets the transfer ship. On the signed-out preview, the transfer link opens the live stock screen. The signed-in link stays on transfers. The finished-goods and raw-materials addresses open a stock filter. The cycle-count address opens count history. The stock-take address opens the counts screen.
 
-Quality is live except the recall drill and the regulatory export. The drill searches a lot and does not run a recall. The export downloads operating records as JSON and opens a print view. It is not a submission. HACCP stores a plan, control points and monitoring logs. It does not issue a certificate. A failed inspection raises a non-conformance and opens a corrective action. An open inspection does not. The hold applies when a transfer ships.
+Quality is live except the recall drill and the regulatory export. The drill searches a lot and does not run a recall. The export downloads operating records as JSON and opens a print view. It is not a submission. HACCP stores a plan, control points and monitoring logs. It does not issue a certificate. A failed inspection raises a non-conformance and opens a corrective action. An open inspection does not. The hold applies when a transfer line that carries the lot number ships.
 
 SHEQ is live. A hazard stores likelihood and severity and a score from them. A corrective action stores a root cause, a corrective action and a preventive action. Setting the status to effective records the check time. The page copy that names a standard is not repeated here.
 

@@ -8,14 +8,14 @@ export const DISTRIBUTION_FLOW: AdvisorFlowDef = {
   module: 'distribution',
   product: 'SupplierAdvisor®',
   anchorId: 'distribution-process-flow',
-  title: 'SupplierAdvisor® from lane to tracked delivery',
-  lead: 'From a lane setup to a tracked shipment. Proof of delivery is not captured yet. The module cards on this page stay where they are.',
+  title: 'SupplierAdvisor® from terms to tracked delivery',
+  lead: 'From the commercial terms and the carrier roster to a tracked shipment. Proof of delivery is not captured yet. The module cards on this page stay where they are.',
   hrefRoot: CORE_HREF_ROOT.distribution,
   previewRoot: null,
   previewPaths: [],
   roles: flowRoleDefs('distribution'),
   phases: [
-    { id: 'lanes', title: 'Set up the lanes', subtitle: 'Terms, carriers and vehicles' },
+    { id: 'setup', title: 'Set the terms', subtitle: 'Commercial terms, carriers and vehicles' },
     { id: 'move', title: 'Move', subtitle: 'Book inbound and dispatch outbound' },
     { id: 'track', title: 'Track', subtitle: 'Read the event log' },
   ],
@@ -23,7 +23,7 @@ export const DISTRIBUTION_FLOW: AdvisorFlowDef = {
     flowStep({
       id: 'incoterms',
       n: 1,
-      phase: 'lanes',
+      phase: 'setup',
       title: 'Set the incoterms',
       desc: 'Choose the company default commercial term and the default transport mode.',
       status: 'live',
@@ -35,7 +35,7 @@ export const DISTRIBUTION_FLOW: AdvisorFlowDef = {
     flowStep({
       id: 'carriers',
       n: 2,
-      phase: 'lanes',
+      phase: 'setup',
       title: 'Add carriers',
       desc: 'Add a carrier to the roster used on shipments.',
       status: 'live',
@@ -47,7 +47,7 @@ export const DISTRIBUTION_FLOW: AdvisorFlowDef = {
     flowStep({
       id: 'fleet',
       n: 3,
-      phase: 'lanes',
+      phase: 'setup',
       title: 'Add vehicles and drivers',
       desc: 'Add a vehicle and a driver for your own runs.',
       status: 'live',
@@ -123,5 +123,5 @@ export const DISTRIBUTION_FLOW: AdvisorFlowDef = {
       source: 'app/api/distribution/shipments/route.ts',
     },
   ],
-  outcome: 'Lanes, carriers and vehicles are set, shipments are booked, and movement is in the event log.',
+  outcome: 'Commercial terms, carriers and vehicles are set, shipments are booked, and movement is in the event log.',
 };

@@ -137,17 +137,17 @@ const PINNED: Record<CoreFlowModuleId, { lead: string; outcome: string; guardrai
       },
       {
         title: 'Work order stock',
-        body: 'Completing a work order posts the finished quantity into stock, and posts bill components out of stock when the order has a bill.',
+        body: 'Completing a work order posts finished stock only when the order has a product and a warehouse is available. The warehouse is the location sent with the completion, or else a company warehouse. Bill components are posted out of stock when the order has a bill.',
       },
       {
-        title: 'Cell rate',
-        body: 'Labour on a completed work order is recorded at the cell rate when that rate is set. The cost screen shows those expenses with stations and assets.',
+        title: 'Labour rate',
+        body: 'Labour on a completed work order uses the station rate when that rate is set, and otherwise the cell rate. Nothing is recorded when neither rate is set. The cost screen shows those expenses with stations and assets.',
       },
     ],
   },
   distribution: {
-    lead: 'From a lane setup to a tracked shipment. Proof of delivery is not captured yet. The module cards on this page stay where they are.',
-    outcome: 'Lanes, carriers and vehicles are set, shipments are booked, and movement is in the event log.',
+    lead: 'From the commercial terms and the carrier roster to a tracked shipment. Proof of delivery is not captured yet. The module cards on this page stay where they are.',
+    outcome: 'Commercial terms, carriers and vehicles are set, shipments are booked, and movement is in the event log.',
     guardrails: [
       {
         title: 'Purchase order text',
@@ -173,11 +173,11 @@ const PINNED: Record<CoreFlowModuleId, { lead: string; outcome: string; guardrai
       },
       {
         title: 'Transfer hold',
-        body: 'Shipping a transfer is refused when a lot on it has an open or failed inspection. Only the owner or an admin can override that block, and the override is logged. If the inspection table is missing, the check does not block the transfer.',
+        body: 'Shipping a transfer is refused when a line carries a lot number and that lot has an open or failed inspection. A line with no lot number is not checked. Only the owner or an admin can override that block, and the override is logged. Any error from the inspection query lets the transfer ship. On the signed-out preview, the transfer link opens the live stock screen. The signed-in link stays on transfers.',
       },
       {
         title: 'Scan still receives',
-        body: 'A scan receive warns when the lot already has an open or failed inspection, and it still receives the stock.',
+        body: 'A scan receive still receives the lot. The response carries a warning when that lot already has an open or failed inspection. The screen does not show that warning yet.',
       },
       {
         title: 'Counts',
@@ -191,7 +191,7 @@ const PINNED: Record<CoreFlowModuleId, { lead: string; outcome: string; guardrai
     guardrails: [
       {
         title: 'Hold on a transfer',
-        body: 'An open or failed inspection holds the lot when a transfer ships. Only the owner or an admin can override that block, and the override is logged. The inspection does not by itself hold stock on another screen.',
+        body: 'An open or failed inspection blocks shipping a transfer line that carries that lot number. A line with no lot number is not checked. Any error from the inspection query lets the transfer ship. Only the owner or an admin can override the block, and the override is logged. A scan receive is not blocked, and the scan screen does not show the warning.',
       },
       {
         title: 'Failed inspection',
@@ -251,7 +251,7 @@ const STATUS: Record<CoreFlowModuleId, Record<string, FlowStepDef['status']>> = 
     tracking: 'live', pod: 'soon',
   },
   inventory: {
-    products: 'live', sites: 'live', scan: 'live', stock: 'live', transfer: 'live',
+    products: 'live', sites: 'live', scan: 'partial', stock: 'live', transfer: 'live',
     count: 'live', report: 'live', storefront: 'live',
   },
   quality: { inspect: 'live', haccp: 'live', trace: 'live', drill: 'partial', pack: 'partial' },
@@ -474,7 +474,23 @@ assert.equal(
   CORE_FLOWS.sheq.steps.find((step) => step.id === 'capa')?.desc,
   'Record the root cause, the corrective action and the preventive action. Setting the status to effective records the check time.'
 );
-assert.equal(CORE_FLOWS.inventory.steps.filter((step) => step.status !== 'live').length, 0);
+assert.equal(
+  CORE_FLOWS.inventory.steps.find((step) => step.id === 'scan')?.desc,
+  'Scan a code to receive stock onto a location, with a lot when you enter one. A lot that already has an open or failed inspection is still received. The response carries a warning that the screen does not show yet.'
+);
+assert.equal(
+  CORE_FLOWS.inventory.steps.find((step) => step.id === 'scan')?.note,
+  'The response carries a warning that the screen does not show yet.'
+);
+assert.equal(CORE_FLOWS.inventory.steps.find((step) => step.id === 'scan')?.status, 'partial');
+assert.equal(
+  CORE_FLOWS.inventory.steps.filter((step) => step.status !== 'live').map((step) => step.id).join(','),
+  'scan'
+);
+assert.equal(
+  CORE_FLOWS.manufacturing.steps.find((step) => step.id === 'orders')?.desc,
+  'Release, start and complete a work order. Completing it posts finished stock only when the order has a product and a warehouse is available, and posts bill components out of stock when the order has a bill.'
+);
 assert.equal(CORE_FLOWS.sheq.steps.filter((step) => step.status !== 'live').length, 0);
 for (const step of [...CORE_FLOWS.quality.steps, ...CORE_FLOWS.sheq.steps, ...CORE_FLOWS.manufacturing.steps]) {
   assert.equal(step.roles.includes('sales'), false, step.id);
