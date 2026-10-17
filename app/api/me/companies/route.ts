@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
 import { requireVerifiedUser, legacyPrivyFrom } from '@/lib/auth/api-auth';
@@ -35,6 +36,10 @@ import {
  * Identity and owner emails come from the verified Privy JWT only.
  */
 export async function POST(request: NextRequest) {
+  return withRequestTiming('/api/me/companies', request, () => meCompaniesPost(request));
+}
+
+async function meCompaniesPost(request: NextRequest) {
   try {
     const body = await request.json();
 

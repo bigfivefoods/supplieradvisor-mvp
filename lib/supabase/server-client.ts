@@ -3,6 +3,7 @@
  * or middleware (undici keepalive uses node:util/types).
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { countedFetch } from '@/lib/observability/request-timing';
 
 let client: SupabaseClient | null = null;
 let pooledFetch: typeof fetch | null = null;
@@ -76,7 +77,8 @@ export function getSupabaseServer(): SupabaseClient {
       persistSession: false,
     },
     global: {
-      fetch: keepaliveFetch(),
+      // Count PostgREST calls on the existing singleton. The keep-alive agent stays inside keepaliveFetch.
+      fetch: countedFetch(keepaliveFetch()),
     },
   });
 

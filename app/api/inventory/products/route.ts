@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing';
 import { randomUUID } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { hashProductIdentity } from '@/lib/inventory/hash';
@@ -15,6 +16,10 @@ const PRODUCT_LIST_COLUMNS =
   'id, profile_id, name, sku, barcode, gtin, gtin14, public_id, category, product_type, uom, base_currency, sell_price, cost_price, prices, reorder_level, reorder_qty, short_description, long_description, lead_time_days, moq, status, is_active, primary_image_url, specs_sheet_url, specs_sheet_name, track_lot, track_serial, is_sellable, is_purchasable, metadata, qr_payload, onchain_status, onchain_hash, updated_at, created_at';
 
 export async function GET(request: NextRequest) {
+  return withRequestTiming('/api/inventory/products', request, () => productsGet(request));
+}
+
+async function productsGet(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const q = request.nextUrl.searchParams.get('q');
@@ -99,6 +104,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  return withRequestTiming('/api/inventory/products', request, () => productsPost(request));
+}
+
+async function productsPost(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);

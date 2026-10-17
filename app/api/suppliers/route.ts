@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember } from '@/lib/suppliers/access';
 import { computeTrustScore } from '@/lib/suppliers/types';
@@ -69,6 +70,10 @@ function bookField(row: Record<string, unknown>, key: string): string | null {
  * List company-scoped srm_suppliers (buyer book).
  */
 export async function GET(request: NextRequest) {
+  return withRequestTiming('/api/suppliers', request, () => suppliersGet(request));
+}
+
+async function suppliersGet(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
     const companyId = Number(sp.get('companyId'));
@@ -286,6 +291,10 @@ export async function GET(request: NextRequest) {
  * Body: companyId, privyUserId?, trading_name, ...metadata
  */
 export async function POST(request: NextRequest) {
+  return withRequestTiming('/api/suppliers', request, () => suppliersPost(request));
+}
+
+async function suppliersPost(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
