@@ -66,36 +66,41 @@ function dbForIdentity() {
   }
 }
 
+type EmailLookupDb = {
+  from: (table: string) => any;
+};
+
 export async function resolveEmailsForUserId(
-  userId: string
+  userId: string,
+  supabase?: EmailLookupDb
 ): Promise<string[]> {
   try {
-    const supabase = dbForIdentity();
+    const db = supabase || dbForIdentity();
     const variants = userIdMatchVariants(userId);
     const out = new Set<string>();
 
-    const { data } = await supabase
+    const membersQ = db
       .from('business_users')
       .select('email, invited_email')
       .in('user_id', variants)
       .limit(40);
-    for (const row of data || []) {
+    const profilesQ = db
+      .from('profiles')
+      .select('email')
+      .in('user_id', variants)
+      .limit(20);
+
+    const [members, profiles] = await Promise.all([
+      membersQ,
+      Promise.resolve(profilesQ).catch(() => ({ data: [] as Array<{ email?: string | null }> })),
+    ]);
+
+    for (const row of members.data || []) {
       if (row.email) out.add(String(row.email).toLowerCase());
       if (row.invited_email) out.add(String(row.invited_email).toLowerCase());
     }
-
-    // Also pick up emails on profiles owned by this user
-    try {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('email')
-        .in('user_id', variants)
-        .limit(20);
-      for (const p of profiles || []) {
-        if (p.email) out.add(String(p.email).toLowerCase());
-      }
-    } catch {
-      /* soft */
+    for (const p of profiles.data || []) {
+      if (p.email) out.add(String(p.email).toLowerCase());
     }
 
     return [...out];
