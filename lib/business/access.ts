@@ -261,16 +261,29 @@ type ActivityTouchRuntime = {
 };
 
 let activityTouchRuntime: ActivityTouchRuntime | null = null;
-let activityScheduler: ((task: () => Promise<void>) => void) | null = null;
+
+type ActivityScheduler = (task: () => Promise<void>) => void;
+
+/**
+ * instrumentation.ts and route handlers are separate module instances, so a
+ * module-level slot set from register() is invisible to the route. Symbol.for
+ * is shared by every copy in the isolate.
+ */
+const ACTIVITY_SCHEDULER = Symbol.for('supplieradvisor.memberActivityScheduler');
 
 /**
  * Installed from instrumentation on the Node server. The client bundle must
  * not import next/server's after(), so this module only calls a callback.
  */
-export function setActivityScheduler(
-  schedule: ((task: () => Promise<void>) => void) | null
-): void {
-  activityScheduler = schedule;
+export function setActivityScheduler(schedule: ActivityScheduler | null): void {
+  const slot = globalThis as Record<symbol, ActivityScheduler | undefined>;
+  if (schedule) slot[ACTIVITY_SCHEDULER] = schedule;
+  else delete slot[ACTIVITY_SCHEDULER];
+}
+
+function readActivityScheduler(): ActivityScheduler | null {
+  const slot = (globalThis as Record<symbol, unknown>)[ACTIVITY_SCHEDULER];
+  return typeof slot === 'function' ? (slot as ActivityScheduler) : null;
 }
 
 /** Unit tests supply a clock, a late scheduler, and a fake update. */
@@ -288,8 +301,9 @@ export function clearActivityTouchMemoForTests(): void {
 }
 
 function scheduleAfterResponse(task: () => Promise<void>): void {
-  if (activityScheduler) {
-    activityScheduler(task);
+  const schedule = readActivityScheduler();
+  if (schedule) {
+    schedule(task);
     return;
   }
   void task().catch(() => undefined);
@@ -306,8 +320,9 @@ async function defaultActivityUpdate(memberId: number, stamp: string): Promise<v
 /**
  * Stamp last_active_at at most once per five minutes per member.
  * The team list reads this at minute resolution, so the floor stays five
- * minutes. The write is handed to the server scheduler so the response
- * does not drop it, and it is skipped when the stored stamp is already fresh.
+ * minutes. The write goes to the shared scheduler when instrumentation has
+ * installed one. With no scheduler, it still runs in this turn and can be
+ * dropped when the isolate freezes. Confirm the held write on a Vercel preview.
  */
 function touchMemberActivity(memberId: number, lastActiveAt?: string | null): void {
   const now = activityTouchRuntime ? activityTouchRuntime.now() : Date.now();

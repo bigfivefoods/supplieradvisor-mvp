@@ -1,9 +1,9 @@
 /**
- * Brief 122 A4 — last-active writes are throttled and not dropped.
+ * Brief 122 A4 — last-active writes are throttled.
  * Run: npx --yes tsx lib/business/brief122-activity-touch.test.ts
  */
 import assert from 'node:assert/strict';
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
   clearActivityTouchMemoForTests,
@@ -13,6 +13,7 @@ import {
   setMembershipClientForTests,
 } from './access';
 import { scheduleWithAfter } from './schedule-after';
+import { register as registerInstrumentation } from '../../instrumentation';
 import {
   MEMBER_ACTIVITY_TOUCH_MS,
   activityTouchDecision,
@@ -385,8 +386,47 @@ async function main() {
   const accessSrc = readFileSync('lib/business/access.ts', 'utf8');
   assert.equal(/from\s+['"]next\/server['"]/.test(accessSrc), false);
   assert.equal(/import\(\s*['"]next\/server['"]\s*\)/.test(accessSrc), false);
-  const instrumentation = readFileSync('instrumentation.ts', 'utf8');
-  assert.equal(instrumentation.includes('installActivityAfter('), true);
+
+  // register() and a route handler do not share a module instance. The route
+  // copy must still see the scheduler register() installed.
+  {
+    reset();
+    const copyPath = join(process.cwd(), 'lib/business/access.route-copy.ts');
+    writeFileSync(copyPath, readFileSync(join(process.cwd(), 'lib/business/access.ts')));
+    const previousRuntime = process.env.NEXT_RUNTIME;
+    try {
+      const route = await import('./access.route-copy.ts');
+      assert.notEqual(route.setActivityScheduler, setActivityScheduler);
+      const db = createFake({
+        members: [member(null)],
+        profiles: [{ id: COMPANY, deleted_at: null }],
+      });
+      route.setMembershipClientForTests(db);
+      route.setActivityTouchRuntimeForTests(null);
+      route.setActivityScheduler(null);
+      process.env.NEXT_RUNTIME = 'nodejs';
+      await registerInstrumentation();
+      const key = Symbol.for('supplieradvisor.memberActivityScheduler');
+      const installed = (globalThis as Record<symbol, unknown>)[key];
+      assert.equal(typeof installed, 'function');
+      let calls = 0;
+      (globalThis as Record<symbol, unknown>)[key] = (task: () => Promise<void>) => {
+        calls += 1;
+        (installed as (task: () => Promise<void>) => void)(task);
+      };
+      const res = await route.getCompanyMembership(USER, COMPANY);
+      assert.equal(res.ok, true);
+      assert.equal(calls, 1, 'the route copy must use the scheduler register() installed');
+    } finally {
+      process.env.NEXT_RUNTIME = previousRuntime;
+      try {
+        unlinkSync(copyPath);
+      } catch {
+        /* already removed */
+      }
+      setActivityScheduler(null);
+    }
+  }
 
   const seen = new Set<string>();
   function walk(file: string) {
