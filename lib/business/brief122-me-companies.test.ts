@@ -3,7 +3,6 @@
  * Run: npx --yes tsx lib/business/brief122-me-companies.test.ts
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import {
   loadMyCompanies,
   resetMeCompaniesEmbedForTests,
@@ -180,6 +179,9 @@ function createDb(
           });
         }
         if (state.limit != null) rows = rows.slice(0, state.limit);
+        if (state.op === 'select' && table === 'profiles') {
+          rows = rows.map((row) => projectProfile(row, state.select));
+        }
         finish();
         resolve({
           data: state.single ? rows[0] || null : rows,
@@ -191,6 +193,15 @@ function createDb(
   }
 
   return { from, calls, store, updates: () => calls.filter((call) => call.op === 'update') };
+}
+
+function projectProfile(row: Row, select: string): Row {
+  if (!select || select.includes('*') || select.includes('(')) return { ...row };
+  const out: Row = {};
+  for (const col of select.split(',').map((item) => item.trim()).filter(Boolean)) {
+    if (Object.prototype.hasOwnProperty.call(row, col)) out[col] = row[col];
+  }
+  return out;
 }
 
 const USER = 'did:privy:returning-user';
@@ -457,6 +468,49 @@ async function main() {
     assert.equal(companies.find((company) => company.id === '9')?.entity_kind, 'platform');
   }
 
+  // The login that promotes admin to owner must return owner, matching the row ensure just wrote.
+  {
+    resetMeCompaniesEmbedForTests();
+    const db = createDb({
+      business_users: [
+        member({
+          id: 11,
+          profile_id: 9,
+          email: 'ops@example.test',
+          role: 'admin',
+          name: 'Ops',
+        }),
+      ],
+      profiles: [
+        profile(9, {
+          trading_name: 'SupplierAdvisor',
+          legal_name: 'SupplierAdvisor (Pty) Ltd',
+          business_type: 'platform',
+          org_type: 'platform',
+          email: 'ops@example.test',
+          metadata: { is_platform_company: true },
+        }),
+      ],
+    });
+    const result = await loadMyCompanies({
+      supabase: db,
+      userId: USER,
+      jwtEmails: ['ops@example.test'],
+      isPlatformEmail: (email) => email === 'ops@example.test',
+      ensurePlatformCompany: async () => {
+        const row = db.store.business_users.find((item) => item.id === 11);
+        if (row) {
+          row.role = 'owner';
+          row.status = 'active';
+          row.name = 'Platform owner';
+        }
+        return { company: { id: 9 }, created: false, ownersAttached: ['ops@example.test'] };
+      },
+    });
+    const companies = result.body.companies as Array<{ id: string; role: string }>;
+    assert.equal(companies.find((company) => company.id === '9')?.role, 'owner');
+  }
+
   // Platform company missing: ensure runs once, then the new membership is visible.
   {
     resetMeCompaniesEmbedForTests();
@@ -669,9 +723,33 @@ async function main() {
     assert.equal(hydrated.result.status, 500);
   }
 
-  const network = readFileSync('app/dashboard/network/actions.ts', 'utf8');
-  assert.equal(network.includes(EMBED_HINT), true);
-  assert.equal(network.includes('profiles:profile_id'), false);
+  // Plain read plus profile fetch is the production path. A soft-deleted company stays out,
+  // and the hydrate select has to ask for deleted_at or the fake omits it.
+  {
+    const db = createDb(
+      {
+        business_users: [member()],
+        profiles: [profile(42, { deleted_at: '2026-04-04T00:00:00.000Z' })],
+      },
+      {
+        embedError: {
+          message: 'Could not embed because more than one relationship was found',
+          code: 'PGRST201',
+        },
+      }
+    );
+    const { result } = await run(db);
+    assert.equal(result.status, 200);
+    const companies = result.body.companies as Array<{ id: string }>;
+    assert.deepEqual(companies, []);
+    const hydrate = db.calls.find(
+      (call) =>
+        call.table === 'profiles' &&
+        call.filters.some((filter) => filter[0] === 'in' && filter[1] === 'id')
+    );
+    assert.ok(hydrate);
+    assert.equal(hydrate.select.includes('deleted_at'), true);
+  }
 
   console.log('brief122-me-companies.test.ts ok');
 }

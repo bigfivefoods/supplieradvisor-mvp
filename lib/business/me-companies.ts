@@ -451,7 +451,16 @@ export async function loadMyCompanies(
         const e1 = (row.email || '').toLowerCase();
         const e2 = (row.invited_email || '').toLowerCase();
         const mine = variants.includes(uid) || knownEmails.has(e1) || knownEmails.has(e2);
-        if (mine) add(row);
+        if (!mine) continue;
+        const held = memberships.find((item) => Number(item.id) === Number(row.id));
+        if (held) {
+          // ensure just rewrote this row (admin → owner). The earlier read is stale.
+          held.role = row.role;
+          held.status = row.status;
+          held.name = row.name;
+          continue;
+        }
+        add(row);
       }
     } catch (e: unknown) {
       console.error('me/companies platform bootstrap soft-fail:', e);
