@@ -241,6 +241,48 @@ assert.deepEqual(storeSlugLookupValues('Cafe\u0301/'), ['caf\u00e9', 'Caf\u00e9'
   assert.equal(db.calls.length, 2);
 }
 
+// A stored slug that is not the requested key is not served by the name scan.
+// main served that row by name. This refusal is intentional.
+{
+  reset();
+  const db = fakeDb((call) => {
+    if (call.filters.some((f) => f.method === 'filter')) return { data: [] };
+    return {
+      data: [
+        profileRow({
+          id: 7,
+          trading_name: 'Northwind',
+          metadata: { store_slug: 'other-shop' },
+        }),
+      ],
+    };
+  });
+  const company = await resolveStoreCompany('northwind', db);
+  assert.equal(company, null);
+}
+
+{
+  reset();
+  const db = fakeDb((call) => {
+    if (call.filters.some((f) => f.method === 'filter')) return { data: [] };
+    if (call.filters.some((f) => f.method === 'or')) {
+      return {
+        data: [
+          profileRow({
+            id: 7,
+            trading_name: 'Big Five Foods',
+            metadata: { store_slug: 'other-shop' },
+          }),
+        ],
+      };
+    }
+    return { data: [] };
+  });
+  const company = await resolveStoreCompany('big-five-foods', db);
+  assert.equal(company?.id, 0);
+  assert.notEqual(company?.id, 7);
+}
+
 {
   reset();
   const cached: StoreCompany = {
