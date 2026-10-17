@@ -264,6 +264,97 @@ watchResponse({ status: 200, body: '{"ok":true}', headers: { 'x-ref': 'stagingre
   throw new Error('should not abort');
 });
 
+assert.equal(hostnameOf(`https://${apex}.`), apex);
+assert.equal(hostnameOf(`https://${www}.`), www);
+assert.equal(hostnameOf(`https://${alias}.`), alias);
+for (const dotted of [apex, www, alias, `${prodRef}.supabase.co`]) {
+  assert.throws(
+    () => assertHostAllowed({ baseUrl: `https://${dotted}.`, allowedHosts: `${dotted}.` }),
+    /production deny list/,
+    dotted
+  );
+}
+assert.throws(
+  () => assertHostAllowed({ baseUrl: `https://app.${apex}`, allowedHosts: `app.${apex}` }),
+  /production deny list/
+);
+assert.throws(
+  () => assertHostAllowed({ baseUrl: `https://files.${apex}/path`, allowedHosts: `files.${apex}` }),
+  /production deny list/
+);
+assert.throws(
+  () => assertHostAllowed({ baseUrl: `https://not${stagingHost}`, allowedHosts: stagingHost }),
+  /not on LOADTEST_ALLOWED_HOSTS/
+);
+assert.throws(
+  () => assertHostAllowed({ baseUrl: stagingUrl, allowedHosts: 'example.test' }),
+  /not on LOADTEST_ALLOWED_HOSTS/
+);
+assert.equal(
+  assertHostAllowed({ baseUrl: `https://${stagingHost.toUpperCase()}.`, allowedHosts: stagingHost }),
+  stagingHost
+);
+
+const mismatch = countGet(JSON.stringify({ projectRef: 'otherstagingref', stage: 'staging' }));
+assert.throws(
+  () =>
+    prepareRun({
+      baseUrl: stagingUrl,
+      allowedHosts: stagingHost,
+      expectProjectRef: expectRef,
+      get: mismatch.get,
+    }),
+  /does not match/
+);
+const wrongStage = countGet(JSON.stringify({ projectRef: expectRef, stage: 'preview' }));
+assert.throws(
+  () =>
+    prepareRun({
+      baseUrl: stagingUrl,
+      allowedHosts: stagingHost,
+      expectProjectRef: expectRef,
+      get: wrongStage.get,
+    }),
+  /stage is not staging/
+);
+const wrongStatus = countGet(JSON.stringify({ projectRef: expectRef, stage: 'staging' }), 503);
+assert.throws(
+  () =>
+    prepareRun({
+      baseUrl: stagingUrl,
+      allowedHosts: stagingHost,
+      expectProjectRef: expectRef,
+      get: wrongStatus.get,
+    }),
+  /status was not 200/
+);
+const upperRef = countGet(JSON.stringify({ projectRef: prodRef.toUpperCase(), stage: 'staging' }));
+assert.throws(
+  () =>
+    prepareRun({
+      baseUrl: stagingUrl,
+      allowedHosts: stagingHost,
+      expectProjectRef: expectRef,
+      get: upperRef.get,
+    }),
+  /production project ref/
+);
+
+let seenUrl = '';
+const pathed = countGet(JSON.stringify({ projectRef: expectRef, stage: 'staging' }));
+const originalGet = pathed.get;
+prepareRun({
+  baseUrl: stagingUrl,
+  allowedHosts: stagingHost,
+  expectProjectRef: expectRef,
+  get: (url: string) => {
+    seenUrl = url;
+    return originalGet();
+  },
+});
+assert.equal(seenUrl, `${stagingUrl}/api/loadtest/whoami`);
+assert.equal(seenUrl.includes('/_'), false);
+
 assert.throws(() => pickUser([], 0), /no synthetic users/);
 assert.equal(pickUser([{ id: 'a' }, { id: 'b' }], 3).id, 'b');
 
@@ -281,7 +372,8 @@ for (const name of profiles) {
 for (const name of readdirSync('.github/workflows')) {
   const text = readFileSync(join('.github/workflows', name), 'utf8');
   assert.equal(text.includes('k6'), false, name);
-  assert.equal(text.includes('loadtest'), false, name);
+  assert.equal(text.includes('loadtest/profiles'), false, name);
+  assert.equal(text.includes('loadtest/scenarios'), false, name);
 }
 const pkg = readFileSync('package.json', 'utf8');
 assert.equal(pkg.includes('k6'), false);

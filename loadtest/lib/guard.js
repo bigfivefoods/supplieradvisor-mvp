@@ -6,6 +6,8 @@
 
 const PRODUCTION_PROJECT_REF = 'onkklullmgrdqoertngp';
 
+export const WHOAMI_PATH = '/api/loadtest/whoami';
+
 export function productionProjectRef() {
   return PRODUCTION_PROJECT_REF;
 }
@@ -14,6 +16,10 @@ export function productionDenyHosts() {
   const apex = ['supplier', 'advisor.com'].join('');
   const alias = ['supplier', 'advisor-mvp.', 'vercel.app'].join('');
   return [apex, ['www.', apex].join(''), alias];
+}
+
+export function normaliseHost(hostname) {
+  return String(hostname || '').trim().toLowerCase().replace(/\.+$/, '');
 }
 
 export function hostnameOf(value) {
@@ -29,13 +35,13 @@ export function hostnameOf(value) {
   if (!hostport || /\s/.test(hostport)) return '';
   if (hostport.startsWith('[')) {
     const end = hostport.indexOf(']');
-    return end > 1 ? hostport.slice(1, end) : '';
+    return normaliseHost(end > 1 ? hostport.slice(1, end) : '');
   }
-  return hostport.split(':')[0];
+  return normaliseHost(hostport.split(':')[0]);
 }
 
 export function isDeniedHost(hostname) {
-  const host = String(hostname || '').toLowerCase();
+  const host = normaliseHost(hostname);
   if (!host) return false;
   const denied = productionDenyHosts();
   if (denied.includes(host)) return true;
@@ -90,16 +96,22 @@ export function headersToText(headers) {
   return '';
 }
 
+function cleanRef(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 export function responseCarriesProductionRef(headers, body) {
   const text = body == null ? '' : typeof body === 'string' ? body : JSON.stringify(body);
-  return text.includes(PRODUCTION_PROJECT_REF) || headersToText(headers).includes(PRODUCTION_PROJECT_REF);
+  const haystack = `${text}\n${headersToText(headers)}`.toLowerCase();
+  return haystack.includes(PRODUCTION_PROJECT_REF);
 }
 
 export function evaluatePreflight({ status, body, headers, expectProjectRef }) {
-  if (!expectProjectRef) {
+  const expected = cleanRef(expectProjectRef);
+  if (!expected) {
     throw new Error('Refusing to run: LOADTEST_EXPECT_PROJECT_REF is empty');
   }
-  if (expectProjectRef === PRODUCTION_PROJECT_REF) {
+  if (expected === PRODUCTION_PROJECT_REF) {
     throw new Error('Refusing to run: LOADTEST_EXPECT_PROJECT_REF is the production project');
   }
   if (responseCarriesProductionRef(headers, body)) {
@@ -116,26 +128,35 @@ export function evaluatePreflight({ status, body, headers, expectProjectRef }) {
       throw new Error('Refusing to run: preflight body is not JSON');
     }
   }
-  if (!parsed || parsed.stage !== 'staging') {
+  if (!parsed || cleanRef(parsed.stage) !== 'staging') {
     throw new Error('Refusing to run: preflight stage is not staging');
   }
-  if (parsed.projectRef !== expectProjectRef) {
+  const reported = [parsed.projectRef, parsed.serverProjectRef, parsed.publicProjectRef]
+    .filter((value) => value != null && String(value).trim() !== '')
+    .map((value) => cleanRef(value));
+  if (reported.length === 0 || reported.some((value) => value !== expected)) {
     throw new Error('Refusing to run: preflight project ref does not match LOADTEST_EXPECT_PROJECT_REF');
   }
-  return parsed.projectRef;
+  if (parsed.serverProjectRef != null && parsed.publicProjectRef != null) {
+    if (cleanRef(parsed.serverProjectRef) !== cleanRef(parsed.publicProjectRef)) {
+      throw new Error('Refusing to run: preflight supabase refs disagree');
+    }
+  }
+  return expected;
 }
 
 /**
  * Host checks run before `get`. `get` is the preflight and the only request this function makes.
  */
 export function runPreflight({ get, baseUrl, expectProjectRef }) {
-  if (!expectProjectRef) {
+  const expected = cleanRef(expectProjectRef);
+  if (!expected) {
     throw new Error('Refusing to run: LOADTEST_EXPECT_PROJECT_REF is empty');
   }
-  if (expectProjectRef === PRODUCTION_PROJECT_REF) {
+  if (expected === PRODUCTION_PROJECT_REF) {
     throw new Error('Refusing to run: LOADTEST_EXPECT_PROJECT_REF is the production project');
   }
-  const res = get(`${String(baseUrl || '').replace(/\/$/, '')}/api/_loadtest/whoami`);
+  const res = get(`${String(baseUrl || '').replace(/\/$/, '')}${WHOAMI_PATH}`);
   return evaluatePreflight({
     status: res && res.status,
     body: res && res.body,

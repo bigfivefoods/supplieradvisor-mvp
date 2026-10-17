@@ -202,6 +202,15 @@ jobs:
           do
             npx --yes tsx "$file"
           done
+      - name: Brief 122 E1 loadtest guard tests
+        run: |
+          set -euo pipefail
+          for file in \
+            loadtest/lib/guard.test.ts \
+            lib/loadtest/whoami.test.ts
+          do
+            npx --yes tsx "$file"
+          done
       - name: Brief 122 F1 request timing tests
         run: |
           set -euo pipefail
