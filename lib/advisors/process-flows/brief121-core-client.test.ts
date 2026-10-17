@@ -180,6 +180,73 @@ async function main() {
   assert.equal(sheqHrefs.includes('/preview/sheq?screen=capas'), true);
   sheqFixture.unmount();
 
+  companyRoleState.loading = false;
+  companyRoleState.role = 'owner';
+  at('/');
+  const projects = show(createElement(CoreProcessFlow, { module: 'projects' }));
+  const projectsToggle = projects.container.querySelector('[data-testid="advisor-flow-toggle"]');
+  assert.equal(projectsToggle?.getAttribute('aria-expanded'), 'false');
+  assert.equal(projects.container.querySelector('#projects-process-flow-panel')?.hasAttribute('hidden'), true);
+  fireEvent.click(projectsToggle as Element);
+  assert.equal(projectsToggle?.getAttribute('aria-expanded'), 'true');
+  companyRoleState.role = 'viewer';
+  projects.rerender(createElement(Host, null, createElement(CoreProcessFlow, { module: 'projects' })));
+  assert.equal(projectsToggle?.getAttribute('aria-expanded'), 'true');
+  assert.ok(projects.container.querySelector('a[href="/dashboard/projects/portfolio"]'));
+  projects.unmount();
+
+  companyRoleState.loading = false;
+  companyRoleState.role = 'owner';
+  at('/');
+  const books = show(createElement(CoreProcessFlow, { module: 'accounting' }));
+  const booksToggle = books.container.querySelector('[data-testid="advisor-flow-toggle"]');
+  assert.equal(booksToggle?.getAttribute('aria-expanded'), 'false');
+  fireEvent.click(booksToggle as Element);
+  assert.equal(booksToggle?.getAttribute('aria-expanded'), 'true');
+  companyRoleState.role = 'finance';
+  books.rerender(createElement(Host, null, createElement(CoreProcessFlow, { module: 'accounting' })));
+  assert.equal(books.container.querySelector('[data-testid="advisor-flow-toggle"]')?.getAttribute('aria-expanded'), 'true');
+  assert.match(books.container.textContent || '', /You are the finance/);
+  companyRoleState.role = 'admin';
+  books.rerender(createElement(Host, null, createElement(CoreProcessFlow, { module: 'accounting' })));
+  assert.equal(books.container.querySelector('[data-testid="advisor-flow-accounting"]'), null);
+  books.unmount();
+
+  companyRoleState.loading = false;
+  companyRoleState.role = 'admin';
+  at('/');
+  const adminBooks = show(createElement(CoreProcessFlow, { module: 'accounting' }));
+  assert.equal(adminBooks.container.querySelector('[data-testid="advisor-flow-accounting"]'), null);
+  adminBooks.unmount();
+
+  companyRoleState.loading = true;
+  companyRoleState.role = 'finance';
+  at('/');
+  const booksLoading = show(createElement(CoreProcessFlow, { module: 'accounting' }));
+  assert.equal(booksLoading.container.querySelector('[data-testid="advisor-flow-accounting"]'), null);
+  booksLoading.unmount();
+
+  companyRoleState.loading = false;
+  companyRoleState.role = 'sales_contractor';
+  at('/');
+  for (const module of ['projects', 'people', 'sustainability', 'network', 'accounting'] as const) {
+    const blocked = show(createElement(CoreProcessFlow, { module }));
+    assert.equal(blocked.container.querySelector(`[data-testid="advisor-flow-${module}"]`), null, module);
+    blocked.unmount();
+  }
+
+  companyRoleState.loading = false;
+  companyRoleState.role = 'owner';
+  at('/');
+  const impact = show(createElement(CoreProcessFlow, { module: 'sustainability' }));
+  assert.equal(impact.container.querySelector('[aria-expanded]')?.getAttribute('aria-expanded'), 'false');
+  fireEvent.click(impact.container.querySelector('[data-testid="advisor-flow-toggle"]') as Element);
+  companyRoleState.role = 'operations';
+  impact.rerender(createElement(Host, null, createElement(CoreProcessFlow, { module: 'sustainability' })));
+  assert.equal(impact.container.querySelector('[aria-expanded]')?.getAttribute('aria-expanded'), 'true');
+  assert.match(impact.container.textContent || '', /estimate/);
+  impact.unmount();
+
   cleanup();
   console.log('brief121-core-client.test.ts ok');
 }

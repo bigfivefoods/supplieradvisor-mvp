@@ -1,0 +1,123 @@
+import { CORE_HREF_ROOT, flowRoleDefs } from '../core-caps';
+import type { AdvisorFlowDef } from '../types';
+import { flowStep, target } from './step';
+
+const network = 'canViewNetwork' as const;
+const suppliers = 'canViewSuppliers' as const;
+const customers = 'canViewCustomers' as const;
+
+export const NETWORK_FLOW: AdvisorFlowDef = {
+  module: 'network',
+  product: 'SupplierAdvisor®',
+  anchorId: 'network-process-flow',
+  title: 'SupplierAdvisor® from discovery to first trade',
+  lead: 'From discovery to a first trade. This is a short chain. The summary on this page stays where it is.',
+  hrefRoot: CORE_HREF_ROOT.network,
+  previewRoot: null,
+  previewPaths: [],
+  roles: flowRoleDefs('network'),
+  phases: [
+    { id: 'find', title: 'Find and connect', subtitle: 'Discover, invite and accept' },
+    { id: 'trade', title: 'Trade', subtitle: 'Prices, a first order and the money screen' },
+  ],
+  steps: [
+    flowStep({
+      id: 'discover',
+      n: 1,
+      phase: 'find',
+      title: 'Discover businesses',
+      desc: 'Find a business that is open to trade and send a request with a note. The marketplace lists products and can send an inquiry.',
+      status: 'live',
+      icon: 'users',
+      needs: network,
+      to: target('module', 'discover', 'Open to trade', network),
+      secondary: [target('module', 'marketplace', 'Marketplace', network)],
+      sources: ['app/dashboard/connections/discover/page.tsx', 'app/dashboard/connections/marketplace/page.tsx'],
+    }),
+    flowStep({
+      id: 'invite',
+      n: 2,
+      phase: 'find',
+      title: 'Invite a business',
+      desc: 'Invite a supplier who is not on the book yet, or invite a customer from the other link. Those screens send a claim link. An in-app request is the discover step.',
+      status: 'live',
+      icon: 'message-square',
+      needs: suppliers,
+      to: target('app', '/dashboard/suppliers/invites', 'Supplier invites', suppliers),
+      secondary: [target('app', '/dashboard/customers/invites', 'Customer invites', customers)],
+      sources: ['app/dashboard/suppliers/invites/page.tsx', 'app/dashboard/customers/invites/page.tsx'],
+    }),
+    flowStep({
+      id: 'accept',
+      n: 3,
+      phase: 'find',
+      title: 'Accept a request',
+      desc: 'Accept or decline an incoming request on this page. The address can open the incoming list.',
+      status: 'live',
+      icon: 'clipboard-check',
+      needs: network,
+      to: target('module', '?tab=pending_in', 'Incoming requests', network),
+      sources: ['app/dashboard/connections/page.tsx', 'app/api/connections/route.ts'],
+    }),
+    flowStep({
+      id: 'prices',
+      n: 4,
+      phase: 'trade',
+      title: 'Set the price list',
+      desc: 'Agree prices with a connected buyer. The agreement is refused until the connection is accepted and not suspended. It is not a public price list.',
+      status: 'live',
+      icon: 'receipt',
+      needs: network,
+      to: target('module', 'pricing', 'Price agreements', network),
+      sources: ['app/dashboard/connections/pricing/page.tsx', 'lib/pricing/access.ts'],
+    }),
+    flowStep({
+      id: 'trade',
+      n: 5,
+      phase: 'trade',
+      title: 'Trade for the first time',
+      desc: 'Raise a purchase order for a supplier on the book, or send a quote from the customer desk. A quote does not need an accepted connection. When an accepted connection is suspended, a new purchase order for that business is refused.',
+      status: 'live',
+      icon: 'package',
+      needs: suppliers,
+      to: target('app', '/dashboard/suppliers/po', 'Purchase orders', suppliers),
+      secondary: [target('app', '/dashboard/customers/quotes', 'Quotes', customers)],
+      sources: ['app/dashboard/suppliers/po/page.tsx', 'app/dashboard/customers/quotes/page.tsx'],
+    }),
+    flowStep({
+      id: 'money',
+      n: 6,
+      phase: 'trade',
+      title: 'Follow the money',
+      desc: 'Follow invoices and collections on the customer money screen. This step does not send money.',
+      status: 'live',
+      icon: 'wallet',
+      needs: customers,
+      to: target('app', '/dashboard/customers/money', 'Money', customers),
+      sources: ['app/dashboard/customers/money/page.tsx'],
+    }),
+  ],
+  guardrails: [
+    {
+      title: 'Invite screens',
+      body: 'The supplier invite screen and the customer invite screen send a claim link. They are not the in-app request. The discover screen sends the in-app request.',
+      source: 'app/dashboard/suppliers/invites/page.tsx',
+    },
+    {
+      title: 'Price agreement',
+      body: 'A price agreement is for a connected buyer. It is refused until the connection is accepted and not suspended. It is not a public price list.',
+      source: 'lib/pricing/access.ts',
+    },
+    {
+      title: 'First trade',
+      body: 'A purchase order can be raised for a supplier on the book. A quote can be sent from the customer desk without an accepted connection. When an accepted connection is suspended, a new purchase order for that business is refused.',
+      source: 'app/api/suppliers/purchase-orders/route.ts',
+    },
+    {
+      title: 'Page guard',
+      body: 'The connection routes check company membership. The page guard is what limits the link.',
+      source: 'app/api/connections/route.ts',
+    },
+  ],
+  outcome: 'A business can be found, a request can be accepted, and a price, an order and the money screen follow.',
+};

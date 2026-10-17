@@ -135,5 +135,88 @@ assert.deepEqual(writeRolesForCap('canViewInventory'), ['owner', 'admin', 'membe
 assert.deepEqual(writeRolesForCap('canViewSheq'), ['owner', 'admin', 'member', 'operations']);
 assert.equal(writeRolesForCap('canViewSheq').includes('sales'), false);
 assert.equal(writeRolesForCap('canViewManufacturing').includes('viewer'), false);
+assert.deepEqual(writeRolesForCap('canViewProjects'), ['owner', 'admin', 'member', 'operations']);
+assert.deepEqual(writeRolesForCap('canViewPeople'), ['owner', 'admin', 'member', 'finance', 'operations']);
+assert.deepEqual(writeRolesForCap('canViewNetwork'), ['owner', 'admin', 'member']);
+assert.deepEqual(writeRolesForCap('canViewAccounting'), ['owner', 'finance']);
+assert.deepEqual(writeRolesForCap('canViewOperations'), ['owner', 'admin', 'member', 'operations']);
+assert.equal(writeRolesForCap('canViewAccounting').includes('admin'), false);
+assert.equal(writeRolesForCap('canViewPeople').includes('sales'), false);
+assert.equal(writeRolesForCap('canViewNetwork').includes('finance'), false);
+
+assert.equal(resourceForPath('/dashboard/sustainability'), 'operations');
+assert.equal(resourceForPath('/dashboard/sustainability/carbon-tracking'), 'operations');
+assert.equal(CORE_MODULE_RESOURCE.sustainability, resourceForPath('/dashboard/sustainability'));
+assert.equal(resourceForPath('/dashboard/connections'), 'network');
+assert.equal(CORE_MODULE_RESOURCE.network, 'network');
+assert.equal(resourceForPath('/dashboard/accounting'), 'accounting');
+assert.equal(CORE_MODULE_RESOURCE.accounting, 'accounting');
+assert.equal(resourceForPath('/dashboard/people'), 'people');
+assert.equal(CORE_MODULE_RESOURCE.people, 'people');
+assert.equal(CORE_MODULE_RESOURCE.people, resourceForPath('/dashboard/people'));
+assert.equal(resourceForPath('/dashboard/projects'), 'projects');
+assert.equal(CORE_MODULE_RESOURCE.projects, 'projects');
+assert.equal(CORE_MODULE_RESOURCE.projects, resourceForPath('/dashboard/projects'));
+
+assert.equal(
+  coreFlowMountState({ role: 'admin', loading: false, module: 'accounting', fixture: false }).mount,
+  false
+);
+assert.equal(
+  coreFlowMountState({ role: 'member', loading: false, module: 'accounting', fixture: false }).mount,
+  false
+);
+assert.equal(
+  coreFlowMountState({ role: 'finance', loading: false, module: 'accounting', fixture: false }).mount,
+  true
+);
+assert.equal(
+  coreFlowMountState({ role: 'owner', loading: false, module: 'accounting', fixture: false }).mount,
+  true
+);
+assert.equal(
+  coreFlowMountState({ role: 'viewer', loading: false, module: 'projects', fixture: false }).mount,
+  true
+);
+assert.equal(
+  coreFlowMountState({ role: 'sales', loading: false, module: 'people', fixture: false }).mount,
+  true
+);
+assert.equal(
+  coreFlowMountState({ role: 'sales_contractor', loading: false, module: 'projects', fixture: false }).mount,
+  false
+);
+assert.equal(
+  coreFlowMountState({ role: 'sales_contractor', loading: false, module: 'people', fixture: false }).mount,
+  false
+);
+assert.equal(
+  coreFlowMountState({ role: 'sales_contractor', loading: false, module: 'sustainability', fixture: false }).mount,
+  false
+);
+assert.equal(
+  coreFlowMountState({ role: 'sales_contractor', loading: false, module: 'network', fixture: false }).mount,
+  false
+);
+assert.equal(
+  coreFlowMountState({ role: 'sales_contractor', loading: false, module: 'accounting', fixture: false }).mount,
+  false
+);
+assert.equal(
+  coreFlowMountState({ role: 'finance', loading: true, module: 'accounting', fixture: false }).mount,
+  false
+);
+
+const journalGate = readFileSync('app/api/accounting/journals/route.ts', 'utf8');
+assert.match(journalGate, /'accounting',\s*'write'/);
+const payrollGate = readFileSync('app/api/hr/payroll/route.ts', 'utf8');
+assert.match(payrollGate, /requireCompanyAccess/);
+assert.equal(payrollGate.includes('requireCompanyPermission'), false);
+const projectGate = readFileSync('app/api/projects/route.ts', 'utf8');
+assert.match(projectGate, /requireCompanyAccess/);
+assert.equal(projectGate.includes('requireCompanyPermission'), false);
+const connectionGate = readFileSync('app/api/connections/route.ts', 'utf8');
+assert.match(connectionGate, /requireCompanyAccess/);
+assert.equal(connectionGate.includes('requireCompanyPermission'), false);
 
 console.log('brief121-core-caps.test.ts ok');

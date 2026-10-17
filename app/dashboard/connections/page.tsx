@@ -54,6 +54,7 @@ import {
   HubTelemetryGrid,
   TelemetryCard,
 } from '@/components/chrome/CommandHubChrome';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 
 type Tab =
   | 'all'
@@ -594,6 +595,7 @@ function HubInner() {
           },
         ]}
       />
+      <CoreProcessFlow module="network" />
     </ConnectionsPage>
   );
 }

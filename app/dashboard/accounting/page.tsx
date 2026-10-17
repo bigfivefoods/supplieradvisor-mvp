@@ -35,6 +35,7 @@ import {
   RelationshipHeader,
 } from '@/components/relationship/RelationshipChrome';
 import { AdvisorCoreBridge } from '@/components/advisors/AdvisorCoreBridge';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 import {
   HubHero,
   HubModuleGrid,
@@ -470,6 +471,7 @@ function HubInner() {
 
       <HubModuleGrid modules={modules} />
 
+      <CoreProcessFlow module="accounting" />
       <HubPrinciples
         items={[
           {

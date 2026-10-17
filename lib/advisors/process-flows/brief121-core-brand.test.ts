@@ -19,6 +19,11 @@ const files = [
   'lib/advisors/process-flows/core/inventory.ts',
   'lib/advisors/process-flows/core/quality.ts',
   'lib/advisors/process-flows/core/sheq.ts',
+  'lib/advisors/process-flows/core/projects.ts',
+  'lib/advisors/process-flows/core/accounting.ts',
+  'lib/advisors/process-flows/core/people.ts',
+  'lib/advisors/process-flows/core/sustainability.ts',
+  'lib/advisors/process-flows/core/network.ts',
   'docs/advisor-process-flows.md',
   'e2e/core-process-flows.spec.ts',
 ];
@@ -62,6 +67,8 @@ for (const file of files) {
   assert.doesNotMatch(text, cookiesBan, file);
   assert.equal(text.includes(bannedNumber), false, file);
   assert.equal(lower.includes(bannedPlace), false, file);
+  assert.equal(text.includes('text-white'), false, `${file} text-white`);
+  assert.equal(/bg-\[#00b4d8\][^"'\n]{0,80}text-white/.test(text), false, `${file} white on cyan`);
   for (const claim of claims) assert.equal(lower.includes(claim), false, `${file} ${claim}`);
   const legal = text.match(/legal/gi) || [];
   if (legal.length) assert.match(text, /gives no legal advice|legal matter|legal step|legal hand-over/);

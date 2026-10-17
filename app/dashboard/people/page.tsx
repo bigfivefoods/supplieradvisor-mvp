@@ -20,6 +20,7 @@ import {
   RelationshipHeader,
   RelationshipPage,
 } from '@/components/relationship/RelationshipChrome';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 import {
   HubHero,
   HubModuleGrid,
@@ -317,6 +318,7 @@ export default function PeopleHubPage() {
               </ul>
             </div>
           )}
+          <CoreProcessFlow module="people" />
         </>
       )}
     </RelationshipPage>

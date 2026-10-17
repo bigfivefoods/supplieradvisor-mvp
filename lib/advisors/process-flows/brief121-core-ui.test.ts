@@ -50,7 +50,13 @@ function assertClosed(markup: string, module: CoreFlowModuleId) {
   for (const step of flow.steps) {
     for (const target of [step.to, ...(step.secondary || [])]) {
       if (!target) continue;
-      const href = target.scope === 'app' ? target.path : `${flow.hrefRoot.replace(/\/$/, '')}/${target.path.replace(/^\//, '')}`;
+      const raw = target.scope === 'app' ? target.path : target.path;
+      const queryAt = raw.indexOf('?');
+      const pathname = queryAt === -1 ? raw : raw.slice(0, queryAt);
+      const search = queryAt === -1 ? '' : raw.slice(queryAt);
+      const href = target.scope === 'app'
+        ? `${pathname}${search}`
+        : `${flow.hrefRoot.replace(/\/$/, '')}${pathname.replace(/^\//, '') ? `/${pathname.replace(/^\//, '')}` : ''}${search}`;
       allowed.add(href);
     }
   }
@@ -127,5 +133,88 @@ const ownerSheq = paint('sheq', 'owner');
 assert.match(ownerSheq, /href="\/dashboard\/sheq\/incidents"/);
 assert.match(ownerSheq, /href="\/dashboard\/quality\/inspections"/);
 assert.match(ownerSheq, /You are the owner/);
+
+const ownerProjects = paint('projects', 'owner');
+assert.match(ownerProjects, /href="\/dashboard\/projects\/portfolio"/);
+assert.match(ownerProjects, /href="\/dashboard\/projects\/dmaic"/);
+assert.match(ownerProjects, /href="\/dashboard\/projects\/sdg"/);
+assert.match(ownerProjects, /href="\/dashboard\/projects\/gantt"/);
+assert.match(ownerProjects, /does not block the move/);
+assert.match(ownerProjects, /The chart is read only/);
+assert.equal(ownerProjects.includes('aria-expanded="true"'), false);
+
+const viewerProjects = paint('projects', 'viewer');
+assert.match(viewerProjects, /href="\/dashboard\/projects\/kanban-boards"/);
+assert.match(viewerProjects, /You are the viewer/);
+assert.equal(viewerProjects.includes('Not available to your role'), false);
+
+const financeBooks = paint('accounting', 'finance');
+assert.match(financeBooks, /href="\/dashboard\/accounting\/chart-of-accounts"/);
+assert.match(financeBooks, /href="\/dashboard\/accounting\/journal-entries"/);
+assert.match(financeBooks, /href="\/dashboard\/accounting\/payments"/);
+assert.match(financeBooks, /href="\/dashboard\/accounting\/afs"/);
+assert.match(financeBooks, /href="\/dashboard\/accounting\/balance-sheet"/);
+assert.match(financeBooks, /compiled and unaudited/);
+assert.match(financeBooks, /does not send money from a bank/);
+assert.match(financeBooks, /You are the finance/);
+
+const adminBooks = paint('accounting', 'admin');
+assert.equal(adminBooks.includes('href="/dashboard/accounting/chart-of-accounts"'), false);
+assert.equal(adminBooks.includes('href="/dashboard/accounting/payments"'), false);
+assert.equal(adminBooks.includes('href="/dashboard/accounting/afs"'), false);
+assert.match(adminBooks, /Not available to your role/);
+assert.equal((adminBooks.match(/<a /g) || []).length, 0);
+
+const memberBooks = paint('accounting', 'member');
+assert.equal((memberBooks.match(/<a /g) || []).length, 0);
+
+const ownerPeople = paint('people', 'owner');
+assert.match(ownerPeople, /href="\/dashboard\/people\/directory\?new=1"/);
+assert.match(ownerPeople, /href="\/dashboard\/people\/organisation"/);
+assert.match(ownerPeople, /illustrative proxies/);
+assert.match(ownerPeople, /does not pay staff from a bank/);
+assert.match(ownerPeople, /does not keep a hearing log/);
+
+const viewerPeople = paint('people', 'viewer');
+assert.match(viewerPeople, /href="\/dashboard\/people\/payroll"/);
+assert.equal(viewerPeople.includes('Not available to your role'), false);
+
+const contractorPeople = paint('people', 'sales_contractor');
+assert.equal((contractorPeople.match(/<a /g) || []).length, 0);
+assert.match(contractorPeople, /Not available to your role/);
+
+const ownerImpact = paint('sustainability', 'owner');
+assert.match(ownerImpact, /href="\/dashboard\/sustainability\/carbon-tracking"/);
+assert.match(ownerImpact, /href="\/dashboard\/sustainability\/regenerative-dashboard"/);
+assert.match(ownerImpact, /href="\/dashboard\/sustainability\/reports"/);
+assert.match(ownerImpact, /order-of-magnitude/);
+assert.match(ownerImpact, /as an estimate/);
+assert.match(ownerImpact, /not an audit/);
+assert.equal(ownerImpact.toLowerCase().includes('net zero'), false);
+assert.equal(ownerImpact.toLowerCase().includes('verified'), false);
+
+const financeImpact = paint('sustainability', 'finance');
+assert.match(financeImpact, /href="\/dashboard\/sustainability\/carbon-tracking"/);
+
+const ownerNetwork = paint('network', 'owner');
+assert.match(ownerNetwork, /href="\/dashboard\/connections\/discover"/);
+assert.match(ownerNetwork, /href="\/dashboard\/connections\?tab=pending_in"/);
+assert.match(ownerNetwork, /href="\/dashboard\/suppliers\/invites"/);
+assert.match(ownerNetwork, /href="\/dashboard\/customers\/invites"/);
+assert.match(ownerNetwork, /href="\/dashboard\/suppliers\/po"/);
+assert.match(ownerNetwork, /href="\/dashboard\/customers\/quotes"/);
+assert.match(ownerNetwork, /href="\/dashboard\/customers\/money"/);
+assert.match(ownerNetwork, /not a public price list/);
+assert.match(ownerNetwork, /does not need an accepted connection/);
+
+const salesNetwork = paint('network', 'sales');
+assert.match(salesNetwork, /href="\/dashboard\/connections\/discover"/);
+assert.match(salesNetwork, /href="\/dashboard\/customers\/money"/);
+assert.match(salesNetwork, /href="\/dashboard\/customers\/quotes"/);
+assert.equal(salesNetwork.includes('href="/dashboard/suppliers/po"'), true);
+
+const viewerNetwork = paint('network', 'viewer');
+assert.match(viewerNetwork, /href="\/dashboard\/connections\/discover"/);
+assert.equal(viewerNetwork.includes('href="/dashboard/suppliers/invites"'), true);
 
 console.log('brief121-core-ui.test.ts ok');
