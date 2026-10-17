@@ -63,7 +63,7 @@ export const CUSTOMERS_FLOW: AdvisorFlowDef = {
       n: 4,
       phase: 'win',
       title: 'Keep the diary',
-      desc: 'Keep tasks and visits on the sales diary.',
+      desc: 'Keep calls, meetings, emails, follow-ups and tasks on the sales diary.',
       status: 'live',
       icon: 'calendar-days',
       needs: sales,

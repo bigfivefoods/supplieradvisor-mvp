@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { coreFlowMountState } from '@/lib/advisors/process-flows/core-caps';
 import { getCoreFlow } from '@/lib/advisors/process-flows';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
-import { isFixturePath, isFixtureReachable } from '@/lib/preview/fixture-href';
+import { fixtureFlowHref, isFixturePath, isFixtureReachable } from '@/lib/preview/fixture-href';
 import type { CoreFlowModuleId } from '@/lib/advisors/process-flows/types';
 import { AdvisorProcessFlow } from './AdvisorProcessFlow';
 
@@ -30,6 +30,7 @@ export function CoreProcessFlow({ module }: { module: CoreFlowModuleId }) {
       caps={state.caps}
       hrefBase={def.hrefRoot}
       reachable={fixture ? isFixtureReachable : undefined}
+      mapHref={fixture ? fixtureFlowHref : undefined}
     />
   );
 }

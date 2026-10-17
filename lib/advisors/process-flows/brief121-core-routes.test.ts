@@ -51,6 +51,15 @@ function pageFor(flow: AdvisorFlowDef, target: FlowTarget): string {
   return `app${path}/page.tsx`;
 }
 
+assert.equal(
+  CORE_FLOWS.customers.steps.find((step) => step.id === 'pipeline')?.to?.path,
+  'leads?tab=pipeline'
+);
+assert.equal(
+  CORE_FLOWS.customers.steps.find((step) => step.id === 'order')?.secondary?.find((target) => target.label === 'Inbound orders')?.path,
+  'orders?tab=inbound'
+);
+
 assert.equal(isRedirectStub('app/dashboard/suppliers/connect/page.tsx'), true);
 assert.equal(isRedirectStub('app/dashboard/suppliers/discover/page.tsx'), false);
 assert.equal(isRedirectStub('app/dashboard/customers/leads/page.tsx'), false);

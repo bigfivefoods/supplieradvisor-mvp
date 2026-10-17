@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { isFixtureReachable } from '../../preview/fixture-href';
+import { fixtureFlowHref, isFixtureReachable } from '../../preview/fixture-href';
 import { ADVISOR_FLOWS } from './index';
 import { HOME_FLOW } from './core/home';
 import { coreFlowCaps } from './core-caps';
@@ -63,7 +63,35 @@ assert.equal(
   false
 );
 
+const mapped = resolveAdvisorFlow(HOME_FLOW, {
+  role: 'owner',
+  caps: coreFlowCaps('owner'),
+  hrefBase: HOME_FLOW.hrefRoot,
+  reachable: isFixtureReachable,
+  mapHref: fixtureFlowHref,
+});
+const mappedSteps = mapped.phases.flatMap((phase) => phase.steps);
+assert.equal(mappedSteps.find((step) => step.id === 'po')?.linkHref, '/preview/po');
+assert.equal(mappedSteps.find((step) => step.id === 'bill')?.linkHref, null);
+assert.equal(
+  mappedSteps.find((step) => step.id === 'bill')?.chips.some((chip) => chip.label === 'Not available here'),
+  true
+);
+
+const reachableOnly = resolveAdvisorFlow(HOME_FLOW, {
+  role: 'owner',
+  caps: coreFlowCaps('owner'),
+  hrefBase: HOME_FLOW.hrefRoot,
+  reachable: isFixtureReachable,
+});
+assert.equal(
+  reachableOnly.phases.flatMap((phase) => phase.steps).find((step) => step.id === 'po')?.linkHref,
+  '/dashboard/suppliers/po'
+);
+
 assert.equal(isFixtureReachable('/dashboard/suppliers/po'), true);
+assert.equal(fixtureFlowHref('/dashboard/suppliers/po'), '/preview/po');
+assert.equal(fixtureFlowHref('/dashboard/accounting/payments'), null);
 assert.equal(isFixtureReachable('/dashboard/accounting/payments'), false);
 assert.equal(isFixtureReachable('/login'), false);
 assert.equal(isFixtureReachable('https://example.com/outside'), false);

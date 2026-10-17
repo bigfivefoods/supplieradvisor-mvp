@@ -92,8 +92,12 @@ function capBlocks(caps: FlowCaps | undefined, needs: string | undefined): boole
 type ResolvedTarget = { href: string | null; reason: 'soon' | 'role' | 'preview' | 'here' | null };
 
 function applyReachable(resolved: ResolvedTarget, input: ResolveAdvisorFlowInput): ResolvedTarget {
-  if (!input.reachable || !resolved.href || input.reachable(resolved.href)) return resolved;
-  return { href: null, reason: 'here' };
+  if (!resolved.href) return resolved;
+  if (input.reachable && !input.reachable(resolved.href)) return { href: null, reason: 'here' };
+  if (!input.mapHref) return resolved;
+  const next = input.mapHref(resolved.href);
+  if (!next) return { href: null, reason: 'here' };
+  return { href: next, reason: resolved.reason };
 }
 
 function resolveTarget(

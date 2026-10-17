@@ -63,8 +63,8 @@ export const SUPPLIERS_FLOW: AdvisorFlowDef = {
       n: 4,
       phase: 'trade',
       title: 'Keep documents and contracts',
-      desc: 'Add a contract, certificate or service agreement to the supplier document vault and share it with a connected supplier.',
-      note: 'The contracts screen does not store a file. It opens the document vault.',
+      desc: 'Save a record with a pasted file link for a contract, certificate or service agreement, and share it with a connected supplier.',
+      note: 'The vault stores a record and a pasted file link. It does not store the file. The contracts screen only opens that vault.',
       status: 'partial',
       icon: 'file-text',
       needs: suppliers,
@@ -138,7 +138,7 @@ export const SUPPLIERS_FLOW: AdvisorFlowDef = {
   guardrails: [
     {
       title: 'Document vault',
-      body: 'A contract, certificate or service agreement is stored in the supplier document vault. The contracts screen opens that vault and does not store a file itself.',
+      body: 'The supplier document vault stores a record and a pasted file link. It does not store the file. The contracts screen only opens that vault.',
       source: 'app/dashboard/suppliers/documents/page.tsx',
     },
     {

@@ -124,6 +124,11 @@ export type ResolveAdvisorFlowInput = {
    * Omitted, the resolver does not call it.
    */
   reachable?: (href: string) => boolean;
+  /**
+   * When set, a href that survived `reachable` is replaced by this result.
+   * A null result is plain text. Omitted, the href is unchanged.
+   */
+  mapHref?: (href: string) => string | null;
 };
 
 export type FlowSecondaryView = {

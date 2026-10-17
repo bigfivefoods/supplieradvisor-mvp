@@ -128,7 +128,7 @@ export const HOME_FLOW: AdvisorFlowDef = {
     },
     {
       title: 'Advisor home',
-      body: 'A company that uses an Advisor home is sent there from Control Tower. This chain is on the core command page only.',
+      body: 'Finance and a sales contractor stay on Control Tower. Another role with an Advisor home is sent there. This chain is on the core command page only.',
       source: 'app/dashboard/page.tsx',
     },
   ],

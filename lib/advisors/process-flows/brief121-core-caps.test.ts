@@ -101,4 +101,17 @@ const contractorCustomers = coreFlowMountState({
 });
 assert.equal(contractorCustomers.mount, false);
 
+assert.equal(
+  coreFlowMountState({ role: 'sales_contractor', loading: false, module: 'suppliers', fixture: false }).mount,
+  false
+);
+assert.equal(
+  coreFlowMountState({ role: 'viewer', loading: false, module: 'sales-portal', fixture: false }).mount,
+  false
+);
+assert.equal(
+  coreFlowMountState({ role: 'member', loading: false, module: 'sales-portal', fixture: false }).mount,
+  false
+);
+
 console.log('brief121-core-caps.test.ts ok');

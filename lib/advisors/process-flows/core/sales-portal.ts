@@ -25,7 +25,7 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
       n: 1,
       phase: 'set',
       title: 'Sign the agreement',
-      desc: 'A sales contractor signs the agreement here. The owner, an admin and finance open the portal without that signature.',
+      desc: 'A sales contractor and sales sign the agreement here. The owner, an admin and finance open the portal without that signature.',
       status: 'live',
       icon: 'file-text',
       needs: sales,
@@ -49,7 +49,7 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
       n: 3,
       phase: 'set',
       title: 'Keep the diary',
-      desc: 'Keep the sales diary of tasks and visits.',
+      desc: 'Keep the sales diary of calls, meetings, emails, follow-ups and tasks.',
       status: 'live',
       icon: 'calendar-days',
       needs: sales,
@@ -110,7 +110,7 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
       n: 8,
       phase: 'earn',
       title: 'Subscribe when the free period ends',
-      desc: 'A contractor starts the paid subscription here after the free period. The owner, an admin and finance are not sent to checkout.',
+      desc: 'A sales contractor and sales start the paid subscription here after the free period. The owner, an admin and finance are not sent to checkout.',
       status: 'live',
       icon: 'wallet',
       needs: sales,
@@ -121,12 +121,12 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
   guardrails: [
     {
       title: 'Agreement',
-      body: 'A sales contractor signs the agreement on this screen. The owner, an admin and finance open the portal without that signature.',
+      body: 'A sales contractor and sales sign the agreement on this screen. The owner, an admin and finance open the portal without that signature.',
       source: 'lib/sales-contractor/access.ts',
     },
     {
       title: 'Subscription',
-      body: 'A contractor starts the paid subscription on this screen after the free period. The owner, an admin and finance are not sent to checkout.',
+      body: 'A sales contractor and sales start the paid subscription on this screen after the free period. The owner, an admin and finance are not sent to checkout.',
       source: 'app/api/sales/subscription/route.ts',
     },
     {

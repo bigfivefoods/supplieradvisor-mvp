@@ -77,4 +77,12 @@ const financeHome = paint('home', 'finance');
 assert.match(financeHome, /href="\/dashboard\/accounting\/payments"/);
 assert.match(financeHome, /href="\/dashboard\/suppliers\/discover"/);
 
+const contractorSuppliers = paint('suppliers', 'sales_contractor');
+assert.equal(contractorSuppliers.includes('href='), false);
+assert.match(contractorSuppliers, /Not available to your role/);
+
+const memberSales = paint('sales-portal', 'member');
+assert.equal(memberSales.includes('href='), false);
+assert.match(memberSales, /Not available to your role/);
+
 console.log('brief121-core-ui.test.ts ok');

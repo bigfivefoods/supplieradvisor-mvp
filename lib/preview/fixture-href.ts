@@ -74,6 +74,13 @@ export function isFixtureReachable(href: string): boolean {
   return typeof next === 'string' && next.length > 0 && next !== STAY;
 }
 
+/** Preview address for a flow link, or null when the fixture stays on this page. */
+export function fixtureFlowHref(href: string): string | null {
+  const next = mapFixtureHref(href);
+  if (typeof next !== 'string' || next.length === 0 || next === STAY) return null;
+  return next;
+}
+
 /** Rewrite in-app links while a fixture route is open. Other pages are unchanged. */
 export function fixtureHref(href: string): string {
   if (!isFixturePath()) return href;

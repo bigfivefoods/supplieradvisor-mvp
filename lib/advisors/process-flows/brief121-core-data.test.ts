@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { CORE_CAP_KEYS, flowRoleDefs, whoWrites, writeRolesForCap } from './core-caps';
+import { CORE_CAP_KEYS, flowRoleDefs } from './core-caps';
 import { CORE_FLOWS } from './core';
 import { FLOW_ICON_NAMES, type AdvisorFlowDef, type CoreFlowModuleId, type FlowStepDef } from './types';
 
@@ -57,7 +57,7 @@ const PINNED: Record<CoreFlowModuleId, { lead: string; outcome: string; guardrai
       },
       {
         title: 'Advisor home',
-        body: 'A company that uses an Advisor home is sent there from Control Tower. This chain is on the core command page only.',
+        body: 'Finance and a sales contractor stay on Control Tower. Another role with an Advisor home is sent there. This chain is on the core command page only.',
       },
     ],
   },
@@ -67,7 +67,7 @@ const PINNED: Record<CoreFlowModuleId, { lead: string; outcome: string; guardrai
     guardrails: [
       {
         title: 'Document vault',
-        body: 'A contract, certificate or service agreement is stored in the supplier document vault. The contracts screen opens that vault and does not store a file itself.',
+        body: 'The supplier document vault stores a record and a pasted file link. It does not store the file. The contracts screen only opens that vault.',
       },
       {
         title: 'Portal link',
@@ -111,11 +111,11 @@ const PINNED: Record<CoreFlowModuleId, { lead: string; outcome: string; guardrai
     guardrails: [
       {
         title: 'Agreement',
-        body: 'A sales contractor signs the agreement on this screen. The owner, an admin and finance open the portal without that signature.',
+        body: 'A sales contractor and sales sign the agreement on this screen. The owner, an admin and finance open the portal without that signature.',
       },
       {
         title: 'Subscription',
-        body: 'A contractor starts the paid subscription on this screen after the free period. The owner, an admin and finance are not sent to checkout.',
+        body: 'A sales contractor and sales start the paid subscription on this screen after the free period. The owner, an admin and finance are not sent to checkout.',
       },
       {
         title: 'No rate on this picture',
@@ -167,6 +167,26 @@ const NEEDS: Record<CoreFlowModuleId, Record<string, string>> = {
   },
 };
 
+/** Literal chip lists. Not derived from writeRolesForCap. */
+const WHO: Record<string, { roles: readonly string[]; who: string }> = {
+  canViewSuppliers: {
+    roles: ['owner', 'admin', 'member'],
+    who: 'owner, admin, member',
+  },
+  canViewAccounting: {
+    roles: ['owner', 'finance'],
+    who: 'owner, finance',
+  },
+  canViewCustomers: {
+    roles: ['owner', 'admin', 'member', 'finance', 'sales', 'sales_contractor'],
+    who: 'owner, admin, member, finance, sales, sales contractor',
+  },
+  canUseSalesPortal: {
+    roles: ['sales_contractor', 'owner', 'admin', 'finance', 'sales'],
+    who: 'sales contractor, owner, admin, finance, sales',
+  },
+};
+
 const ids = Object.keys(CORE_FLOWS) as CoreFlowModuleId[];
 assert.deepEqual(ids, ['home', 'suppliers', 'customers', 'sales-portal']);
 
@@ -207,8 +227,10 @@ for (const id of ids) {
       assert.equal((CORE_CAP_KEYS as readonly string[]).includes(extra.needs || ''), true, extra.path);
       assert.equal(extra.path.includes('®'), false);
     }
-    assert.deepEqual(step.roles, writeRolesForCap(step.to.needs as (typeof CORE_CAP_KEYS)[number]));
-    assert.equal(step.who, whoWrites(step.to.needs as (typeof CORE_CAP_KEYS)[number]));
+    const pinnedWho = WHO[step.to.needs || ''];
+    assert.ok(pinnedWho, `${id} ${step.id} ${step.to.needs}`);
+    assert.deepEqual(step.roles, pinnedWho.roles);
+    assert.equal(step.who, pinnedWho.who);
     if (step.status === 'partial' || step.status === 'soon') assert.ok(step.note && step.note.length > 0, step.id);
     if (step.status === 'soon') assert.equal(step.to, null);
     for (const source of step.sources) {
@@ -228,7 +250,33 @@ for (const id of ids) {
   for (const guard of flow.guardrails) assert.equal(existsSync(guard.source), true, guard.source);
 }
 
-assert.equal(CORE_FLOWS.suppliers.steps.find((step) => step.id === 'documents')?.status, 'partial');
+const documents = CORE_FLOWS.suppliers.steps.find((step) => step.id === 'documents');
+assert.equal(documents?.status, 'partial');
+assert.equal(
+  documents?.note,
+  'The vault stores a record and a pasted file link. It does not store the file. The contracts screen only opens that vault.'
+);
+assert.equal(
+  CORE_FLOWS.customers.steps.find((step) => step.id === 'diary')?.desc,
+  'Keep calls, meetings, emails, follow-ups and tasks on the sales diary.'
+);
+assert.equal(
+  CORE_FLOWS['sales-portal'].steps.find((step) => step.id === 'diary')?.desc,
+  'Keep the sales diary of calls, meetings, emails, follow-ups and tasks.'
+);
+assert.equal(
+  CORE_FLOWS['sales-portal'].steps.find((step) => step.id === 'agreement')?.desc,
+  'A sales contractor and sales sign the agreement here. The owner, an admin and finance open the portal without that signature.'
+);
+assert.equal(
+  CORE_FLOWS['sales-portal'].steps.find((step) => step.id === 'subscribe')?.desc,
+  'A sales contractor and sales start the paid subscription here after the free period. The owner, an admin and finance are not sent to checkout.'
+);
+for (const step of CORE_FLOWS['sales-portal'].steps) {
+  assert.equal(step.roles.includes('member'), false, step.id);
+  assert.equal(step.who.includes('member'), false, step.id);
+}
+assert.equal(CORE_FLOWS.customers.steps.find((step) => step.id === 'diary')?.roles.includes('member'), false);
 assert.equal(
   CORE_FLOWS.home.steps.filter((step) => step.status !== 'live').length +
     CORE_FLOWS.customers.steps.filter((step) => step.status !== 'live').length +

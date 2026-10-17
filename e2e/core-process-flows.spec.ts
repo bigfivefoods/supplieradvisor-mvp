@@ -49,6 +49,14 @@ function ignoreRequest(url: string): boolean {
   );
 }
 
+/** Preview-only noise. Same three signals the advisor run does not fail on. */
+function ignorePreviewSignal(text: string): boolean {
+  if (text.includes("Framing 'https://auth.privy.io/'") && text.includes('frame-ancestors')) return true;
+  if (text.includes('auth.privy.io') && text.includes('/embedded-wallets') && text.includes('ERR_BLOCKED_BY_RESPONSE')) return true;
+  if (text.includes('csp-report.browser-intake-datadoghq.com') && text.includes('ERR_BLOCKED_BY_ORB')) return true;
+  return false;
+}
+
 function axeSource(): string {
   const bytes = readFileSync(AXE_FILE);
   const hash = createHash('sha256').update(bytes).digest('hex');
@@ -83,7 +91,7 @@ for (const width of widths) {
         if (message.type() !== 'error') return;
         const text = message.text();
         const url = message.location().url || '';
-        if (ignoreConsole(text) || ignoreRequest(url) || ignoreRequest(text)) return;
+        if (ignoreConsole(text) || ignoreRequest(url) || ignoreRequest(text) || ignorePreviewSignal(text)) return;
         if (text.includes('ERR_SSL_PROTOCOL_ERROR')) return;
         if (/status of 404/.test(text) && url.includes('auth.privy.io') && url.includes('/embedded-wallets')) return;
         if (/status of 404/.test(text) && (url === '' || ignoreRequest(url))) return;
@@ -92,9 +100,10 @@ for (const width of widths) {
       page.on('requestfailed', (request) => {
         const url = request.url();
         const reason = request.failure()?.errorText || '';
-        if (ignoreRequest(url)) return;
+        const line = `${url} ${reason}`;
+        if (ignoreRequest(url) || ignorePreviewSignal(line)) return;
         if (reason.includes('ERR_SSL_PROTOCOL_ERROR') || reason === 'net::ERR_ABORTED') return;
-        errors.push(`${url} ${reason}`);
+        errors.push(line);
       });
       await blockPreviewToolbar(page);
       await page.setViewportSize({ width, height: 900 });

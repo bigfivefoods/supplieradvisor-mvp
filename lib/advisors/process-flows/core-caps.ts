@@ -92,6 +92,7 @@ export function coreFlowCaps(role: string | null | undefined): Record<CoreCapKey
 }
 
 export function writeRolesForCap(key: CoreCapKey): TeamRole[] {
+  if (key === 'canUseSalesPortal') return [...SALES_PORTAL_SERVER_ROLES];
   return TEAM_IDS.filter((role) => canWrite(role, CORE_CAP_RESOURCE[key]));
 }
 

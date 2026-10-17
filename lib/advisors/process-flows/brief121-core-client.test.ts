@@ -131,7 +131,9 @@ async function main() {
   assert.match(fixture.container.textContent || '', /You are the owner/);
   assert.equal(fixture.container.querySelector('[aria-expanded]')?.getAttribute('aria-expanded'), 'false');
   assert.equal(fixture.container.querySelector('a[href="/dashboard/accounting/payments"]'), null);
-  assert.ok(fixture.container.querySelector('a[href="/dashboard/suppliers/po"]'));
+  const fixtureHrefs = [...fixture.container.querySelectorAll('a')].map((node) => node.getAttribute('href') || '');
+  assert.equal(fixtureHrefs.some((href) => href.startsWith('/dashboard')), false);
+  assert.equal(fixtureHrefs.includes('/preview/po'), true);
   fixture.unmount();
 
   cleanup();

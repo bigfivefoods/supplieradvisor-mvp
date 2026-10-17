@@ -84,6 +84,7 @@ type FlowProps = {
   audience?: string;
   chips?: Readonly<Record<string, readonly FlowChip[]>>;
   reachable?: (href: string) => boolean;
+  mapHref?: (href: string) => string | null;
 };
 
 type Props = FlowProps & ({ module: AdvisorFlowModuleId; view?: undefined } | { view: AdvisorFlowView; module?: undefined });
@@ -222,6 +223,7 @@ function modelFromProps(props: Props): AdvisorFlowView | null {
     audience: props.audience,
     chips: props.chips,
     reachable: props.reachable,
+    mapHref: props.mapHref,
   });
 }
 

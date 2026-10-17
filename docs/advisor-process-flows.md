@@ -76,9 +76,9 @@ Core flows use the same component and the same icon list, `FLOW_ICON_NAMES`. The
 
 The flow stays closed until someone opens it. The header shows the title and the status line. The toggle is a button with `aria-expanded` and `aria-controls`, and the panel stays in the page.
 
-Nothing mounts until the company role has finished loading and is a real role that can open the page. A sales contractor does not get a flow on a dashboard page. Sales uses the server allow-list (`sales_contractor`, `owner`, `admin`, `finance`, `sales`), not the client matrix. In a signed-out preview the mount waits for an effect, then uses the sample owner, which is the same role the preview membership stub uses. A step is a link there only when the fixture can open it. Other steps stay plain text and say they are not available here.
+Nothing mounts until the company role has finished loading and is a real role that can open the page. A sales contractor does not get a flow on a dashboard page. Sales uses the server allow-list (`sales_contractor`, `owner`, `admin`, `finance`, `sales`), not the client matrix. In a signed-out preview the mount waits for an effect, then uses the sample owner, which is the same role the preview membership stub uses. A step is a link there only when the fixture can open it, and that link uses the preview address. Other steps stay plain text and say they are not available here.
 
-`coreFlowCaps` builds each view flag with `canView`, except `canUseSalesPortal`. The "who" chip on a step is the set of roles with write access on that step's resource. Gating of links follows the page guard, which is a client check. Server enforcement varies by API and is not implied by a flow.
+`coreFlowCaps` builds each view flag with `canView`, except `canUseSalesPortal`. The "who" chip on a step is the set of roles with write access on that step's resource, except a step that needs the sales portal. That chip is the server allow-list: sales contractor, owner, admin, finance, sales. It does not list member. Gating of links follows the page guard, which is a client check. Server enforcement varies by API and is not implied by a flow.
 
 | id | Decision |
 | --- | --- |
@@ -104,4 +104,4 @@ Nothing mounts until the company role has finished loading and is a real role th
 
 Icons are reused from `FLOW_ICON_NAMES`. No new picture was added.
 
-Control Tower, Suppliers, Customers and Sales are the flows in this change. Suppliers documents are partly live: the vault stores the file, and the contracts screen only opens that vault. The other steps in these four flows are live. None of them is launching soon.
+Control Tower, Suppliers, Customers and Sales are the flows in this change. Suppliers documents are partly live: the vault stores a record and a pasted file link, and it does not store the file. The contracts screen only opens that vault. The other steps in these four flows are live. None of them is launching soon.
