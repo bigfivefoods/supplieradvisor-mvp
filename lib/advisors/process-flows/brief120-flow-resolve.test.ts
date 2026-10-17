@@ -10,31 +10,14 @@ import { HEALTH_FLOW, sliceHealthFlow } from './health';
 import { CONSTRUCTIONGRAPH_FLOW } from './constructiongraph';
 import { FLEETGRAPH_FLOW } from './fleetgraph';
 import { TRADEGRAPH_FLOW } from './tradegraph';
-import { flowDefaultOpen, flowSrSummary, flowStatusCounts, resolveAdvisorFlow } from './resolve';
-
-assert.equal(flowDefaultOpen(CONSTRUCTIONGRAPH_FLOW, 'owner'), true);
-assert.equal(flowDefaultOpen(CONSTRUCTIONGRAPH_FLOW, 'site_manager'), true);
-assert.equal(flowDefaultOpen(CONSTRUCTIONGRAPH_FLOW, 'office'), false);
-assert.equal(flowDefaultOpen(CONSTRUCTIONGRAPH_FLOW, 'viewer'), false);
-assert.equal(flowDefaultOpen(CONSTRUCTIONGRAPH_FLOW, undefined), true);
-assert.equal(flowDefaultOpen(CONSTRUCTIONGRAPH_FLOW, 'missing'), false);
-assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, 'owner'), true);
-assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, 'admin'), true);
-assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, 'operations'), false);
-assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, 'member'), false);
-assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, undefined), true);
-for (const role of TRADEGRAPH_FLOW.roles) {
-  const open = role.id === 'owner' || role.id === 'admin';
-  assert.equal(role.openByDefault, open, role.id);
-  assert.equal(flowDefaultOpen(TRADEGRAPH_FLOW, role.id), open, role.id);
-}
+import { flowSrSummary, flowStatusCounts, resolveAdvisorFlow } from './resolve';
 
 const owner = resolveAdvisorFlow(CONSTRUCTIONGRAPH_FLOW, {
   role: 'owner',
   caps: constructionCaps('owner'),
   hrefBase: '/dashboard/constructiongraph',
 });
-assert.equal(owner.open, true);
+assert.equal('open' in owner, false);
 assert.equal(owner.roleLabel, 'You are the owner');
 const programme = owner.phases.flatMap((phase) => phase.steps).find((step) => step.id === 'programme');
 assert.ok(programme);
@@ -47,7 +30,7 @@ const viewer = resolveAdvisorFlow(CONSTRUCTIONGRAPH_FLOW, {
   caps: constructionCaps('viewer'),
   hrefBase: '/dashboard/constructiongraph',
 });
-assert.equal(viewer.open, false);
+assert.equal('open' in viewer, false);
 const quotes = viewer.phases.flatMap((phase) => phase.steps).find((step) => step.id === 'quotes');
 assert.ok(quotes);
 assert.equal(quotes.linkHref, null);
@@ -65,7 +48,7 @@ const preview = resolveAdvisorFlow(CONSTRUCTIONGRAPH_FLOW, {
   caps: constructionCaps('site_manager'),
   hrefBase: '/preview/constructiongraph',
 });
-assert.equal(preview.open, true);
+assert.equal('open' in preview, false);
 const clients = preview.phases.flatMap((phase) => phase.steps).find((step) => step.id === 'clients');
 assert.equal(clients?.linkHref, '/preview/constructiongraph/clients?role=site_manager');
 const work = preview.around?.links.find((link) => link.label === 'Work app');
@@ -73,7 +56,7 @@ assert.equal(work?.href, '/preview/constructiongraph/work?role=site_manager');
 assert.equal(preview.phases.flatMap((phase) => phase.steps).every((step) => step.linkHref == null || step.linkHref.startsWith('/preview/')), true);
 
 const tradePreview = resolveAdvisorFlow(TRADEGRAPH_FLOW, { hrefBase: '/preview/tradegraph' });
-assert.equal(tradePreview.open, true);
+assert.equal('open' in tradePreview, false);
 const job = tradePreview.phases.flatMap((phase) => phase.steps).find((step) => step.id === 'job');
 assert.equal(job?.linkHref, '/preview/tradegraph/board?new=1');
 const tradeWork = tradePreview.around?.links.find((link) => link.label === 'Work app');
@@ -186,26 +169,6 @@ for (const role of roles) {
   }
 }
 
-assert.equal(flowDefaultOpen(FLEETGRAPH_FLOW, 'owner'), true);
-assert.equal(flowDefaultOpen(FLEETGRAPH_FLOW, 'manager'), true);
-assert.equal(flowDefaultOpen(FLEETGRAPH_FLOW, 'dispatcher'), false);
-assert.equal(flowDefaultOpen(FLEETGRAPH_FLOW, 'office'), false);
-assert.equal(flowDefaultOpen(FLEETGRAPH_FLOW, 'viewer'), false);
-assert.equal(flowDefaultOpen(FLEETGRAPH_FLOW, 'none'), false);
-assert.equal(flowDefaultOpen(FLEETGRAPH_FLOW, undefined), true);
-for (const role of FLEETGRAPH_FLOW.roles) {
-  const open = role.id === 'owner' || role.id === 'manager';
-  assert.equal(role.openByDefault, open, role.id);
-  assert.equal(flowDefaultOpen(FLEETGRAPH_FLOW, role.id), open, role.id);
-}
-for (const role of APPARELGRAPH_FLOW.roles) {
-  const open = role.id === 'owner' || role.id === 'admin';
-  assert.equal(role.openByDefault, open, role.id);
-  assert.equal(flowDefaultOpen(APPARELGRAPH_FLOW, role.id), open, role.id);
-}
-assert.equal(flowDefaultOpen(APPARELGRAPH_FLOW, undefined), true);
-assert.equal(flowDefaultOpen(APPARELGRAPH_FLOW, 'member'), false);
-
 const fleetRoles = ['owner', 'manager', 'dispatcher', 'office', 'viewer', 'none'] as const;
 for (const role of fleetRoles) {
   const caps = fleetCaps(role);
@@ -274,7 +237,7 @@ const apparelMember = resolveAdvisorFlow(APPARELGRAPH_FLOW, {
   role: 'member',
   hrefBase: '/dashboard/apparelgraph',
 });
-assert.equal(apparelMember.open, false);
+assert.equal('open' in apparelMember, false);
 const quality = apparelMember.phases.flatMap((phase) => phase.steps).find((step) => step.id === 'quality');
 assert.ok(quality);
 assert.equal(quality.linkHref, '/dashboard/apparelgraph/quality');
@@ -301,21 +264,16 @@ assert.equal(apparelCounted.soon, 0);
 assert.equal(apparelCounted.partial, 5);
 assert.equal(apparelCounted.live, 5);
 
-assert.equal(flowDefaultOpen(CONTAINERS_FLOW, 'owner'), true);
-assert.equal(flowDefaultOpen(CONTAINERS_FLOW, 'admin'), true);
-assert.equal(flowDefaultOpen(CONTAINERS_FLOW, 'member'), false);
-assert.equal(flowDefaultOpen(CONTAINERS_FLOW, 'viewer'), false);
-assert.equal(flowDefaultOpen(CONTAINERS_FLOW, undefined), true);
 const containersMember = resolveAdvisorFlow(CONTAINERS_FLOW, {
   role: 'member',
   hrefBase: '/dashboard/containers',
 });
-assert.equal(containersMember.open, false);
+assert.equal('open' in containersMember, false);
 const containersOwner = resolveAdvisorFlow(CONTAINERS_FLOW, {
   role: 'owner',
   hrefBase: '/dashboard/containers',
 });
-assert.equal(containersOwner.open, true);
+assert.equal('open' in containersOwner, false);
 assert.equal(
   containersOwner.phases.flatMap((phase) => phase.steps).find((step) => step.id === 'add')?.linkHref,
   '/dashboard/containers/add'
@@ -327,13 +285,12 @@ assert.equal(
 assert.equal(containersOwner.phases.flatMap((phase) => phase.steps).every((step) => step.mine === false), true);
 
 for (const role of ['department', 'facility', 'sp'] as const) {
-  assert.equal(flowDefaultOpen(HEALTH_FLOW, role), true, role);
   const slice = resolveAdvisorFlow(sliceHealthFlow(role), {
     role,
     audience: role,
     hrefBase: '/dashboard/health',
   });
-  assert.equal(slice.open, true, role);
+  assert.equal('open' in slice, false, role);
   const ids = slice.phases.flatMap((phase) => phase.steps).map((step) => step.id);
   for (const step of slice.phases.flatMap((phase) => phase.steps)) assert.equal(step.mine, true, `${role} ${step.id}`);
   if (role === 'department') {

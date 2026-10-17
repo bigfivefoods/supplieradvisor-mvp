@@ -82,7 +82,6 @@ type FlowProps = {
   caps?: FlowCaps;
   hrefBase?: string;
   audience?: string;
-  defaultCollapsed?: boolean;
   chips?: Readonly<Record<string, readonly FlowChip[]>>;
 };
 
@@ -226,16 +225,11 @@ function modelFromProps(props: Props): AdvisorFlowView | null {
 
 export function AdvisorProcessFlow(props: Props) {
   const model = modelFromProps(props);
-  const desiredOpen = props.defaultCollapsed == null ? Boolean(model?.open) : !props.defaultCollapsed;
-  const [open, setOpen] = useState(desiredOpen);
-  const [touched, setTouched] = useState(false);
+  const [open, setOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     setHydrated(true);
   }, []);
-  useEffect(() => {
-    if (!touched) setOpen(desiredOpen);
-  }, [desiredOpen, touched]);
   if (!model) return null;
   const panelId = `${model.anchorId}-panel`;
   const titleId = `${model.anchorId}-title`;
@@ -267,7 +261,6 @@ export function AdvisorProcessFlow(props: Props) {
             aria-controls={panelId}
             data-testid="advisor-flow-toggle"
             onClick={() => {
-              setTouched(true);
               setOpen((value) => !value);
             }}
           >
@@ -282,7 +275,7 @@ export function AdvisorProcessFlow(props: Props) {
           <span>{model.statusLine}</span>
         </div>
       </div>
-      <div id={panelId} hidden={open ? undefined : true} className="min-w-0 p-4 sm:p-6">
+      <div id={panelId} hidden={!open} className="min-w-0 p-4 sm:p-6">
         <p className="sr-only">{model.srSummary}</p>
         {model.phases.map((phase) => (
           <div key={phase.id} className="mt-6 first:mt-0">

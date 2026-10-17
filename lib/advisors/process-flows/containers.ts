@@ -5,14 +5,14 @@ function screen(path: string, label: string): FlowTarget {
 }
 
 const companyRoles: AdvisorFlowDef['roles'] = [
-  { id: 'owner', label: 'owner', openByDefault: true },
-  { id: 'admin', label: 'admin', openByDefault: true },
-  { id: 'member', label: 'member', openByDefault: false },
-  { id: 'viewer', label: 'viewer', openByDefault: false },
-  { id: 'finance', label: 'finance', openByDefault: false },
-  { id: 'operations', label: 'operations', openByDefault: false },
-  { id: 'sales', label: 'sales', openByDefault: false },
-  { id: 'sales_contractor', label: 'sales contractor', openByDefault: false },
+  { id: 'owner', label: 'owner' },
+  { id: 'admin', label: 'admin' },
+  { id: 'member', label: 'member' },
+  { id: 'viewer', label: 'viewer' },
+  { id: 'finance', label: 'finance' },
+  { id: 'operations', label: 'operations' },
+  { id: 'sales', label: 'sales' },
+  { id: 'sales_contractor', label: 'sales contractor' },
 ];
 
 export const CONTAINERS_FLOW: AdvisorFlowDef = {
@@ -25,7 +25,6 @@ export const CONTAINERS_FLOW: AdvisorFlowDef = {
   previewRoot: null,
   previewPaths: [],
   roles: companyRoles,
-  openWhenRoleUnknown: true,
   phases: [
     { id: 'network', title: 'Build the network', subtitle: 'Add the outlet, keep the list, and open the map.' },
     { id: 'staff', title: 'Staff, train and stock', subtitle: 'Operators, training status, resellers, then stock on the outlet.' },

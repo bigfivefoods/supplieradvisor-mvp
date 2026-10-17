@@ -215,7 +215,7 @@ function Inner() {
   );
 }
 
-function HealthFlow({ audience }: { audience: HealthProgrammeRole }) {
+export function HealthFlow({ audience }: { audience: HealthProgrammeRole }) {
   const view = resolveAdvisorFlow(sliceHealthFlow(audience), {
     role: audience,
     audience,

@@ -409,7 +409,7 @@ function HubInner() {
   );
 }
 
-function ContainersFlow() {
+export function ContainersFlow() {
   const company = useCompanyRole();
   if (company.loading || company.role == null) return null;
   return (

@@ -42,7 +42,10 @@ async function openFlow(page: Page, path: string) {
   const flow = page.locator('#recover-process-flow');
   await flow.scrollIntoViewIfNeeded();
   const toggle = page.getByTestId('recover-flow-toggle');
-  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(toggle).toHaveAttribute('aria-controls', 'recover-process-flow-body');
+  await expect(page.locator('#recover-process-flow-body')).toBeHidden();
+  await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   return flow;
 }

@@ -270,10 +270,7 @@ assert.deepEqual([...fleetStep('cpk').roles], ['owner', 'manager', 'office']);
 assert.equal(fleetStep('settings').to?.needs, undefined);
 assert.equal((fleetStep('settings').secondary || []).some((target) => target.needs), false);
 assert.equal(fleetStep('vehicles').secondary?.find((target) => target.path === 'import')?.needs, 'canImportCsv');
-for (const role of fleet.roles) {
-  const open = role.id === 'owner' || role.id === 'manager';
-  assert.equal(role.openByDefault, open, role.id);
-}
+for (const role of fleet.roles) assert.equal(role.label.length > 0, true, role.id);
 const dispatcherCosts = fleet.guardrails.find((item) => item.title.toLowerCase().includes('dispatcher'));
 assert.ok(dispatcherCosts);
 assert.match(dispatcherCosts.body, /do not see cost per kilometre/);
@@ -303,10 +300,7 @@ for (const step of apparel.steps) {
   const targets = [step.to, ...(step.secondary || [])].filter((target) => target != null);
   for (const target of targets) assert.equal(target.needs, undefined, step.id);
 }
-for (const role of apparel.roles) {
-  const open = role.id === 'owner' || role.id === 'admin';
-  assert.equal(role.openByDefault, open, role.id);
-}
+for (const role of apparel.roles) assert.equal(role.label.length > 0, true, role.id);
 const release = apparel.guardrails.find((item) => item.source.endsWith('apparelgraph.ts') && item.body.includes('blocked'));
 assert.ok(release);
 assert.match(release.body, /four-point/);
@@ -351,10 +345,7 @@ assert.match(transferBody, /allows a reseller whose status is verified or a mism
 assert.match(transferBody, /refuses every other status/);
 assert.match(containers.guardrails.find((item) => item.source.endsWith('settings/page.tsx'))?.body || '', /settings page/);
 assert.match(containers.guardrails.find((item) => item.source.endsWith('summary/route.ts'))?.body || '', /does not show those totals/);
-for (const role of containers.roles) {
-  const open = role.id === 'owner' || role.id === 'admin';
-  assert.equal(role.openByDefault, open, role.id);
-}
+for (const role of containers.roles) assert.equal(role.label.length > 0, true, role.id);
 assert.equal(containers.previewRoot, null);
 const containersVisible = visibleCopy(containers).join('\n');
 assert.equal(/\bbefore they are staffed\b/i.test(containersVisible), false);
@@ -406,7 +397,7 @@ assert.equal(healthStep('report').secondary?.some((target) => target.path === '/
 assert.match(healthStep('nutrition').note || '', /not a clinic record/);
 assert.match(health.guardrails.find((item) => item.source.endsWith('health/report/page.tsx'))?.body || '', /department-only message/);
 assert.match(health.guardrails.find((item) => item.source.endsWith('facilities/page.tsx'))?.body || '', /redirect/);
-for (const role of health.roles) assert.equal(role.openByDefault, true, role.id);
+for (const role of health.roles) assert.equal(role.label.length > 0, true, role.id);
 assert.equal(health.previewRoot, null);
 const departmentIds = sliceHealthFlow('department').steps.map((step) => step.id);
 const facilityIds = sliceHealthFlow('facility').steps.map((step) => step.id);

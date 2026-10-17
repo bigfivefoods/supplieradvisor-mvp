@@ -41,11 +41,13 @@ Section 129 timings, the delivery method, and the consequences are not encoded h
 
 | Role | Diagram |
 |---|---|
-| Owner, manager | All ten steps, all counts, all links, the foundation card, and the install row. Open on arrival |
-| Agent | The whole picture. No creditor, mandate, staff, or workspace totals. Step 3 shows only the accounts assigned to them. Steps 4, 6, 7, and 8 open their own accounts. Collapsed on arrival |
-| Finance | Counts the payload includes for steps 1, 2, 3, 6, 7, and 8. Links to creditors, mandates, and accounts. No link to imports or team. Remittance is marked "You". The placed balance stays on the command card, as it did before this diagram. The diagram shows no money |
-| Compliance | Same read-only shape as finance. Reporting is marked "You" |
-| Viewer | Placed count, and links to creditors, mandates, and accounts. No assigned, arrangement, paid, recalled, or closed count |
+| Owner, manager | All ten steps, all counts, all links, the foundation card, and the install row. Closed on arrival |
+| Agent | The whole picture. No creditor, mandate, staff, or workspace totals. Step 3 shows only the accounts assigned to them. Steps 4, 6, 7, and 8 open their own accounts. Closed on arrival |
+| Finance | Counts the payload includes for steps 1, 2, 3, 6, 7, and 8. Links to creditors, mandates, and accounts. No link to imports or team. Remittance is marked "You". The placed balance stays on the command card, as it did before this diagram. The diagram shows no money. Closed on arrival |
+| Compliance | Same read-only shape as finance. Reporting is marked "You". Closed on arrival |
+| Viewer | Placed count, and links to creditors, mandates, and accounts. No assigned, arrangement, paid, recalled, or closed count. Closed on arrival |
+
+Every role starts closed. Owner, manager, agent, finance, compliance, and viewer all arrive with the diagram shut. The choice is not stored, and it does not change when the role loads.
 
 An agent does not receive creditor, mandate, or staff counts. A viewer does not receive assigned, arrangement, or paid counts.
 

@@ -124,7 +124,7 @@ function assertNumbersFromPayload(role: RecoverRole) {
 }
 
 const owner = assertNumbersFromPayload('owner');
-assert.equal(owner.defaultCollapsed, false);
+assert.equal(owner.defaultCollapsed, true);
 assert.equal(owner.nodes.find((node) => node.id === 'creditor')?.linkHref, '/dashboard/recovergraph/creditors');
 assert.equal(owner.nodes.find((node) => node.id === 'placement')?.linkHref, '/dashboard/recovergraph/imports');
 assert.match(owner.nodes.find((node) => node.id === 'arrangement')?.linkHref || '', /state=arrangement/);
@@ -138,7 +138,7 @@ assert.ok(chipNumbers(owner.foundation.chips).includes(PRIMES.staff));
 assert.equal(owner.nodes.filter((node) => node.mine).some((node) => node.id === 'creditor'), true);
 
 const manager = assertNumbersFromPayload('manager');
-assert.equal(manager.defaultCollapsed, false);
+assert.equal(manager.defaultCollapsed, true);
 assert.equal(manager.nodes.find((node) => node.id === 'escalate')?.mine, true);
 
 const agent = assertNumbersFromPayload('agent');

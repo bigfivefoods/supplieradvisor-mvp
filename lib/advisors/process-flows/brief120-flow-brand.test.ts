@@ -51,6 +51,26 @@ const advisorRe = new RegExp(
   'g'
 );
 
+function openingTag(source: string, marker: string): string {
+  const at = source.indexOf(marker);
+  assert.ok(at >= 0, marker);
+  const start = source.lastIndexOf('<button', at);
+  assert.ok(start >= 0, marker);
+  let end = start + '<button'.length;
+  while (end < source.length && !(source[end] === '>' && source[end - 1] !== '=')) end += 1;
+  assert.ok(end < source.length, marker);
+  return source.slice(start, end + 1);
+}
+
+const whiteOnToggle = /color\s*:\s*['"](?:#fff\b|#ffffff\b|white)['"]/i;
+for (const [file, marker] of [
+  ['components/advisors/AdvisorProcessFlow.tsx', 'advisor-flow-toggle'],
+  ['components/recovery/RecoverProcessFlow.tsx', 'recover-flow-toggle'],
+] as const) {
+  const tag = openingTag(readFileSync(file, 'utf8'), marker);
+  assert.equal(whiteOnToggle.test(tag), false, `${file} toggle ${tag}`);
+}
+
 for (const file of files) {
   const text = readFileSync(file, 'utf8');
   const lower = text.toLowerCase();

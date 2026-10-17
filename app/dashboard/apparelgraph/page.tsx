@@ -85,7 +85,7 @@ export default function ApparelgraphOverviewPage() {
   );
 }
 
-function ApparelFlow() {
+export function ApparelFlow() {
   const company = useCompanyRole();
   const role = company.loading || company.role == null ? undefined : company.role;
   return <AdvisorProcessFlow module="apparelgraph" role={role} hrefBase="/dashboard/apparelgraph" />;

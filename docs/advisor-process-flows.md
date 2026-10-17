@@ -48,9 +48,9 @@ On a signed-out preview (`hrefBase` starts with `/preview/`):
 
 `soon` is never a link. Nothing uses `href="#"`.
 
-Owner and manager roles start open. Other roles start collapsed. An unknown role starts open when `openWhenRoleUnknown` is true. The choice is not stored.
+Every flow starts closed for every role. Owner, manager, admin, an unknown role, and no role all start closed. The choice is not stored, and it does not change when the role loads or changes. The header always shows the title and the step and status summary. The toggle is a button. Tab reaches it, and Enter or Space opens and closes it. It sets `aria-expanded` and `aria-controls`. The panel those attributes name stays in the page when the flow is closed.
 
-TradeAdvisor®, ApparelAdvisor® and ContainerAdvisor® have no module role on the Command page. The signed-in mount reads the company role already cached for the session: owner and admin start open, and any other loaded role starts collapsed. TradeAdvisor® and ApparelAdvisor® still open while that role is loading. ContainerAdvisor® does not mount until the company role is known, so a loading role is not drawn as a viewer. ApparelAdvisor® and ContainerAdvisor® have no signed-out preview, so their mounts are only on the signed-in Command page. The signed-out TradeAdvisor® preview does not call that hook.
+TradeAdvisor®, ApparelAdvisor® and ContainerAdvisor® have no module role on the Command page. The signed-in mount reads the company role already cached for the session. That role marks "You" and chooses which links stay available. It does not open the flow. ContainerAdvisor® does not mount until the company role is known, so a loading role is not drawn as a viewer. ApparelAdvisor® and ContainerAdvisor® have no signed-out preview, so their mounts are only on the signed-in Command page. The signed-out TradeAdvisor® preview does not call that hook. The module diagrams that keep their own components, and RecoverAdvisor®, start closed the same way.
 
 Role `none` does not mount the diagram. FleetAdvisor® also leaves it unmounted while the company role has not been read, or while database setup is still pending, so that window is not drawn as a viewer.
 

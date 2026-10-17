@@ -26,7 +26,6 @@ export function getAdvisorFlow(id: AdvisorFlowModuleId): AdvisorFlowDef | null {
 
 export { FLOW_BRAND } from './brand';
 export {
-  flowDefaultOpen,
   flowSrSummary,
   flowStatusCounts,
   flowStatusLine,

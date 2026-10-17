@@ -20,11 +20,10 @@ export const HEALTH_FLOW: AdvisorFlowDef = {
   previewRoot: null,
   previewPaths: [],
   roles: [
-    { id: 'department', label: 'Department of Health', openByDefault: true },
-    { id: 'facility', label: 'clinic or hospital', openByDefault: true },
-    { id: 'sp', label: 'service provider', openByDefault: true },
+    { id: 'department', label: 'Department of Health' },
+    { id: 'facility', label: 'clinic or hospital' },
+    { id: 'sp', label: 'service provider' },
   ],
-  openWhenRoleUnknown: true,
   phases: [
     { id: 'setup', title: 'Set up the programme', subtitle: 'Register the department, then add or join.' },
     { id: 'supply', title: 'Supply', subtitle: 'The foods catalogue, the facility order, and the delivery.' },
