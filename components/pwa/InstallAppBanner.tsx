@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Download, Smartphone, X } from 'lucide-react';
 
@@ -336,12 +335,12 @@ export default function InstallAppBanner() {
             <X className="h-4 w-4" />
           </button>
         </div>
-        <Link
+        <a
           href="/add-to-home.html"
           className="block border-t border-slate-200 bg-slate-50/80 px-3 py-2 text-center text-[11px] font-bold text-[#0077b6]"
         >
           Safari/iOS &amp; Android install steps →
-        </Link>
+        </a>
       </div>
     </div>
   );
