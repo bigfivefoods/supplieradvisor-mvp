@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 import Link from 'next/link';
 import {
   Loader2,
@@ -382,6 +383,7 @@ export default function SalesCommandCentre() {
           </ul>
         )}
       </section>
+      <CoreProcessFlow module="sales-portal" />
     </div>
   );
 }

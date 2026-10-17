@@ -30,6 +30,7 @@ import {
 import ActivityFeed from '@/components/chrome/ActivityFeed';
 import { SrmEmpty, SrmPanel, SrmSkeleton, srmFocus } from '@/components/suppliers/srm/SrmDesk';
 import JourneyChecklist from '@/components/journey/JourneyChecklist';
+import { CoreProcessFlow } from '@/components/advisors/CoreProcessFlow';
 import TradeNextBanner from '@/components/journey/TradeNextBanner';
 import { computeHubNextAction } from '@/lib/connections/next-action';
 import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
@@ -332,6 +333,7 @@ function HubInner() {
 
       <JourneyChecklist role="supplier" />
       <CatalogueEmptyBanner />
+      <CoreProcessFlow module="suppliers" />
 
       <ActivityFeed
         title="Supply activity"

@@ -161,6 +161,21 @@ jobs:
           do
             npx --yes tsx "$file"
           done
+      - name: Core process flow tests
+        run: |
+          set -e
+          for file in \
+            lib/advisors/process-flows/brief121-core-data.test.ts \
+            lib/advisors/process-flows/brief121-core-routes.test.ts \
+            lib/advisors/process-flows/brief121-core-caps.test.ts \
+            lib/advisors/process-flows/brief121-core-resolve.test.ts \
+            lib/advisors/process-flows/brief121-core-ui.test.ts \
+            lib/advisors/process-flows/brief121-core-client.test.ts \
+            lib/advisors/process-flows/brief121-core-brand.test.ts \
+            lib/advisors/process-flows/brief121-core-mounts.test.ts
+          do
+            npx --yes tsx "$file"
+          done
       - name: Catalogue tests
         run: |
           set -euo pipefail
