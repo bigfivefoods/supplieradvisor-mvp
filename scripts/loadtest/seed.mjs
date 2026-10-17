@@ -1,23 +1,31 @@
 /**
  * Staging seed. Refuses every target except a named staging project.
  * Does not read DATABASE_URL or NEXT_PUBLIC_SUPABASE_URL.
- * Run: node scripts/loadtest/seed.mjs --dry-run
+ * Run: node scripts/loadtest/seed.mjs
+ * A write needs --apply and --expect-ref. The default is a dry run.
  */
 import { spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { buildPlan, formatPlan } from './lib/distribution.mjs';
-import { assertBatchId, evaluateSeedTarget, libpqEnv, readSeedEnv, targetIsSet } from './lib/guard.mjs';
+import { assertBatchId, automationRefusal, evaluateSeedTarget, libpqEnv, readSeedEnv, targetIsSet } from './lib/guard.mjs';
 import { interpretPsql, redactSecrets, renderSeedSql } from './lib/sql.mjs';
 
 export function parseArgs(argv) {
-  let dryRun = false;
+  let apply = false;
+  let dryRunFlag = false;
   let profile = 's1';
   let batch = '';
+  let expectRef = '';
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--dry-run') {
-      dryRun = true;
+      dryRunFlag = true;
+    } else if (arg === '--apply') {
+      apply = true;
+    } else if (arg === '--expect-ref') {
+      expectRef = argv[i + 1] || '';
+      i += 1;
     } else if (arg === '--profile') {
       profile = argv[i + 1];
       if (profile !== 's1' && profile !== 's2') throw new Error('profile must be s1 or s2');
@@ -31,7 +39,8 @@ export function parseArgs(argv) {
   }
   if (!batch) batch = profile;
   assertBatchId(batch);
-  return { dryRun, profile, batch };
+  const dryRun = dryRunFlag || !apply;
+  return { dryRun, apply: apply && !dryRunFlag, profile, batch, expectRef };
 }
 
 function childEnv(parent, databaseUrl) {
@@ -43,10 +52,20 @@ function childEnv(parent, databaseUrl) {
 }
 
 export function runSeed({ argv = [], env = {}, spawn = spawnSync, stdout = process.stdout, stderr = process.stderr } = {}) {
+  const blocked = automationRefusal(env);
+  if (blocked) {
+    stderr.write(`${blocked}\n`);
+    return { exitCode: 1, spawned: false };
+  }
   const args = parseArgs(argv);
   const plan = formatPlan(buildPlan(args.profile));
   const target = readSeedEnv(env);
   stdout.write(plan);
+
+  if (args.apply && !String(args.expectRef || '').trim()) {
+    stderr.write('Refusing to seed: --apply requires --expect-ref\n');
+    return { exitCode: 1, spawned: false };
+  }
 
   if (args.dryRun) {
     if (targetIsSet(target)) {
@@ -59,7 +78,7 @@ export function runSeed({ argv = [], env = {}, spawn = spawnSync, stdout = proce
     return { exitCode: 0, spawned: false };
   }
 
-  const verdict = evaluateSeedTarget(target);
+  const verdict = evaluateSeedTarget({ ...target, cliExpectRef: args.expectRef });
   if (!verdict.ok) {
     stderr.write(`${verdict.reason}\n`);
     return { exitCode: 1, spawned: false };

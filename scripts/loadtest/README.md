@@ -25,11 +25,13 @@ The SQL files do not contain the guard. Do not pipe them to `psql` yourself.
 ## Commands
 
 ```bash
-node scripts/loadtest/seed.mjs --dry-run
-node scripts/loadtest/seed.mjs --profile s1 --batch s1
-node scripts/loadtest/seed.mjs --profile s2 --batch s2
-node scripts/loadtest/seed-teardown.mjs --dry-run --batch s1
+node scripts/loadtest/seed.mjs
+node scripts/loadtest/seed.mjs --apply --expect-ref <staging-ref> --profile s1 --batch s1
+node scripts/loadtest/seed.mjs --apply --expect-ref <staging-ref> --profile s2 --batch s2
+node scripts/loadtest/seed-teardown.mjs --batch s1
 ```
+
+The default is a dry run and does not connect. A write needs `--apply` and `--expect-ref`. That argument must match `SEED_TARGET_PROJECT_REF`, `LOADTEST_EXPECT_PROJECT_REF`, and the project ref decoded from `SEED_DATABASE_URL` (`postgres.<ref>` or `db.<ref>.supabase.co`). Percent-encoding, trailing dots, uppercase, and surrounding spaces are normalised before the check. The process refuses when `CI` or `VERCEL` is set.
 
 `--profile` is `s1` or `s2` (default `s1`). `--batch` defaults to the profile name. Use a distinct batch for s2 so it does not collide with an s1 seed. A second successful run of the same batch is a no-op (exit 0). A partial batch exits 1 and tells you to tear down first.
 
@@ -37,7 +39,7 @@ node scripts/loadtest/seed-teardown.mjs --dry-run --batch s1
 
 ## What the rows look like
 
-5,000 company profiles, 500 peer profiles (10%), and `business_users` at 5, 8, or 20 per company. Median is 8, minimum is 5, and 250 companies (5%) have 20 users. That shape is **36,250 users**. The assessment text says 25,000 (S1) and 100,000 (S2). Those two figures cannot be true at the same time as median 8, minimum 5, and 5% at 20 across 5,000 companies. This generator follows the shape the unit tests name. The plan prints both figures and does not force 25,000 or 100,000. S1 and S2 use the same user shape. S2 scales transactional volumes (x3, with a heavy tail at x10 of the S1 base, and four whales at 100x that profile's typical volume).
+5,000 company profiles, 500 peer profiles (10%), and `business_users` at 5, 8, or 20 per company. Median is 8, minimum is 5, and 250 companies (5%) have 20 users. That shape is **36,250 users**. S1 `activity_log` is about **107.9 million** rows. The brief said 25,000 users for S1 and 100,000 for S2. Those figures cannot be true at the same time as median 8, minimum 5, and 5% at 20 across 5,000 companies. This generator follows the shape the unit tests name and does not force 25,000 or 100,000. Craig must sign off before anyone runs it. S1 and S2 use the same user shape. S2 scales transactional volumes (x3, with a heavy tail at x10 of the S1 base, and four whales at 100x that profile's typical volume).
 
 Emails are only `*@loadtest.invalid`. Phones use the unassigned `+999` prefix. Names are generated. No production rows are copied.
 

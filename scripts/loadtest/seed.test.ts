@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { buildPlan, moduleBytes, volumeFor } from './lib/distribution.mjs';
 import {
   PRODUCTION_PROJECT_REF,
+  assertBatchId,
   evaluateSeedTarget,
   libpqEnv,
   productionDenyHosts,
@@ -58,6 +59,7 @@ assert.equal(s1.heavyTailCompanies, 0);
 assert.equal(s1.pendingUsers, 1812);
 assert.ok(Math.abs(s1.pendingUsers / s1.users - 0.05) <= 0.0005);
 assert.equal(s1.totals.customers, 1079200);
+assert.equal(s1.totals.activity_log, 107920000);
 assert.equal(s1.totals.journal_lines, s1.totals.journal_entries * 3);
 assert.equal(s1.moduleByteMedianBand, 4500);
 assert.equal(s1.statedUserTargets.s1, 25000);
@@ -130,7 +132,7 @@ const host = 'db.staging.example.test';
 const goodEnv = {
   SEED_TARGET_PROJECT_REF: 'stagingprojectref',
   LOADTEST_EXPECT_PROJECT_REF: 'stagingprojectref',
-  SEED_DATABASE_URL: `postgres://loadtest:pw-fixture@${host}:5432/postgres?sslmode=require`,
+  SEED_DATABASE_URL: `postgres://postgres.stagingprojectref:pw-fixture@${host}:5432/postgres?sslmode=require`,
   LOADTEST_ALLOWED_HOSTS: host,
   DATABASE_URL: `postgres://prod:nope@db.${PRODUCTION_PROJECT_REF}.supabase.co:5432/postgres`,
   NEXT_PUBLIC_SUPABASE_URL: `https://${PRODUCTION_PROJECT_REF}.supabase.co`,
@@ -141,7 +143,7 @@ function refusal(env: Record<string, string>, needle: RegExp) {
   const stderr = capture();
   let spawned = false;
   const result = runSeed({
-    argv: [],
+    argv: ['--apply', '--expect-ref', 'stagingprojectref'],
     env,
     stdout,
     stderr,
@@ -180,7 +182,7 @@ const denied = productionDenyHosts()[0];
 refusal(
   {
     ...goodEnv,
-    SEED_DATABASE_URL: `postgres://loadtest:pw-fixture@${denied}:5432/postgres`,
+    SEED_DATABASE_URL: `postgres://postgres.stagingprojectref:pw-fixture@${denied}:5432/postgres`,
     LOADTEST_ALLOWED_HOSTS: denied,
   },
   /production deny list/
@@ -195,6 +197,79 @@ assert.equal(
   }).ok,
   true
 );
+assert.equal(
+  evaluateSeedTarget({
+    targetProjectRef: '  StagingProjectRef ',
+    expectProjectRef: 'STAGINGPROJECTREF',
+    databaseUrl: `postgres://postgres.stagingprojectref:pw-fixture@${host}.:5432/postgres`,
+    allowedHosts: `${host}.`,
+  }).ok,
+  true
+);
+const encodedRef = PRODUCTION_PROJECT_REF.replace('l', '%6C');
+assert.equal(
+  evaluateSeedTarget({
+    targetProjectRef: 'stagingprojectref',
+    expectProjectRef: 'stagingprojectref',
+    databaseUrl: `postgres://postgres.${encodedRef}:pw-fixture@${host}:5432/postgres`,
+    allowedHosts: host,
+  }).ok,
+  false
+);
+refusal(
+  {
+    ...goodEnv,
+    SEED_DATABASE_URL: `postgres://postgres.stagingprojectref:pw-fixture@not${host}:5432/postgres`,
+  },
+  /not on LOADTEST_ALLOWED_HOSTS/
+);
+refusal({ ...goodEnv, LOADTEST_ALLOWED_HOSTS: 'example.test' }, /not on LOADTEST_ALLOWED_HOSTS/);
+const quiet = runSeed({
+  argv: [],
+  env: goodEnv,
+  stdout: capture(),
+  stderr: capture(),
+  spawn() {
+    throw new Error('spawned');
+  },
+});
+assert.equal(quiet.exitCode, 0);
+const blockedCi = capture();
+const ciRun = runSeed({
+  argv: ['--apply', '--expect-ref', 'stagingprojectref'],
+  env: { ...goodEnv, CI: 'true' },
+  stdout: capture(),
+  stderr: blockedCi,
+  spawn() {
+    throw new Error('spawned');
+  },
+});
+assert.equal(ciRun.exitCode, 1);
+assert.match(blockedCi.read(), /CI is set/);
+const blockedVercel = capture();
+const vercelRun = runSeed({
+  argv: ['--apply', '--expect-ref', 'stagingprojectref'],
+  env: { ...goodEnv, VERCEL: '1' },
+  stdout: capture(),
+  stderr: blockedVercel,
+  spawn() {
+    throw new Error('spawned');
+  },
+});
+assert.equal(vercelRun.exitCode, 1);
+assert.match(blockedVercel.read(), /VERCEL is set/);
+const missingFlag = capture();
+const noExpect = runSeed({
+  argv: ['--apply'],
+  env: goodEnv,
+  stdout: capture(),
+  stderr: missingFlag,
+  spawn() {
+    throw new Error('spawned');
+  },
+});
+assert.equal(noExpect.exitCode, 1);
+assert.match(missingFlag.read(), /--apply requires --expect-ref/);
 
 const dry = capture();
 const dryErr = capture();
@@ -221,7 +296,7 @@ const calls: Array<[string, string[], { input: string; env: NodeJS.ProcessEnv }]
 const seededOut = capture();
 const seededErr = capture();
 const seeded = runSeed({
-  argv: ['--profile', 's1', '--batch', 's1'],
+  argv: ['--apply', '--expect-ref', 'stagingprojectref', '--profile', 's1', '--batch', 's1'],
   env: goodEnv,
   stdout: seededOut,
   stderr: seededErr,
@@ -248,7 +323,7 @@ assert.match(seededOut.read(), /profiles,1 kB/);
 
 const againOut = capture();
 const again = runSeed({
-  argv: [],
+  argv: ['--apply', '--expect-ref', 'stagingprojectref'],
   env: goodEnv,
   stdout: againOut,
   stderr: capture(),
@@ -260,7 +335,7 @@ assert.equal(again.exitCode, 0);
 assert.match(againOut.read(), /already seeded; nothing changed/);
 
 const missing = runSeed({
-  argv: [],
+  argv: ['--apply', '--expect-ref', 'stagingprojectref'],
   env: goodEnv,
   stdout: capture(),
   stderr: capture(),
@@ -272,8 +347,13 @@ assert.equal(missing.exitCode, 1);
 
 assert.throws(() => parseArgs(['--profile', 's3']), /profile must be s1 or s2/);
 assert.throws(() => parseArgs(['--wat']), /unknown argument/);
-assert.deepEqual(parseArgs([]), { dryRun: false, profile: 's1', batch: 's1' });
-assert.deepEqual(parseArgs(['--profile', 's2']), { dryRun: false, profile: 's2', batch: 's2' });
+assert.deepEqual(parseArgs([]), { dryRun: true, apply: false, profile: 's1', batch: 's1', expectRef: '' });
+assert.deepEqual(parseArgs(['--profile', 's2']), { dryRun: true, apply: false, profile: 's2', batch: 's2', expectRef: '' });
+assert.throws(() => assertBatchId(''), /batch id/);
+assert.throws(() => parseArgs(['--batch', 'S1']), /batch id/);
+assert.throws(() => parseArgs(['--batch', 'has space']), /batch id/);
+assert.throws(() => assertBatchId(PRODUCTION_PROJECT_REF), /production project ref/);
+assert.equal(assertBatchId('s1'), 's1');
 assert.throws(() => parseTeardownArgs(['--nope']), /unknown argument/);
 
 const tear = runTeardown({
@@ -293,8 +373,8 @@ assert.equal(pkg.includes('seed.mjs'), false);
 assert.equal(pkg.includes('k6'), false);
 for (const file of walk('.github/workflows')) {
   const text = readFileSync(file, 'utf8');
-  assert.equal(text.includes('scripts/loadtest'), false, file);
   assert.equal(text.includes('seed.mjs'), false, file);
+  assert.equal(text.includes('seed-teardown.mjs'), false, file);
   assert.equal(text.includes('k6'), false, file);
 }
 
@@ -334,9 +414,12 @@ function listen(): Promise<{ server: net.Server; port: number; hits: () => numbe
 async function refusesWithoutConnecting() {
   const listener = await listen();
   const url = `postgres://loadtest:pw-fixture@127.0.0.1:${listener.port}/${PRODUCTION_PROJECT_REF}`;
-  const child = spawn(process.execPath, ['scripts/loadtest/seed.mjs', '--profile', 's1'], {
+  const childEnv = { ...process.env };
+  delete childEnv.CI;
+  delete childEnv.VERCEL;
+  const child = spawn(process.execPath, ['scripts/loadtest/seed.mjs', '--apply', '--expect-ref', PRODUCTION_PROJECT_REF, '--profile', 's1'], {
     env: {
-      ...process.env,
+      ...childEnv,
       SEED_TARGET_PROJECT_REF: PRODUCTION_PROJECT_REF,
       LOADTEST_EXPECT_PROJECT_REF: PRODUCTION_PROJECT_REF,
       SEED_DATABASE_URL: url,

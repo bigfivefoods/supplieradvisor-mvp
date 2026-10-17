@@ -188,6 +188,10 @@ jobs:
           do
             npx --yes tsx "$file"
           done
+      - name: Brief 122 E2 seed guard tests
+        run: |
+          set -euo pipefail
+          npx --yes tsx scripts/loadtest/seed.test.ts
       - name: ConstructionAdvisor portal tests
         run: |
           set -euo pipefail

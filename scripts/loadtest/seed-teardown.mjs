@@ -6,28 +6,32 @@
 import { spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { assertBatchId, evaluateSeedTarget, libpqEnv, readSeedEnv, targetIsSet } from './lib/guard.mjs';
+import { assertBatchId, automationRefusal, evaluateSeedTarget, libpqEnv, readSeedEnv, targetIsSet } from './lib/guard.mjs';
 import { redactSecrets, renderTeardownSql, SEEDED_TABLES } from './lib/sql.mjs';
 
 export function parseArgs(argv) {
-  let dryRun = false;
+  let apply = false;
+  let dryRunFlag = false;
   let batch = 's1';
-  let batchSet = false;
+  let expectRef = '';
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--dry-run') {
-      dryRun = true;
+      dryRunFlag = true;
+    } else if (arg === '--apply') {
+      apply = true;
+    } else if (arg === '--expect-ref') {
+      expectRef = argv[i + 1] || '';
+      i += 1;
     } else if (arg === '--batch') {
       batch = argv[i + 1] || '';
-      batchSet = true;
       i += 1;
     } else {
       throw new Error(`unknown argument ${arg}`);
     }
   }
-  if (batchSet) assertBatchId(batch);
-  else assertBatchId(batch);
-  return { dryRun, batch };
+  assertBatchId(batch);
+  return { dryRun: dryRunFlag || !apply, apply: apply && !dryRunFlag, batch, expectRef };
 }
 
 function childEnv(parent, databaseUrl) {
@@ -49,9 +53,19 @@ export function formatTeardownPlan(batch) {
 }
 
 export function runTeardown({ argv = [], env = {}, spawn = spawnSync, stdout = process.stdout, stderr = process.stderr } = {}) {
+  const blocked = automationRefusal(env);
+  if (blocked) {
+    stderr.write(`${blocked}\n`);
+    return { exitCode: 1, spawned: false };
+  }
   const args = parseArgs(argv);
   const target = readSeedEnv(env);
   stdout.write(formatTeardownPlan(args.batch));
+
+  if (args.apply && !String(args.expectRef || '').trim()) {
+    stderr.write('Refusing to seed: --apply requires --expect-ref\n');
+    return { exitCode: 1, spawned: false };
+  }
 
   if (args.dryRun) {
     if (targetIsSet(target)) {
@@ -64,7 +78,7 @@ export function runTeardown({ argv = [], env = {}, spawn = spawnSync, stdout = p
     return { exitCode: 0, spawned: false };
   }
 
-  const verdict = evaluateSeedTarget(target);
+  const verdict = evaluateSeedTarget({ ...target, cliExpectRef: args.expectRef });
   if (!verdict.ok) {
     stderr.write(`${verdict.reason}\n`);
     return { exitCode: 1, spawned: false };
