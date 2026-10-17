@@ -18,10 +18,19 @@ type Call = {
   epoch: number;
 };
 
+const EMBED_HINT = 'profiles!business_users_profile_id_fkey!inner(';
+
+function isEmbedSelect(select: string): boolean {
+  return select.includes('profiles!') && select.includes('!inner(');
+}
+
 function createFake(opts: {
   members: Row[];
   profiles: Row[];
   embedError?: { message: string; code: string } | null;
+  membersError?: { message: string; code: string } | null;
+  profileError?: { message: string; code: string } | null;
+  omitEmbeddedProfile?: boolean;
 }) {
   const calls: Call[] = [];
   let epoch = 0;
@@ -86,14 +95,36 @@ function createFake(opts: {
         epoch: at,
       });
       queueMicrotask(() => {
+        const embed = state.op === 'select' && table === 'business_users' && isEmbedSelect(state.select);
+        if (embed && !state.select.includes('business_users_profile_id_fkey')) {
+          finish();
+          resolve({
+            data: null,
+            error: {
+              message: 'Could not embed because more than one relationship was found',
+              code: 'PGRST201',
+            },
+          });
+          return;
+        }
+        if (embed && opts.embedError) {
+          finish();
+          resolve({ data: null, error: opts.embedError });
+          return;
+        }
         if (
           state.op === 'select' &&
           table === 'business_users' &&
-          state.select.includes('profiles!inner') &&
-          opts.embedError
+          !embed &&
+          opts.membersError
         ) {
           finish();
-          resolve({ data: null, error: opts.embedError });
+          resolve({ data: null, error: opts.membersError });
+          return;
+        }
+        if (state.op === 'select' && table === 'profiles' && opts.profileError) {
+          finish();
+          resolve({ data: null, error: opts.profileError });
           return;
         }
         if (state.op === 'update') {
@@ -109,8 +140,9 @@ function createFake(opts: {
             return list.includes(row[col]);
           })
         );
-        if (state.select.includes('profiles!inner')) {
+        if (embed) {
           rows = rows.flatMap((row) => {
+            if (opts.omitEmbeddedProfile) return [{ ...row }];
             const prof = opts.profiles.find((p) => p.id === row.profile_id);
             if (!prof) return [];
             return [{ ...row, profiles: { deleted_at: prof.deleted_at ?? null } }];
@@ -176,7 +208,7 @@ async function main() {
     assert.equal(reads.length, 1, 'cache miss must be a single read');
     assert.equal(reads[0].table, 'business_users');
     assert.equal(reads[0].select, MEMBERSHIP_EMBED_SELECT);
-    assert.equal(reads[0].select.includes('profiles!inner(deleted_at)'), true);
+    assert.equal(reads[0].select.includes(EMBED_HINT), true);
 
     const second = await getCompanyMembership(USER, COMPANY);
     assert.equal(second.ok, true);
@@ -272,6 +304,129 @@ async function main() {
     );
     await settle();
   }
+
+  // Duplicate FK on production: PGRST201 is remembered, then the plain read plus profile fetch.
+  {
+    const otherCompany = 43;
+    const db = createFake({
+      members: [member(), member({ id: 8, profile_id: otherCompany })],
+      profiles: [
+        { id: COMPANY, deleted_at: null },
+        { id: otherCompany, deleted_at: null },
+      ],
+      embedError: {
+        message: 'Could not embed because more than one relationship was found',
+        code: 'PGRST201',
+      },
+    });
+    setMembershipClientForTests(db);
+    const first = await getCompanyMembership(USER, COMPANY);
+    assert.equal(first.ok, true);
+    if (first.ok) assert.equal(first.memberId, 7);
+    assert.equal(db.reads().length, 3);
+    const secondBefore = db.reads().length;
+    const second = await getCompanyMembership(USER, otherCompany);
+    assert.equal(second.ok, true);
+    if (second.ok) assert.equal(second.memberId, 8);
+    const added = db.reads().slice(secondBefore);
+    assert.equal(added.length, 2, 'a later miss must not retry the ambiguous embed');
+    assert.equal(
+      added.some((call) => isEmbedSelect(call.select)),
+      false
+    );
+    assert.equal(
+      added.some((call) => call.table === 'profiles'),
+      true
+    );
+    await settle();
+  }
+
+  // Another user and another company. Dropping either filter returns the wrong row.
+  {
+    const otherUser = 'did:privy:member-b';
+    const otherCompany = 43;
+    const db = createFake({
+      members: [
+        member({ id: 2, user_id: otherUser, profile_id: COMPANY, role: 'admin' }),
+        member({ id: 3, user_id: USER, profile_id: otherCompany, role: 'finance' }),
+        member({ id: 4, user_id: otherUser, profile_id: otherCompany, role: 'owner' }),
+        member({ id: 5, user_id: USER, profile_id: COMPANY, status: 'invited', role: 'member' }),
+        member(),
+      ],
+      profiles: [
+        { id: COMPANY, deleted_at: null },
+        { id: otherCompany, deleted_at: '2026-05-01T00:00:00.000Z' },
+      ],
+    });
+    setMembershipClientForTests(db);
+    const mine = await getCompanyMembership(USER, COMPANY);
+    assert.equal(mine.ok, true);
+    if (mine.ok) {
+      assert.equal(mine.memberId, 7);
+      assert.equal(mine.role, 'owner');
+      assert.equal(mine.status, 'active');
+    }
+    const stranger = await getCompanyMembership(otherUser, otherCompany);
+    assert.equal(stranger.ok, false);
+    if (!stranger.ok) assert.equal(stranger.status, 410);
+    const cross = await getCompanyMembership(otherUser, COMPANY);
+    assert.equal(cross.ok, true);
+    if (cross.ok) assert.equal(cross.memberId, 2);
+    await settle();
+  }
+
+  // Embed row with no profile object is a verify failure, not an allow.
+  {
+    const db = createFake({
+      members: [member()],
+      profiles: [{ id: COMPANY, deleted_at: null }],
+      omitEmbeddedProfile: true,
+    });
+    setMembershipClientForTests(db);
+    const res = await getCompanyMembership(USER, COMPANY);
+    assert.equal(res.ok, false);
+    if (!res.ok) assert.equal(res.status, 500);
+  }
+
+  // Fallback membership read failure stays closed.
+  {
+    const db = createFake({
+      members: [member()],
+      profiles: [{ id: COMPANY, deleted_at: null }],
+      embedError: {
+        message: 'Could not embed because more than one relationship was found',
+        code: 'PGRST201',
+      },
+      membersError: { message: 'connection reset', code: '08006' },
+    });
+    setMembershipClientForTests(db);
+    const res = await getCompanyMembership(USER, COMPANY);
+    assert.equal(res.ok, false);
+    if (!res.ok) assert.equal(res.status, 500);
+  }
+
+  // Fallback profile read failure stays closed. A deleted company must not look active.
+  {
+    const db = createFake({
+      members: [member()],
+      profiles: [{ id: COMPANY, deleted_at: '2026-06-01T00:00:00.000Z' }],
+      embedError: {
+        message: 'Could not embed because more than one relationship was found',
+        code: 'PGRST201',
+      },
+      profileError: { message: 'connection reset', code: '08006' },
+    });
+    setMembershipClientForTests(db);
+    const res = await getCompanyMembership(USER, COMPANY);
+    assert.equal(res.ok, false);
+    if (!res.ok) assert.equal(res.status, 500);
+  }
+
+  const network = await import('node:fs').then((fs) =>
+    fs.readFileSync('app/dashboard/network/actions.ts', 'utf8')
+  );
+  assert.equal(network.includes(EMBED_HINT), true);
+  assert.equal(network.includes('profiles:profile_id'), false);
 
   setMembershipClientForTests(null);
   console.log('brief122-membership-one-call.test.ts ok');
