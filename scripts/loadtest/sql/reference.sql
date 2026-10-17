@@ -1,0 +1,4 @@
+-- Reference geo rows and chart-of-accounts templates are not in this folder.
+-- D1 (a schema dump) is the source for those seed rows. This script does not
+-- read production and does not connect anywhere.
+-- seed.sql uses a synthetic four-account chart (codes 1000, 2000, 3000, 4000).
