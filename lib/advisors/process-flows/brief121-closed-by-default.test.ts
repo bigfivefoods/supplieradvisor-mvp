@@ -215,9 +215,22 @@ assert.ok(rendered.some((file) => file.endsWith('components/advisors/AdvisorProc
 assert.ok(rendered.some((file) => file.endsWith('components/recovery/RecoverProcessFlow.tsx')));
 assert.ok(rendered.some((file) => file.endsWith('components/schools/NsnpSystemFlow.tsx')));
 assert.ok(rendered.some((file) => file.includes('app/dashboard/schools/isps/page.tsx')));
+function collapseBindings(text: string): string[] {
+  const bad: string[] = [];
+  const re = /defaultCollapsed(\s*\?\s*:|\s*=\s*\{([^{}]*)\}|\s*=\s*([^\s,/>]+))?/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text))) {
+    if (!match[1] || /^\s*\?\s*:/.test(match[1])) continue;
+    const expr = (match[2] ?? match[3] ?? '').trim();
+    if (expr === 'true') continue;
+    bad.push(match[0].trim());
+  }
+  return bad;
+}
+
 for (const file of rendered) {
   const text = readFileSync(file, 'utf8');
-  assert.equal(text.includes('defaultCollapsed={false}'), false, file);
+  assert.deepEqual(collapseBindings(text), [], file);
   assert.equal(/\bopenByDefault\b/.test(text), false, file);
   assert.equal(/\bopenWhenRoleUnknown\b/.test(text), false, file);
   assert.equal(/\bflowDefaultOpen\b/.test(text), false, file);
