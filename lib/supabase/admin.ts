@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { countedFetch } from '@/lib/observability/request-timing';
+import { assertDeploymentEnv } from '@/lib/system/env-guard';
 
 let adminClient: SupabaseClient | null = null;
 
@@ -20,6 +21,8 @@ export function getSupabaseAdmin(): SupabaseClient {
         'Add SUPABASE_SERVICE_ROLE_KEY to your server environment for invite APIs.'
     );
   }
+
+  assertDeploymentEnv({ supabaseUrl: url });
 
   adminClient = createClient(url, serviceRoleKey, {
     auth: {
