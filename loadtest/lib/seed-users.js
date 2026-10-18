@@ -1,6 +1,8 @@
+import { SEEDED_USER_RE } from '../../lib/loadtest/jwt.js';
+
 /**
  * The k6 scenarios use these seeded business_users ids.
- * profileId is supplied at run time from LOADTEST_USERS. It is not a secret.
+ * profile_id is not a token claim and is not read here.
  * The signing key is never read here.
  */
 
@@ -11,7 +13,7 @@ export const SEEDED_USER_SLOTS = [
   { sub: 'loadtest-user-3-1', role: 'owner', companyOrdinal: 3 },
 ];
 
-const USER_RE = /^loadtest-user-[1-9]\d{0,5}-[1-9]\d{0,3}$/;
+const USER_RE = SEEDED_USER_RE;
 
 export function parseLoadtestUsers(raw) {
   if (raw == null || String(raw).trim() === '') {
@@ -28,18 +30,14 @@ export function parseLoadtestUsers(raw) {
   }
   return parsed.map((row, index) => {
     const sub = row && typeof row.sub === 'string' ? row.sub : '';
-    const profileId = row && row.profileId;
     if (!USER_RE.test(sub)) {
       throw new Error(`Refusing to run: LOADTEST_USERS[${index}] subject is not a seeded user`);
-    }
-    if (!Number.isInteger(profileId) || profileId <= 0) {
-      throw new Error(`Refusing to run: LOADTEST_USERS[${index}] profileId is not a positive integer`);
     }
     const slot = SEEDED_USER_SLOTS.find((item) => item.sub === sub);
     if (!slot) {
       throw new Error(`Refusing to run: LOADTEST_USERS[${index}] is not one of the mapped seeded users`);
     }
-    return { sub, profileId, role: slot.role, companyOrdinal: slot.companyOrdinal };
+    return { sub, role: slot.role, companyOrdinal: slot.companyOrdinal };
   });
 }
 

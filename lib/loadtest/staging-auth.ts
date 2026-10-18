@@ -9,14 +9,12 @@ import {
   STAGING_SUPABASE_PROJECT_REF,
   supabaseProjectRefFromUrl,
 } from '@/lib/system/env-guard';
-import { STAGING_PROJECT_REF, verifyLoadtestJwt } from './jwt.js';
-
-export const MIN_LOADTEST_SIGNING_KEY_LENGTH = 32;
+import { STAGING_PROJECT_REF, usableSigningKey, verifyLoadtestJwt } from './jwt.js';
 
 export type LoadtestAuthEnv = NodeJS.ProcessEnv;
 
 export type LoadtestAuthResult =
-  | { ok: true; userId: string; profileId: number }
+  | { ok: true; userId: string }
   | { ok: false; code: string };
 
 function hmacSha256Hex(data: string, key: string): string {
@@ -25,15 +23,15 @@ function hmacSha256Hex(data: string, key: string): string {
 
 /**
  * True only for a Vercel preview whose Supabase URL is the staging project,
- * with LOADTEST_ENDPOINTS=1 and a signing key of at least 32 characters.
- * VERCEL_ENV=production is refused before any other condition is consulted.
+ * with LOADTEST_ENDPOINTS=1 and a signing key of at least 32 non-whitespace
+ * characters after trim. VERCEL_ENV=production is refused before any other
+ * condition is consulted.
  */
 export function loadtestAuthEnabled(env: LoadtestAuthEnv): boolean {
   if (env.VERCEL_ENV === 'production') return false;
   if (env.VERCEL_ENV !== 'preview') return false;
   if (env.LOADTEST_ENDPOINTS !== '1') return false;
-  const key = typeof env.LOADTEST_SIGNING_KEY === 'string' ? env.LOADTEST_SIGNING_KEY : '';
-  if (key.length < MIN_LOADTEST_SIGNING_KEY_LENGTH) return false;
+  if (!usableSigningKey(env.LOADTEST_SIGNING_KEY)) return false;
 
   const serverUrl = (env.SUPABASE_URL || '').trim();
   const publicUrl = (env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
@@ -54,7 +52,7 @@ export function loadtestAuthEnabled(env: LoadtestAuthEnv): boolean {
 }
 
 type JwtVerifyResult =
-  | { ok: true; sub: string; profileId: number }
+  | { ok: true; sub: string }
   | { ok: false; code: string };
 
 export function authenticateLoadtestToken(
@@ -63,7 +61,7 @@ export function authenticateLoadtestToken(
   nowSeconds: number
 ): LoadtestAuthResult {
   if (!loadtestAuthEnabled(env)) return { ok: false, code: 'LOADTEST_AUTH_DISABLED' };
-  const key = env.LOADTEST_SIGNING_KEY || '';
+  const key = usableSigningKey(env.LOADTEST_SIGNING_KEY);
   const verified = verifyLoadtestJwt({
     token,
     key,
@@ -71,5 +69,5 @@ export function authenticateLoadtestToken(
     hmacSha256Hex,
   }) as JwtVerifyResult;
   if (!verified.ok) return { ok: false, code: verified.code };
-  return { ok: true, userId: verified.sub, profileId: verified.profileId };
+  return { ok: true, userId: verified.sub };
 }

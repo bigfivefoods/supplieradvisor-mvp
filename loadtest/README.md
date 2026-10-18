@@ -39,9 +39,11 @@ A production URL exits non-zero and sends no request. An empty allow-list does t
 
 Authenticated k6 scenarios use `loadtest/scenarios/authed.js`. It mints a short-lived HMAC token with `LOADTEST_SIGNING_KEY` from the environment and sends it as `Authorization: Bearer`. The key is not printed.
 
-The server accepts that token only when all of these are true: `VERCEL_ENV=preview`, both Supabase URLs are staging ref `wpchtkfkaavcjyfgmktn`, `LOADTEST_ENDPOINTS=1`, and `LOADTEST_SIGNING_KEY` is at least 32 characters. `VERCEL_ENV=production` refuses before the key is used. No other variable turns it on. Privy verification is unchanged for every other token.
+The server accepts that token only when all of these are true: `VERCEL_ENV=preview`, both Supabase URLs are staging ref `wpchtkfkaavcjyfgmktn`, `LOADTEST_ENDPOINTS=1`, and `LOADTEST_SIGNING_KEY` trims to at least 32 non-whitespace characters. A key that is only spaces is rejected. `VERCEL_ENV=production` refuses before the key is used, and so does an unset `VERCEL_ENV`. No other variable turns it on. Privy verification is unchanged for every other token.
 
-`LOADTEST_USERS` is a JSON list of the seeded users the scenario may call, with the `profile_id` values read from `business_users` after a seed. The mapped subjects are `loadtest-user-1-1`, `loadtest-user-1-2`, `loadtest-user-2-1`, and `loadtest-user-3-1`. A token subject must match `loadtest-user-<company>-<index>`. It cannot name a Privy user. `profile_id` is a required claim. Company access still goes through the existing membership check.
+`LOADTEST_ENDPOINTS`, `LOADTEST_SIGNING_KEY`, and `LOADTEST_USERS` must be scoped to the staging branch only. Do not set them on Production or on any other preview branch.
+
+`LOADTEST_USERS` is a JSON list of the seeded users the scenario may call. The mapped subjects are `loadtest-user-1-1`, `loadtest-user-1-2`, `loadtest-user-2-1`, and `loadtest-user-3-1`. A token subject must be `loadtest-user-<company>-<index>` with company ordinal 1–5000 and user index 1–20, which is the range the seed generates. It cannot name a Privy user. `sub` must be a string. `profile_id` is not a required claim and is not checked. Company access still goes through the existing membership check.
 
 Tokens carry `exp` at most one hour after `iat`, a nonce, and `ref` equal to the staging project. Expired tokens, a wrong key, a wrong ref, and missing claims are rejected. The same token can be replayed until `exp`. There is no cross-instance nonce denylist.
 

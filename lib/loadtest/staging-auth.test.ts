@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { NextRequest } from 'next/server';
+import { requireVerifiedUser } from '../auth/api-auth';
 import { isPublicApiPath } from '../auth/public-paths';
 import { GET as sessionGet } from '../../app/api/loadtest/session/route';
 import {
@@ -38,7 +39,6 @@ function cleanRoomToken(overrides: Record<string, unknown> = {}, key = KEY) {
   delete (overrides as { header?: unknown }).header;
   const payload = {
     sub: SUB,
-    profile_id: PROFILE_ID,
     ref: STAGING_SUPABASE_PROJECT_REF,
     nonce: NONCE,
     iat: NOW - 10,
@@ -67,7 +67,6 @@ const token = cleanRoomToken();
 const minted = mintLoadtestJwt({
   key: KEY,
   sub: SUB,
-  profileId: PROFILE_ID,
   ref: STAGING_SUPABASE_PROJECT_REF,
   nonce: NONCE,
   iat: NOW - 10,
@@ -86,6 +85,10 @@ const rows: Array<{ name: string; env: Record<string, string | undefined>; tok: 
   { name: 'endpoints unset', env: stagingEnv({ LOADTEST_ENDPOINTS: undefined }), tok: token, code: 'LOADTEST_AUTH_DISABLED' },
   { name: 'key missing', env: stagingEnv({ LOADTEST_SIGNING_KEY: undefined }), tok: token, code: 'LOADTEST_AUTH_DISABLED' },
   { name: 'key too short', env: stagingEnv({ LOADTEST_SIGNING_KEY: 'short-key' }), tok: token, code: 'LOADTEST_AUTH_DISABLED' },
+  { name: 'key is only spaces', env: stagingEnv({ LOADTEST_SIGNING_KEY: ' '.repeat(40) }), tok: token, code: 'LOADTEST_AUTH_DISABLED' },
+  { name: 'key has 31 non-whitespace characters', env: stagingEnv({ LOADTEST_SIGNING_KEY: ` ${'a'.repeat(31)} ` }), tok: token, code: 'LOADTEST_AUTH_DISABLED' },
+  { name: 'key trim still verifies', env: stagingEnv({ LOADTEST_SIGNING_KEY: `  ${KEY}  ` }), tok: token, code: 'ok' },
+  { name: 'third supabase ref', env: stagingEnv({ SUPABASE_URL: 'https://thirdstagingrefexample.supabase.co', NEXT_PUBLIC_SUPABASE_URL: 'https://thirdstagingrefexample.supabase.co' }), tok: token, code: 'LOADTEST_AUTH_DISABLED' },
   { name: 'development', env: stagingEnv({ VERCEL_ENV: 'development' }), tok: token, code: 'LOADTEST_AUTH_DISABLED' },
   { name: 'empty vercel env', env: stagingEnv({ VERCEL_ENV: '' }), tok: token, code: 'LOADTEST_AUTH_DISABLED' },
   { name: 'refs disagree', env: stagingEnv({ SUPABASE_URL: 'https://otherexampleref.supabase.co' }), tok: token, code: 'LOADTEST_AUTH_DISABLED' },
@@ -101,8 +104,15 @@ const rows: Array<{ name: string; env: Record<string, string | undefined>; tok: 
   { name: 'claim names the production ref', env: open, tok: cleanRoomToken({ ref: PRODUCTION_SUPABASE_PROJECT_REF }), code: 'WRONG_REF' },
   { name: 'missing sub', env: open, tok: cleanRoomToken({ sub: undefined }), code: 'BAD_SUBJECT' },
   { name: 'privy subject', env: open, tok: cleanRoomToken({ sub: 'did:privy:real-user' }), code: 'BAD_SUBJECT' },
-  { name: 'missing profile', env: open, tok: cleanRoomToken({ profile_id: undefined }), code: 'BAD_PROFILE' },
-  { name: 'alg none', env: open, tok: `${b64url({ alg: 'none', typ: 'JWT' })}.${b64url({ sub: SUB, profile_id: PROFILE_ID, ref: STAGING_SUPABASE_PROJECT_REF, nonce: NONCE, iat: NOW - 10, exp: NOW + 60 })}.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`, code: 'BAD_HEADER' },
+  { name: 'array subject', env: open, tok: cleanRoomToken({ sub: ['loadtest-user-1-1'] }), code: 'BAD_SUBJECT' },
+  { name: 'numeric subject', env: open, tok: cleanRoomToken({ sub: 11 }), code: 'BAD_SUBJECT' },
+  { name: 'company above seed cap', env: open, tok: cleanRoomToken({ sub: 'loadtest-user-5001-1' }), code: 'BAD_SUBJECT' },
+  { name: 'user index above seed cap', env: open, tok: cleanRoomToken({ sub: 'loadtest-user-1-21' }), code: 'BAD_SUBJECT' },
+  { name: 'zero company', env: open, tok: cleanRoomToken({ sub: 'loadtest-user-0-1' }), code: 'BAD_SUBJECT' },
+  { name: 'zero user index', env: open, tok: cleanRoomToken({ sub: 'loadtest-user-1-0' }), code: 'BAD_SUBJECT' },
+  { name: 'top of seeded range', env: open, tok: cleanRoomToken({ sub: 'loadtest-user-5000-20' }), code: 'ok' },
+  { name: 'extra profile claim ignored', env: open, tok: cleanRoomToken({ profile_id: PROFILE_ID }), code: 'ok' },
+  { name: 'alg none', env: open, tok: `${b64url({ alg: 'none', typ: 'JWT' })}.${b64url({ sub: SUB, ref: STAGING_SUPABASE_PROJECT_REF, nonce: NONCE, iat: NOW - 10, exp: NOW + 60 })}.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`, code: 'BAD_HEADER' },
   { name: 'empty token', env: open, tok: '', code: 'MALFORMED' },
 ];
 
@@ -122,8 +132,46 @@ const accepted = authenticateLoadtestToken(token, open, NOW);
 assert.equal(accepted.ok, true);
 if (accepted.ok) {
   assert.equal(accepted.userId, SUB);
-  assert.equal(accepted.profileId, PROFILE_ID);
+  assert.equal('profileId' in accepted, false);
 }
+assert.equal(
+  mintLoadtestJwt({
+    key: `  ${KEY}  `,
+    sub: SUB,
+    ref: STAGING_SUPABASE_PROJECT_REF,
+    nonce: NONCE,
+    iat: NOW - 10,
+    exp: NOW + 600,
+    hmacSha256Hex,
+  }),
+  token
+);
+assert.throws(
+  () =>
+    mintLoadtestJwt({
+      key: ' '.repeat(32),
+      sub: SUB,
+      ref: STAGING_SUPABASE_PROJECT_REF,
+      nonce: NONCE,
+      iat: NOW - 10,
+      exp: NOW + 600,
+      hmacSha256Hex,
+    }),
+  /signing key/
+);
+assert.throws(
+  () =>
+    mintLoadtestJwt({
+      key: KEY,
+      sub: ['loadtest-user-1-1'],
+      ref: STAGING_SUPABASE_PROJECT_REF,
+      nonce: NONCE,
+      iat: NOW - 10,
+      exp: NOW + 600,
+      hmacSha256Hex,
+    }),
+  /subject/
+);
 
 const direct = verifyLoadtestJwt({ token, key: KEY, now: NOW, hmacSha256Hex });
 assert.equal(direct.ok, true);
@@ -169,6 +217,8 @@ assert.equal(userForVu(users, 0).sub, 'loadtest-user-1-1');
 assert.equal(userForVu(users, 5).sub, 'loadtest-user-1-2');
 assert.throws(() => parseLoadtestUsers(''), /LOADTEST_USERS is not set/);
 assert.throws(() => parseLoadtestUsers(JSON.stringify([{ sub: 'did:privy:abc', profileId: 1 }])), /seeded user/);
+assert.throws(() => parseLoadtestUsers(JSON.stringify([{ sub: 'loadtest-user-5001-1' }])), /seeded user/);
+assert.equal(parseLoadtestUsers(JSON.stringify([{ sub: 'loadtest-user-1-1' }]))[0].sub, 'loadtest-user-1-1');
 assert.throws(() => userForVu([], 0), /no seeded users/);
 
 const previous = {
@@ -179,6 +229,8 @@ const previous = {
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
   NODE_ENV: process.env.NODE_ENV,
   AUTH_STRICT: process.env.AUTH_STRICT,
+  NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+  PRIVY_APP_ID: process.env.PRIVY_APP_ID,
 };
 function setEnv(name: string, value: string | undefined) {
   if (value === undefined) delete process.env[name];
@@ -193,6 +245,31 @@ async function routeChecks() {
   setEnv('AUTH_STRICT', '1');
   setEnv('NEXT_PUBLIC_PRIVY_APP_ID', undefined);
   setEnv('PRIVY_APP_ID', undefined);
+
+  // Calls requireVerifiedUser, which reads process.env. Forcing preview inside
+  // api-auth.ts would accept this token and fail these assertions.
+  const bearer = new NextRequest('http://localhost/api/anywhere', {
+    headers: { Authorization: `Bearer ${live}` },
+  });
+  for (const [name, value] of Object.entries(stagingEnv({ VERCEL_ENV: 'production' }))) setEnv(name, value);
+  const productionUser = await requireVerifiedUser(bearer);
+  assert.equal(productionUser.ok, false);
+  if (!productionUser.ok) {
+    assert.equal(productionUser.status, 401);
+    assert.equal(JSON.stringify(productionUser).includes(KEY), false);
+  }
+  for (const [name, value] of Object.entries(stagingEnv())) setEnv(name, value);
+  setEnv('VERCEL_ENV', undefined);
+  const unsetUser = await requireVerifiedUser(
+    new NextRequest('http://localhost/api/anywhere', {
+      headers: { Authorization: `Bearer ${live}` },
+    })
+  );
+  assert.equal(unsetUser.ok, false);
+  if (!unsetUser.ok) {
+    assert.equal(unsetUser.status, 401);
+    assert.equal(JSON.stringify(unsetUser).includes(KEY), false);
+  }
 
   const closedEnv = stagingEnv({ VERCEL_ENV: 'production' });
   for (const [name, value] of Object.entries(closedEnv)) setEnv(name, value);
