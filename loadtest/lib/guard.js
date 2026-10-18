@@ -196,12 +196,17 @@ export function prepareRun({ baseUrl, allowedHosts, expectProjectRef, get }) {
 }
 
 export function watchResponse(res, abort) {
-  const body = res && (res.body ?? res);
-  const headers = res && res.headers;
-  if (responseCarriesProductionRef(headers, body)) {
-    const stop = abort || ((message) => {
-      throw new Error(message);
-    });
+  const stop = abort || ((message) => {
+    throw new Error(message);
+  });
+  if (res == null) {
+    stop('Refusing to continue: a response contained the production project ref');
+    return;
+  }
+  // A null body is empty. Do not substitute the response object: that would
+  // scan exempt headers as body text and skip the report-only exemption.
+  const body = res.body == null ? '' : res.body;
+  if (responseCarriesProductionRef(res.headers, body)) {
     stop('Refusing to continue: a response contained the production project ref');
   }
 }

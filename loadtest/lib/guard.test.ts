@@ -299,6 +299,33 @@ headerList.set('Content-Security-Policy-Report-Only', reportOnlyCsp);
 watchResponse({ status: 200, body: '{"ok":true}', headers: headerList }, () => {
   throw new Error('report-only CSP header list must not abort');
 });
+watchResponse(
+  { status: 200, body: null, headers: { 'Content-Security-Policy-Report-Only': reportOnlyCsp } },
+  () => {
+    throw new Error('null body must not skip the report-only exemption');
+  }
+);
+let reportingAborted = '';
+watchResponse(
+  {
+    status: 200,
+    body: null,
+    headers: {
+      'Content-Security-Policy-Report-Only': reportOnlyCsp,
+      'Reporting-Endpoints': `default="https://${prodRef}.supabase.co/csp"`,
+    },
+  },
+  (message: string) => {
+    reportingAborted = message;
+  }
+);
+assert.match(reportingAborted, /production project ref/);
+let missingAborted = '';
+watchResponse(null, (message: string) => {
+  missingAborted = message;
+});
+assert.match(missingAborted, /production project ref/);
+assert.throws(() => watchResponse(undefined), /production project ref/);
 
 function refusesProduction(headers: Record<string, string>) {
   const fake = countGet(
@@ -330,6 +357,10 @@ refusesProduction({
 });
 refusesProduction({
   'Report-To': `https://${prodRef}.supabase.co`,
+});
+refusesProduction({
+  'Content-Security-Policy-Report-Only': reportOnlyCsp,
+  'Reporting-Endpoints': `https://${prodRef}.supabase.co`,
 });
 const bodyHasRef = countGet(
   JSON.stringify({ projectRef: expectRef, stage: 'staging', note: prodRef }),
