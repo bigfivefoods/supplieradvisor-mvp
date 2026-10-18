@@ -28,6 +28,7 @@ const PUBLIC_EXACT = new Set([
   '/api/invites/validate',
   '/api/paystack/webhook',
   '/api/billing/webhook',
+  '/api/loadtest/whoami',
 ]);
 
 /**
