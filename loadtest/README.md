@@ -51,4 +51,4 @@ Pass `LOADTEST_SIGNING_KEY` into k6 from the environment. Do not echo the expand
 
 ## Not verified here
 
-`k6 run` was not pointed at the staging preview. The preflight, including the report-only CSP exemption, was tested with a fake response, not against a deployment.
+`k6 run` was not pointed at the staging preview or any other live host. The preflight, including the report-only CSP exemption, was tested with a fake response, not against a deployment. The staging sign-in was tested in process, not against the staging preview.
