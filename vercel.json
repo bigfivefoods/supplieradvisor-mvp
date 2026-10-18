@@ -1,5 +1,5 @@
 {
-  "regions": ["lhr1"],
+  "regions": ["cpt1"],
   "crons": [
     {
       "path": "/api/customers/invites/expire",
