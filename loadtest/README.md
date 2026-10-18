@@ -35,6 +35,20 @@ k6 run \
 
 A production URL exits non-zero and sends no request. An empty allow-list does the same.
 
+## Staging sign-in
+
+Authenticated k6 scenarios use `loadtest/scenarios/authed.js`. It mints a short-lived HMAC token with `LOADTEST_SIGNING_KEY` from the environment and sends it as `Authorization: Bearer`. The key is not printed.
+
+The server accepts that token only when all of these are true: `VERCEL_ENV=preview`, both Supabase URLs are staging ref `wpchtkfkaavcjyfgmktn`, `LOADTEST_ENDPOINTS=1`, and `LOADTEST_SIGNING_KEY` is at least 32 characters. `VERCEL_ENV=production` refuses before the key is used. No other variable turns it on. Privy verification is unchanged for every other token.
+
+`LOADTEST_USERS` is a JSON list of the seeded users the scenario may call, with the `profile_id` values read from `business_users` after a seed. The mapped subjects are `loadtest-user-1-1`, `loadtest-user-1-2`, `loadtest-user-2-1`, and `loadtest-user-3-1`. A token subject must match `loadtest-user-<company>-<index>`. It cannot name a Privy user. `profile_id` is a required claim. Company access still goes through the existing membership check.
+
+Tokens carry `exp` at most one hour after `iat`, a nonce, and `ref` equal to the staging project. Expired tokens, a wrong key, a wrong ref, and missing claims are rejected. The same token can be replayed until `exp`. There is no cross-instance nonce denylist.
+
+A leaked `LOADTEST_SIGNING_KEY` can mint those tokens on the staging preview only. It cannot turn the verifier on in production, and it is not a Privy signing key.
+
+Pass `LOADTEST_SIGNING_KEY` into k6 from the environment. Do not echo the expanded command and do not write the key into a file in this repo. `loadtest/scenarios/authed.js` reads `__ENV.LOADTEST_SIGNING_KEY` and `__ENV.LOADTEST_USERS`. The smoke profile does not call that scenario. This repository does not run k6 in CI.
+
 ## Not verified here
 
 `k6 run` was not pointed at the staging preview. The preflight, including the report-only CSP exemption, was tested with a fake response, not against a deployment.
