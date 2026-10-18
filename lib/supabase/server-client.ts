@@ -4,6 +4,7 @@
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { countedFetch } from '@/lib/observability/request-timing';
+import { assertDeploymentEnv } from '@/lib/system/env-guard';
 
 let client: SupabaseClient | null = null;
 let pooledFetch: typeof fetch | null = null;
@@ -70,6 +71,8 @@ export function getSupabaseServer(): SupabaseClient {
       'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY'
     );
   }
+
+  assertDeploymentEnv({ supabaseUrl: url });
 
   client = createClient(url, serviceKey, {
     auth: {

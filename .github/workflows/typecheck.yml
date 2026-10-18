@@ -211,6 +211,10 @@ jobs:
           do
             npx --yes tsx "$file"
           done
+      - name: Brief 122 D0 preview guard tests
+        run: |
+          set -euo pipefail
+          npx --yes tsx lib/system/env-guard.test.ts
 
   trade-portal-db:
     name: trade portal Postgres
