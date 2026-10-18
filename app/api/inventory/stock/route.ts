@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing-server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { warehouseAtLabel } from '@/lib/inventory/types';
 
 /** GET live stock — levels + totals + by location + by product */
 export async function GET(request: NextRequest) {
+  return withRequestTiming('/api/inventory/stock', request, () => stockGet(request));
+}
+
+async function stockGet(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const warehouseIdFilter = request.nextUrl.searchParams.get('warehouseId');
@@ -514,6 +519,10 @@ function emptySummary(asOf: string) {
  * Body: { companyId, productId, warehouseId, quantity, movement_type, notes?, toWarehouseId? }
  */
 export async function POST(request: NextRequest) {
+  return withRequestTiming('/api/inventory/stock', request, () => stockPost(request));
+}
+
+async function stockPost(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);

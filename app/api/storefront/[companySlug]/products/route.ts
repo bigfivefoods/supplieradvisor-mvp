@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing-server';
 import {
   listStoreProducts,
   resolveStoreCompany,
@@ -12,6 +13,15 @@ import { rateLimit, clientIp } from '@/lib/http/rate-limit';
  * Stable contract: { seller, storeUrl, updatedAt, products: [...] }
  */
 export async function GET(
+  request: NextRequest,
+  ctx: { params: Promise<{ companySlug: string }> | { companySlug: string } }
+) {
+  return withRequestTiming('/api/storefront/:companySlug/products', request, () =>
+    storefrontProductsGet(request, ctx)
+  );
+}
+
+async function storefrontProductsGet(
   request: NextRequest,
   ctx: { params: Promise<{ companySlug: string }> | { companySlug: string } }
 ) {

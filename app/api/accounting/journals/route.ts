@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing-server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import {
@@ -25,6 +26,10 @@ import { invalidateAccountingReads } from '@/lib/accounting/read-cache';
 
 /** GET ?companyId=&status= */
 export async function GET(request: NextRequest) {
+  return withRequestTiming('/api/accounting/journals', request, () => journalsGet(request));
+}
+
+async function journalsGet(request: NextRequest) {
   try {
     const companyId = parseCompanyId(request.nextUrl.searchParams.get('companyId'));
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
@@ -117,6 +122,10 @@ export async function GET(request: NextRequest) {
  * body: { companyId, entry_date, memo, status, lines: [{ account_id, debit, credit, memo }] }
  */
 export async function POST(request: NextRequest) {
+  return withRequestTiming('/api/accounting/journals', request, () => journalsPost(request));
+}
+
+async function journalsPost(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = parseCompanyId(body.companyId);

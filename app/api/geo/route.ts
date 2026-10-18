@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing-server';
 import {
   loadContinents,
   loadCountries,
@@ -15,6 +16,10 @@ import {
  * Public reference data — no auth required (read-only geo lookup tables).
  */
 export async function GET(request: NextRequest) {
+  return withRequestTiming('/api/geo', request, () => geoGet(request));
+}
+
+async function geoGet(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
     const resource = String(sp.get('resource') || 'bootstrap').toLowerCase();

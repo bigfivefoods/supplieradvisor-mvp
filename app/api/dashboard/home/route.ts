@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing-server';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { jsonKpi } from '@/lib/http/response-cache';
 import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
@@ -13,6 +14,10 @@ import {
  * GET ?companyId=  (same body as POST /api/dashboard/summary)
  */
 export async function GET(request: NextRequest) {
+  return withRequestTiming('/api/dashboard/home', request, () => dashboardHomeGet(request));
+}
+
+async function dashboardHomeGet(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     if (!Number.isFinite(companyId) || companyId <= 0) {

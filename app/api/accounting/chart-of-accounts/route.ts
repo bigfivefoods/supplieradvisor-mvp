@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing-server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { ensureDefaultCoa, parseCompanyId } from '@/lib/accounting/server';
@@ -44,6 +45,10 @@ async function companyDisplayName(companyId: number): Promise<string> {
 
 /** GET ?companyId=&from=&to=&type=&q=&format=xlsx — list CoA, or download the period slice */
 export async function GET(request: NextRequest) {
+  return withRequestTiming('/api/accounting/chart-of-accounts', request, () => chartOfAccountsGet(request));
+}
+
+async function chartOfAccountsGet(request: NextRequest) {
   try {
     const companyId = parseCompanyId(request.nextUrl.searchParams.get('companyId'));
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
@@ -196,6 +201,10 @@ export async function GET(request: NextRequest) {
 
 /** POST — create account or seed defaults { companyId, seed: true } or account fields */
 export async function POST(request: NextRequest) {
+  return withRequestTiming('/api/accounting/chart-of-accounts', request, () => chartOfAccountsPost(request));
+}
+
+async function chartOfAccountsPost(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = parseCompanyId(body.companyId);

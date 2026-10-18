@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing-server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCustomersAccess } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
@@ -16,6 +17,10 @@ import {
 } from '@/lib/portals/supplier-portal-party';
 
 export async function GET(request: NextRequest) {
+  return withRequestTiming('/api/customers', request, () => customersGet(request));
+}
+
+async function customersGet(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
@@ -199,6 +204,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  return withRequestTiming('/api/customers', request, () => customersPost(request));
+}
+
+async function customersPost(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);

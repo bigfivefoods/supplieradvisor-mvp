@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { countedFetch } from '@/lib/observability/request-timing';
 
 let adminClient: SupabaseClient | null = null;
 
@@ -24,6 +25,9 @@ export function getSupabaseAdmin(): SupabaseClient {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+    },
+    global: {
+      fetch: countedFetch(fetch),
     },
   });
 

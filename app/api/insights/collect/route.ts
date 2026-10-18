@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withRequestTiming } from '@/lib/observability/request-timing-server';
 import type { NextRequest } from 'next/server';
 import { forwardInsights } from '@/lib/insights/forward';
 import { lookupNetwork } from '@/lib/insights/ipinfo';
@@ -48,6 +49,10 @@ function visitorAddress(request: NextRequest): string | null {
  * cached, logged, or forwarded.
  */
 export async function POST(request: NextRequest) {
+  return withRequestTiming('/api/insights/collect', request, () => insightsCollectPost(request));
+}
+
+async function insightsCollectPost(request: NextRequest) {
   if (
     insightsOptOut({
       doNotTrack: request.headers.get('dnt'),
