@@ -69,6 +69,12 @@ export function assertHostAllowed({ baseUrl, allowedHosts }) {
   if (isDeniedHost(host)) {
     throw new Error('Refusing to run: host is on the production deny list');
   }
+  if (String(baseUrl || '').toLowerCase().includes(PRODUCTION_PROJECT_REF)) {
+    throw new Error('Refusing to run: BASE_URL names the production project ref');
+  }
+  if (String(allowedHosts || '').toLowerCase().includes(PRODUCTION_PROJECT_REF)) {
+    throw new Error('Refusing to run: LOADTEST_ALLOWED_HOSTS names the production project ref');
+  }
   const allow = parseAllowList(allowedHosts);
   if (allow.length === 0) {
     throw new Error('Refusing to run: LOADTEST_ALLOWED_HOSTS is empty');
@@ -79,21 +85,36 @@ export function assertHostAllowed({ baseUrl, allowedHosts }) {
   return host;
 }
 
-export function headersToText(headers) {
-  if (!headers) return '';
+function headerEntries(headers) {
+  if (!headers) return [];
   if (typeof headers.forEach === 'function') {
-    const parts = [];
+    const entries = [];
     headers.forEach((value, key) => {
-      parts.push(`${key}: ${value}`);
+      entries.push([String(key), value]);
     });
-    if (parts.length) return parts.join('\n');
+    if (entries.length) return entries;
   }
-  if (typeof headers === 'object') {
-    return Object.entries(headers)
-      .map(([key, value]) => `${key}: ${value}`)
-      .join('\n');
-  }
-  return '';
+  if (typeof headers === 'object') return Object.entries(headers);
+  return [];
+}
+
+export function headersToText(headers) {
+  return headerEntries(headers)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n');
+}
+
+/**
+ * The staging preview's report-only Content-Security-Policy names the
+ * production Supabase host in connect-src. That header is not enforced.
+ * It is the only header skipped by the production-ref scan. The enforced
+ * Content-Security-Policy header, every other header, the body, and env
+ * values are still scanned.
+ */
+export const REPORT_ONLY_CSP_HEADER = 'content-security-policy-report-only';
+
+export function isReportOnlyCspHeader(name) {
+  return String(name || '').trim().toLowerCase() === REPORT_ONLY_CSP_HEADER;
 }
 
 function cleanRef(value) {
@@ -102,7 +123,11 @@ function cleanRef(value) {
 
 export function responseCarriesProductionRef(headers, body) {
   const text = body == null ? '' : typeof body === 'string' ? body : JSON.stringify(body);
-  const haystack = `${text}\n${headersToText(headers)}`.toLowerCase();
+  const headerText = headerEntries(headers)
+    .filter(([key]) => !isReportOnlyCspHeader(key))
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n');
+  const haystack = `${text}\n${headerText}`.toLowerCase();
   return haystack.includes(PRODUCTION_PROJECT_REF);
 }
 

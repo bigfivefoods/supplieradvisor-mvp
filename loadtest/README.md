@@ -15,7 +15,7 @@ CI workflows do not run k6. Do not add a workflow that does. A run needs a named
 - `LOADTEST_EXPECT_PROJECT_REF` is set and is not the production ref.
 - A preflight `GET` to `/api/loadtest/whoami` returns HTTP 200 with `stage: "staging"` and `projectRef` equal to `LOADTEST_EXPECT_PROJECT_REF`. The server ref and the public ref must be the same value. A trailing dot on a host is stripped before the deny list and the allow-list. The allow-list is an exact host match.
 
-During a run, any response header or body that contains the production project ref aborts the run.
+During a run, any response header or body that contains the production project ref aborts the run. The one exception is the report-only `Content-Security-Policy-Report-Only` header. The staging preview sends that header with the production Supabase host in `connect-src`, and the header is not enforced. The enforced `Content-Security-Policy` header is still scanned. Any other header, the body, `BASE_URL`, `LOADTEST_ALLOWED_HOSTS`, and `LOADTEST_EXPECT_PROJECT_REF` still abort the run when they name the production project ref.
 
 The profiles (`smoke`, `baseline`, `step`, `soak`, `spike`, `breakpoint`) only call that whoami route after the guard. They do not log in and they do not write. The weighted mixes (login, dashboard, lists, writes, imports, public pages, webhooks, crons) belong in a later scenarios change.
 
@@ -37,4 +37,4 @@ A production URL exits non-zero and sends no request. An empty allow-list does t
 
 ## Not verified here
 
-No staging project was available. The preflight was tested with a fake response, not against a deployment. `k6 run` was not pointed at any live host.
+`k6 run` was not pointed at the staging preview. The preflight, including the report-only CSP exemption, was tested with a fake response, not against a deployment.

@@ -26,10 +26,25 @@ The SQL files do not contain the guard. Do not pipe them to `psql` yourself.
 
 ```bash
 node scripts/loadtest/seed.mjs
+node scripts/loadtest/seed.mjs --dry-run --preset small
 node scripts/loadtest/seed.mjs --apply --expect-ref <staging-ref> --profile s1 --batch s1
+node scripts/loadtest/seed.mjs --apply --expect-ref <staging-ref> --preset small --batch small
 node scripts/loadtest/seed.mjs --apply --expect-ref <staging-ref> --profile s2 --batch s2
+node scripts/loadtest/seed.mjs --dry-run --companies 100 --users 400 --activity-per-company 10
 node scripts/loadtest/seed-teardown.mjs --batch s1
 ```
+
+## Size
+
+The default shape is unchanged: 5,000 companies and the user buckets below. Do not copy the script to change the size.
+
+`--preset small` is **500 companies**, **2,500 users** (5 per company), and **20** `activity_log` rows per company.
+
+`--companies`, `--users`, and `--activity-per-company` override that preset. `--users` is the total, not a per-company count. An explicit flag wins over the preset. Caps are 1–5,000 companies, users from one per company up to 20 per company, and 1–20,000 activity rows per company.
+
+Other tables keep the per-company base (including the four whales at 100×). The preset does not turn those volumes off. A dry run prints the row counts before anything connects.
+
+These flags do not relax the refusals below. `--apply` still needs `--expect-ref`. `CI` and `VERCEL` still refuse. The production project ref is still refused.
 
 The default is a dry run and does not connect. A write needs `--apply` and `--expect-ref`. That argument must match `SEED_TARGET_PROJECT_REF`, `LOADTEST_EXPECT_PROJECT_REF`, and the project ref decoded from `SEED_DATABASE_URL` (`postgres.<ref>` or `db.<ref>.supabase.co`). Percent-encoding, trailing dots, uppercase, and surrounding spaces are normalised before the check. The process refuses when `CI` or `VERCEL` is set.
 
@@ -40,6 +55,8 @@ The default is a dry run and does not connect. A write needs `--apply` and `--ex
 ## What the rows look like
 
 5,000 company profiles, 500 peer profiles (10%), and `business_users` at 5, 8, or 20 per company. Median is 8, minimum is 5, and 250 companies (5%) have 20 users. That shape is **36,250 users**. S1 `activity_log` is about **107.9 million** rows. The brief said 25,000 users for S1 and 100,000 for S2. Those figures cannot be true at the same time as median 8, minimum 5, and 5% at 20 across 5,000 companies. This generator follows the shape the unit tests name and does not force 25,000 or 100,000. Craig must sign off before anyone runs it. S1 and S2 use the same user shape. S2 scales transactional volumes (x3, with a heavy tail at x10 of the S1 base, and four whales at 100x that profile's typical volume).
+
+`profiles.created_at` is written on every company and peer row. On the staging project that column is `NOT NULL` and has no default. The pinned column list in `scripts/loadtest/schema/not-null-columns.json` is what the unit test checks: a `NOT NULL` column without a default, and that is not an identity column, must appear in every `INSERT` for the tables this seed writes.
 
 Emails are only `*@loadtest.invalid`. Phones use the unassigned `+999` prefix. Names are generated. No production rows are copied.
 
@@ -53,6 +70,6 @@ Geo rows and a full chart-of-accounts template need the D1 dump, which is not in
 
 This change did not execute the seed or the teardown against a database. There is no staging project in this environment. Activity-log volume alone is on the order of 100 million rows for S1, so a full run was not attempted locally. The "under 30 minutes on a Large staging DB" check is not recorded.
 
-Column lists are taken from migrations in the repo, not from a live schema dump. The assessment notes drift between applied migrations and files. A staging run can fail on a missing or extra NOT NULL column. The script is one transaction, so that failure rolls back. Do not treat a green unit test as a completed seed.
+`scripts/loadtest/schema/not-null-columns.json` is a read-only `information_schema` extract of `NOT NULL` columns on staging ref `wpchtkfkaavcjyfgmktn` (2026-10-18). It is not a migration and it was not produced by running this seed. A later staging column change can still fail the insert. The script is one transaction, so that failure rolls back. Do not treat a green unit test as a completed seed.
 
 `bank_transactions.bank_account_id` is NOT NULL in the migration that creates the table, so the seed also inserts one marked `bank_accounts` row per company.
