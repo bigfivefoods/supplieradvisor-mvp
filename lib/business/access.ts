@@ -33,6 +33,38 @@ const membershipMemo = new Map<
   { at: number; value: Promise<MembershipOk | MembershipFail> }
 >();
 
+const MEMBERSHIP_COLUMNS =
+  'id, user_id, profile_id, status, role, email, name, invited_email, permissions';
+
+/**
+ * One PostgREST embed on business_users.profile_id → profiles.deleted_at.
+ * Production has two identical foreign keys, so the relationship name is required.
+ * Without it PostgREST returns PGRST201 and the read falls back to two queries.
+ */
+export const MEMBERSHIP_EMBED_SELECT = `${MEMBERSHIP_COLUMNS}, profiles!business_users_profile_id_fkey!inner(deleted_at)`;
+
+type MembershipDb = {
+  from: (table: string) => any;
+};
+
+let membershipClientForTests: MembershipDb | null = null;
+/** null = not yet known. false = this process already saw an ambiguous embed. */
+let membershipEmbedSupported: boolean | null = null;
+
+/** Unit tests inject a fake. Production leaves this null. */
+export function setMembershipClientForTests(client: MembershipDb | null): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Membership test client cannot be installed in production');
+  }
+  membershipClientForTests = client;
+  membershipMemo.clear();
+  membershipEmbedSupported = null;
+}
+
+function membershipDb(): MembershipDb {
+  return membershipClientForTests || getSupabaseServer();
+}
+
 export function invalidateCompanyMembershipMemo(opts?: {
   companyId?: number;
   userId?: string | null;
@@ -88,55 +120,48 @@ export async function getCompanyMembership(
   return value;
 }
 
-async function loadCompanyMembership(
-  userId: string,
-  companyId: number
-): Promise<MembershipOk | MembershipFail> {
-  const supabase = getSupabaseServer();
-  const variants = userIdMatchVariants(userId);
+type MembershipRow = {
+  id: number;
+  role?: string;
+  status?: string;
+  email?: string | null;
+  invited_email?: string | null;
+  name?: string | null;
+  permissions?: unknown;
+  profiles?: { deleted_at?: string | null } | Array<{ deleted_at?: string | null }> | null;
+};
 
-  const { data, error } = await supabase
-    .from('business_users')
-    .select(
-      'id, user_id, profile_id, status, role, email, name, invited_email, permissions'
-    )
-    .eq('profile_id', companyId)
-    .eq('status', 'active')
-    .in('user_id', variants)
-    .limit(1);
+function embedUnsupported(error: { message?: string; code?: string } | null | undefined): boolean {
+  if (!error) return false;
+  const msg = `${error.code || ''} ${error.message || ''}`;
+  return /PGRST200|PGRST201|relationship|embedded resource|schema cache|could not find/i.test(msg);
+}
 
-  if (error) {
-    console.error('getCompanyMembership error:', error);
-    return { ok: false, error: 'Failed to verify company membership', status: 500 };
-  }
+/** 'missing' means the embed payload has no profile object, which is not "not deleted". */
+function deletedAtOf(row: MembershipRow | null | undefined): string | null | 'missing' {
+  if (!row || !Object.prototype.hasOwnProperty.call(row, 'profiles')) return 'missing';
+  const embedded = row.profiles;
+  if (embedded == null) return 'missing';
+  const prof = Array.isArray(embedded) ? embedded[0] : embedded;
+  if (!prof || typeof prof !== 'object') return 'missing';
+  const del = prof.deleted_at;
+  if (del == null || del === '') return null;
+  return String(del);
+}
 
-  if (!data || data.length === 0) {
-    return { ok: false, error: 'You are not an active member of this company', status: 403 };
-  }
+function notMember(): MembershipFail {
+  return { ok: false, error: 'You are not an active member of this company', status: 403 };
+}
 
-  // Soft-deleted companies cannot be used
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('deleted_at')
-    .eq('id', companyId)
-    .maybeSingle();
-  if (prof?.deleted_at) {
-    return {
-      ok: false,
-      error: 'This company has been deleted',
-      status: 410,
-    };
-  }
+function deletedCompany(): MembershipFail {
+  return { ok: false, error: 'This company has been deleted', status: 410 };
+}
 
-  const row = data[0] as {
-    id: number;
-    role?: string;
-    status?: string;
-    email?: string | null;
-    invited_email?: string | null;
-    name?: string | null;
-    permissions?: unknown;
-  };
+function verifyFailed(): MembershipFail {
+  return { ok: false, error: 'Failed to verify company membership', status: 500 };
+}
+
+function membershipFromRow(userId: string, row: MembershipRow): MembershipOk {
   const memberId = Number(row.id);
   touchMemberActivity(memberId);
   return {
@@ -151,6 +176,67 @@ async function loadCompanyMembership(
   };
 }
 
+async function loadMembershipFallback(
+  supabase: MembershipDb,
+  userId: string,
+  companyId: number,
+  variants: string[]
+): Promise<MembershipOk | MembershipFail> {
+  const [members, prof] = await Promise.all([
+    supabase
+      .from('business_users')
+      .select(MEMBERSHIP_COLUMNS)
+      .eq('profile_id', companyId)
+      .eq('status', 'active')
+      .in('user_id', variants)
+      .limit(1),
+    supabase.from('profiles').select('deleted_at').eq('id', companyId).maybeSingle(),
+  ]);
+  if (members.error || prof.error) {
+    console.error('getCompanyMembership error:', members.error || prof.error);
+    return verifyFailed();
+  }
+  const rows = (members.data || []) as MembershipRow[];
+  if (!rows.length) return notMember();
+  if (prof?.data?.deleted_at) return deletedCompany();
+  return membershipFromRow(userId, rows[0]);
+}
+
+async function loadCompanyMembership(
+  userId: string,
+  companyId: number
+): Promise<MembershipOk | MembershipFail> {
+  const supabase = membershipDb();
+  const variants = userIdMatchVariants(userId);
+
+  if (membershipEmbedSupported !== false) {
+    const embedded = await supabase
+      .from('business_users')
+      .select(MEMBERSHIP_EMBED_SELECT)
+      .eq('profile_id', companyId)
+      .eq('status', 'active')
+      .in('user_id', variants)
+      .limit(1);
+
+    if (embedded.error && embedUnsupported(embedded.error)) {
+      membershipEmbedSupported = false;
+    } else if (embedded.error) {
+      console.error('getCompanyMembership error:', embedded.error);
+      return verifyFailed();
+    } else {
+      membershipEmbedSupported = true;
+      const rows = (embedded.data || []) as MembershipRow[];
+      if (!rows.length) return notMember();
+      const deletedAt = deletedAtOf(rows[0]);
+      if (deletedAt === 'missing') return verifyFailed();
+      if (deletedAt) return deletedCompany();
+      return membershipFromRow(userId, rows[0]);
+    }
+  }
+
+  return loadMembershipFallback(supabase, userId, companyId, variants);
+}
+
 const ACTIVITY_TOUCH_MS = 5 * 60 * 1000;
 const activityTouchMemo = new Map<number, number>();
 
@@ -163,7 +249,7 @@ function touchMemberActivity(memberId: number): void {
   activityTouchMemo.set(memberId, now);
   void (async () => {
     try {
-      const supabase = getSupabaseServer();
+      const supabase = membershipDb();
       const stamp = new Date().toISOString();
       await supabase
         .from('business_users')
