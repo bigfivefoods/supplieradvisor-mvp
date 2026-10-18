@@ -16,6 +16,7 @@ import {
   referredByInsertField,
 } from '@/lib/billing/supply-chain-referral';
 import { ensureTrialForClaimedProfile, trialWindow } from '@/lib/onboarding/profile-writes';
+import { profileEmailForWrite } from '@/lib/profiles/email-match';
 
 /** Stuck claiming lease — only same-user restore after this age (matches design reaper window). */
 const CLAIMING_STALE_MS = 5 * 60 * 1000;
@@ -211,7 +212,7 @@ export async function POST(request: NextRequest) {
         claimed_at: now,
         contact_name: name || profile.contact_name,
         contact_phone: phone || profile.contact_phone,
-        email: normalizedEmail || profile.email,
+        email: profileEmailForWrite(normalizedEmail, profile.email),
         invite_token: null,
         user_id: userId,
         is_discoverable: profile.is_discoverable !== false,
@@ -843,7 +844,7 @@ async function claimCustomerInvite(opts: {
           .insert({
             trading_name: tradingName,
             legal_name: legalName,
-            email: inviteEmail,
+            email: profileEmailForWrite(inviteEmail),
             contact_name: contactName,
             contact_phone: contactPhone,
             website: customer.website || null,

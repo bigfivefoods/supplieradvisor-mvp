@@ -4,6 +4,10 @@ import { randomUUID } from 'crypto';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { rateLimit, clientIp } from '@/lib/http/rate-limit';
 import { requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  profileEmailEqValues,
+  profileEmailForWrite,
+} from '@/lib/profiles/email-match';
 
 export async function POST(request: NextRequest) {
   const gate = await requireVerifiedUser(request);
@@ -46,14 +50,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const email = String(contact_email).toLowerCase().trim();
-    const { data: existingInvited } = await supabase
+    const email = profileEmailForWrite(contact_email) ?? '';
+    const emailValues = profileEmailEqValues(contact_email);
+    let invitedQuery = supabase
       .from('profiles')
       .select('id, invite_token, supplier_status')
-      .eq('email', email)
-      .eq('supplier_status', 'invited')
-      .limit(1)
-      .maybeSingle();
+      .eq('supplier_status', 'invited');
+    invitedQuery =
+      emailValues.length > 1
+        ? invitedQuery.in('email', emailValues)
+        : invitedQuery.eq('email', emailValues[0] || email || '');
+    const { data: existingInvited } = await invitedQuery.limit(1).maybeSingle();
 
     const inviteToken = existingInvited?.invite_token
       ? String(existingInvited.invite_token)

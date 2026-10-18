@@ -14,6 +14,7 @@ import {
   BIG_FIVE_FOODS_SEED,
   BIG_FIVE_FOODS_SLUG,
 } from '@/lib/storefront/big-five-foods-seed';
+import { persistStorefrontCatalog } from '@/lib/storefront/catalog';
 
 /**
  * GET ?companyId= — catalogue picker rows + current storefront allowlist.
@@ -153,36 +154,12 @@ export async function PATCH(request: NextRequest) {
       })
     );
 
-    const supabase = getSupabaseServer();
-    const { data: row, error: loadErr } = await supabase
-      .from('profiles')
-      .select('id, metadata')
-      .eq('id', companyId)
-      .maybeSingle();
-
-    if (loadErr) {
-      return NextResponse.json({ error: loadErr.message }, { status: 500 });
+    const saveError = await persistStorefrontCatalog(getSupabaseServer(), companyId, pick);
+    if (saveError === 'Company not found') {
+      return NextResponse.json({ error: saveError }, { status: 404 });
     }
-    if (!row) {
-      return NextResponse.json({ error: 'Company not found' }, { status: 404 });
-    }
-
-    const prev =
-      row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
-        ? { ...(row.metadata as Record<string, unknown>) }
-        : {};
-    prev.storefront_catalog = pick;
-
-    const { error: saveErr } = await supabase
-      .from('profiles')
-      .update({
-        metadata: prev,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', companyId);
-
-    if (saveErr) {
-      return NextResponse.json({ error: saveErr.message }, { status: 500 });
+    if (saveError) {
+      return NextResponse.json({ error: saveError }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, catalog: pick });
