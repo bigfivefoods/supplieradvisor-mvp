@@ -8,8 +8,8 @@ CREATE INDEX IF NOT EXISTS idx_nsnp_products_agency_active
   ON public.nsnp_approved_products (agency_profile_id, active)
   WHERE active IS DISTINCT FROM false;
 
-CREATE INDEX IF NOT EXISTS idx_nsnp_recipes_agency_active
-  ON public.nsnp_recipes (agency_profile_id, active);
+-- idx_nsnp_recipes_agency_active was removed on 2026-10-19. It duplicated
+-- idx_nsnp_recipes_agency from 20260728_nsnp_recipes_mrp.sql.
 
 CREATE INDEX IF NOT EXISTS idx_school_pos_isp_status
   ON public.school_purchase_orders (isp_profile_id, status);
@@ -72,6 +72,8 @@ $$;
 
 REVOKE ALL ON FUNCTION public.sa_nsnp_agency_summary(bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_agency_summary(bigint) TO service_role;
+-- 20261027_brief122_b6_lockdown_definer_rpcs.sql revokes this authenticated
+-- grant. Re-running this file after B6 opens the function again.
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_agency_summary(bigint) TO authenticated;
 
 COMMENT ON FUNCTION public.sa_nsnp_agency_summary(bigint) IS

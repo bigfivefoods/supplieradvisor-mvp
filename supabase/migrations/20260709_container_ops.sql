@@ -153,7 +153,8 @@ EXCEPTION WHEN others THEN
 END $$;
 
 SELECT public.sa_create_index('idx_container_inventory_container', 'container_inventory', 'container_id');
-SELECT public.sa_create_index('idx_container_inventory_profile', 'container_inventory', 'profile_id');
+-- idx_container_inventory_profile was removed on 2026-10-19. It duplicated
+-- idx_container_inv_profile from 20260907_security_reliability_speed.sql.
 
 -- ---------------------------------------------------------------------------
 -- container_orders

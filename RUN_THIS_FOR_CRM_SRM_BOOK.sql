@@ -66,17 +66,17 @@ EXCEPTION WHEN others THEN
   RAISE NOTICE 'srm_suppliers region backfill skip: %', SQLERRM;
 END $$;
 
--- Hot-path indexes (list + search + portal lookup)
-CREATE INDEX IF NOT EXISTS idx_customers_profile_name
-  ON public.customers (profile_id, trading_name);
+-- Hot-path indexes (list + search + portal lookup).
+-- idx_customers_profile_name was removed on 2026-10-19. It duplicated
+-- customers_profile_trading_name from 20260915_brief11_dashboard_home.sql.
 CREATE INDEX IF NOT EXISTS idx_customers_profile_updated
   ON public.customers (profile_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_customers_linked_profile
   ON public.customers (linked_profile_id)
   WHERE linked_profile_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_srm_suppliers_profile_updated
-  ON public.srm_suppliers (profile_id, updated_at DESC);
+-- idx_srm_suppliers_profile_updated was removed on 2026-10-19. It duplicated
+-- srm_suppliers_profile_updated_desc from 20260915_brief11_dashboard_home.sql.
 CREATE INDEX IF NOT EXISTS idx_srm_suppliers_linked
   ON public.srm_suppliers (linked_profile_id)
   WHERE linked_profile_id IS NOT NULL;
