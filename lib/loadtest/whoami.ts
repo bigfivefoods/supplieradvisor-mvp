@@ -1,3 +1,5 @@
+import { supabaseProjectRefFromUrl } from '@/lib/system/env-guard';
+
 /**
  * Inert load-test identity. 404 unless LOADTEST_ENDPOINTS=1.
  * Also 404 when either Supabase URL is the production project, or the two
@@ -10,6 +12,10 @@
 
 export const PRODUCTION_PROJECT_REF = 'onkklullmgrdqoertngp';
 
+export function projectRefFromSupabaseUrl(url: string): string {
+  return supabaseProjectRefFromUrl(url);
+}
+
 export type WhoamiBody =
   | { error: string }
   | {
@@ -18,34 +24,6 @@ export type WhoamiBody =
       publicProjectRef: string;
       stage: 'staging';
     };
-
-export function projectRefFromSupabaseUrl(url: string): string {
-  const trimmed = String(url || '').trim();
-  if (!trimmed) return '';
-  let parsed: URL;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    return '';
-  }
-  const host = parsed.hostname.toLowerCase().replace(/\.+$/, '');
-  let user = '';
-  try {
-    user = decodeURIComponent(parsed.username || '').trim().toLowerCase();
-  } catch {
-    user = String(parsed.username || '').trim().toLowerCase();
-  }
-  const fromUser = user.startsWith('postgres.') ? user.slice('postgres.'.length) : '';
-  const labels = host.split('.').filter(Boolean);
-  const supabaseHost =
-    labels.length >= 3 && labels[labels.length - 2] === 'supabase' && labels[labels.length - 1] === 'co';
-  let fromHost = '';
-  if (supabaseHost && !host.includes('pooler')) {
-    fromHost = labels[0] === 'db' && labels.length >= 4 ? labels[1] : labels[0];
-  }
-  if (fromUser && fromHost && fromUser !== fromHost) return '';
-  return fromUser || fromHost;
-}
 
 export function loadtestWhoami(env: {
   LOADTEST_ENDPOINTS?: string;

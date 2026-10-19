@@ -264,6 +264,136 @@ watchResponse({ status: 200, body: '{"ok":true}', headers: { 'x-ref': 'stagingre
   throw new Error('should not abort');
 });
 
+const reportOnlyCsp = `connect-src 'self' https://${prodRef}.supabase.co wss://${prodRef}.supabase.co`;
+const reportOnlyHeaders = {
+  'Content-Security-Policy-Report-Only': reportOnlyCsp,
+  'content-security-policy': "default-src 'self'",
+};
+const reportOnlyOk = countGet(
+  JSON.stringify({
+    projectRef: expectRef,
+    serverProjectRef: expectRef,
+    publicProjectRef: expectRef,
+    stage: 'staging',
+  }),
+  200,
+  reportOnlyHeaders
+);
+assert.equal(
+  prepareRun({
+    baseUrl: stagingUrl,
+    allowedHosts: stagingHost,
+    expectProjectRef: expectRef,
+    get: reportOnlyOk.get,
+  }),
+  expectRef
+);
+watchResponse(
+  { status: 200, body: '{"ok":true}', headers: { 'content-security-policy-report-only': reportOnlyCsp } },
+  () => {
+    throw new Error('report-only CSP must not abort');
+  }
+);
+const headerList = new Headers();
+headerList.set('Content-Security-Policy-Report-Only', reportOnlyCsp);
+watchResponse({ status: 200, body: '{"ok":true}', headers: headerList }, () => {
+  throw new Error('report-only CSP header list must not abort');
+});
+watchResponse(
+  { status: 200, body: null, headers: { 'Content-Security-Policy-Report-Only': reportOnlyCsp } },
+  () => {
+    throw new Error('null body must not skip the report-only exemption');
+  }
+);
+let reportingAborted = '';
+watchResponse(
+  {
+    status: 200,
+    body: null,
+    headers: {
+      'Content-Security-Policy-Report-Only': reportOnlyCsp,
+      'Reporting-Endpoints': `default="https://${prodRef}.supabase.co/csp"`,
+    },
+  },
+  (message: string) => {
+    reportingAborted = message;
+  }
+);
+assert.match(reportingAborted, /production project ref/);
+let missingAborted = '';
+watchResponse(null, (message: string) => {
+  missingAborted = message;
+});
+assert.match(missingAborted, /production project ref/);
+assert.throws(() => watchResponse(undefined), /production project ref/);
+
+function refusesProduction(headers: Record<string, string>) {
+  const fake = countGet(
+    JSON.stringify({ projectRef: expectRef, serverProjectRef: expectRef, publicProjectRef: expectRef, stage: 'staging' }),
+    200,
+    headers
+  );
+  assert.throws(
+    () =>
+      prepareRun({
+        baseUrl: stagingUrl,
+        allowedHosts: stagingHost,
+        expectProjectRef: expectRef,
+        get: fake.get,
+      }),
+    /production project ref/
+  );
+}
+refusesProduction({
+  'Content-Security-Policy': reportOnlyCsp,
+  'Content-Security-Policy-Report-Only': reportOnlyCsp,
+});
+refusesProduction({
+  'content-security-policy-report-only': reportOnlyCsp,
+  'x-supabase-url': `https://${prodRef}.supabase.co`,
+});
+refusesProduction({
+  'content-security-policy-report-only-extra': reportOnlyCsp,
+});
+refusesProduction({
+  'Report-To': `https://${prodRef}.supabase.co`,
+});
+refusesProduction({
+  'Content-Security-Policy-Report-Only': reportOnlyCsp,
+  'Reporting-Endpoints': `https://${prodRef}.supabase.co`,
+});
+const bodyHasRef = countGet(
+  JSON.stringify({ projectRef: expectRef, stage: 'staging', note: prodRef }),
+  200,
+  { 'Content-Security-Policy-Report-Only': reportOnlyCsp }
+);
+assert.throws(
+  () =>
+    prepareRun({
+      baseUrl: stagingUrl,
+      allowedHosts: stagingHost,
+      expectProjectRef: expectRef,
+      get: bodyHasRef.get,
+    }),
+  /production project ref/
+);
+assert.throws(
+  () =>
+    assertHostAllowed({
+      baseUrl: stagingUrl,
+      allowedHosts: `${stagingHost},${prodRef}.supabase.co`,
+    }),
+  /LOADTEST_ALLOWED_HOSTS names the production project ref/
+);
+assert.throws(
+  () =>
+    assertHostAllowed({
+      baseUrl: `${stagingUrl}/?db=${prodRef}`,
+      allowedHosts: stagingHost,
+    }),
+  /BASE_URL names the production project ref/
+);
+
 assert.equal(hostnameOf(`https://${apex}.`), apex);
 assert.equal(hostnameOf(`https://${www}.`), www);
 assert.equal(hostnameOf(`https://${alias}.`), alias);

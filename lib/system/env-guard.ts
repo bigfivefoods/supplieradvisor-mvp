@@ -5,6 +5,43 @@
  */
 export const PRODUCTION_SUPABASE_PROJECT_REF = 'onkklullmgrdqoertngp';
 
+/** Staging project used by the load-test sign-in gate. Not a production bypass. */
+export const STAGING_SUPABASE_PROJECT_REF = 'wpchtkfkaavcjyfgmktn';
+
+/**
+ * Project ref from a Supabase URL.
+ * postgres.<ref> on a pooler URL wins over the pooler host label.
+ * db.<ref>.supabase.co and <ref>.supabase.co are accepted.
+ * Empty when the user ref and the host ref disagree.
+ */
+export function supabaseProjectRefFromUrl(url: string): string {
+  const trimmed = String(url || '').trim();
+  if (!trimmed) return '';
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return '';
+  }
+  const host = parsed.hostname.toLowerCase().replace(/\.+$/, '');
+  let user = '';
+  try {
+    user = decodeURIComponent(parsed.username || '').trim().toLowerCase();
+  } catch {
+    user = String(parsed.username || '').trim().toLowerCase();
+  }
+  const fromUser = user.startsWith('postgres.') ? user.slice('postgres.'.length) : '';
+  const labels = host.split('.').filter(Boolean);
+  const supabaseHost =
+    labels.length >= 3 && labels[labels.length - 2] === 'supabase' && labels[labels.length - 1] === 'co';
+  let fromHost = '';
+  if (supabaseHost && !host.includes('pooler')) {
+    fromHost = labels[0] === 'db' && labels.length >= 4 ? labels[1] : labels[0];
+  }
+  if (fromUser && fromHost && fromUser !== fromHost) return '';
+  return fromUser || fromHost;
+}
+
 export const PAYMENT_KEY_ENV_NAMES = [
   'PAYSTACK_SECRET_KEY',
   'PAYSTACK_SECRET',

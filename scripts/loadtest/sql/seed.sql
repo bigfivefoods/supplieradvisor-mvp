@@ -38,7 +38,7 @@ CREATE TEMP TABLE loadtest_company (
 ) ON COMMIT DROP;
 
 WITH inserted AS (
-  INSERT INTO public.profiles (trading_name, legal_name, email, supplier_status, user_id, metadata)
+  INSERT INTO public.profiles (trading_name, legal_name, email, supplier_status, user_id, metadata, created_at)
   SELECT
     'Loadtest Company ' || n,
     'Loadtest Company ' || n || ' Legal',
@@ -54,7 +54,8 @@ WITH inserted AS (
         SELECT jsonb_agg('mod' || m ORDER BY m)
         FROM generate_series(1, 3 + ((n - 1) % 4)) AS m
       )
-    )
+    ),
+    TIMESTAMPTZ '2024-01-01 00:00:00+00'
   FROM generate_series(1, 5000) AS n
   RETURNING id, (metadata->>'ordinal')::integer AS n
 )
@@ -76,14 +77,15 @@ SELECT
   CASE WHEN n % 50 = 0 THEN 409600 WHEN n % 10 = 0 THEN 51200 ELSE 5120 END
 FROM inserted;
 
-INSERT INTO public.profiles (trading_name, legal_name, email, supplier_status, user_id, metadata)
+INSERT INTO public.profiles (trading_name, legal_name, email, supplier_status, user_id, metadata, created_at)
 SELECT
   'Loadtest Peer ' || n,
   'Loadtest Peer ' || n || ' Legal',
   'peer' || n || '@loadtest.invalid',
   'active',
   'loadtest-peer-' || n,
-  jsonb_build_object('loadtest', 's1', 'kind', 'peer', 'ordinal', n)
+  jsonb_build_object('loadtest', 's1', 'kind', 'peer', 'ordinal', n),
+  TIMESTAMPTZ '2024-01-01 00:00:00+00'
 FROM generate_series(1, 500) AS n;
 
 INSERT INTO public.business_connections (
