@@ -38,3 +38,29 @@ A production URL exits non-zero and sends no request. An empty allow-list does t
 ## Not verified here
 
 No staging project was available. The preflight was tested with a fake response, not against a deployment. `k6 run` was not pointed at any live host.
+
+## Brief 122 B4 — module store token merge (staging only)
+
+This section stands on its own. The profiles above do not call `rpc/sa_put_module_store`.
+
+`loadtest/scenarios/module-store-put.js` is a staging-only k6 script. It is not wired into CI and it was not run. `k6` is still not an npm dependency.
+
+Before any request it uses the harness guard: `assertHostAllowed` on `BASE_URL`, then `assertSupabaseRestUrl` on `LOADTEST_SUPABASE_URL`. A production host, an empty allow-list, the production project ref, or a Supabase URL whose ref is not `LOADTEST_EXPECT_PROJECT_REF` throws and sends nothing. `setup` then preflights `GET /api/loadtest/whoami` and requires `stage: "staging"`.
+
+The run is 20 VUs for 1 minute, all on the same `LOADTEST_COMPANY_ID` and `LOADTEST_MODULE`. Each iteration `POST`s `{supabase}/rest/v1/rpc/sa_put_module_store` with that module's `*_public_token` and `*_client_tokens` keys. The body is identical across VUs, so the calls contend on one GymAdvisor® (`fitgraph`, when that is the module you pass) store row and its token mirror. Thresholds, from Brief 122 B4: p95 under 1 second, mean under 300 ms, and 0 lock timeouts (`55P03`).
+
+The service-role key is an operator secret for the staging project named by `LOADTEST_EXPECT_PROJECT_REF`. Do not point this script at production. Do not print the key.
+
+```bash
+k6 run \
+  -e BASE_URL=https://your-staging-host.example \
+  -e LOADTEST_ALLOWED_HOSTS=your-staging-host.example \
+  -e LOADTEST_EXPECT_PROJECT_REF=yourstagingref \
+  -e LOADTEST_SUPABASE_URL=https://yourstagingref.supabase.co \
+  -e LOADTEST_SERVICE_ROLE_KEY=staging-service-role-key \
+  -e LOADTEST_COMPANY_ID=123 \
+  -e LOADTEST_MODULE=fitgraph \
+  loadtest/scenarios/module-store-put.js
+```
+
+ApparelAdvisor® and ConstructionAdvisor® public token reads use the same `profiles.metadata` mirror. This script does not call those public routes. It only writes the module-store RPC on the staging company you name.

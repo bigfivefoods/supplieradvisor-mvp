@@ -170,6 +170,34 @@ export function prepareRun({ baseUrl, allowedHosts, expectProjectRef, get }) {
   return runPreflight({ get, baseUrl, expectProjectRef });
 }
 
+/**
+ * REST host only: https://<ref>.supabase.co
+ * Throws before any request. A production ref in the URL or in the expected ref refuses the run.
+ */
+export function assertSupabaseRestUrl({ supabaseUrl, expectProjectRef }) {
+  const expected = cleanRef(expectProjectRef);
+  if (!expected) {
+    throw new Error('Refusing to run: LOADTEST_EXPECT_PROJECT_REF is empty');
+  }
+  if (expected === PRODUCTION_PROJECT_REF) {
+    throw new Error('Refusing to run: LOADTEST_EXPECT_PROJECT_REF is the production project');
+  }
+  const raw = String(supabaseUrl || '').trim();
+  const host = hostnameOf(raw);
+  if (!raw || !host) {
+    throw new Error('Refusing to run: LOADTEST_SUPABASE_URL is missing or not a URL');
+  }
+  if (isDeniedHost(host) || raw.toLowerCase().includes(PRODUCTION_PROJECT_REF)) {
+    throw new Error('Refusing to run: Supabase URL is production');
+  }
+  const match = /^([a-z0-9]+)\.supabase\.co$/.exec(host);
+  const ref = match ? match[1] : '';
+  if (!ref || ref !== expected) {
+    throw new Error('Refusing to run: Supabase URL project ref does not match LOADTEST_EXPECT_PROJECT_REF');
+  }
+  return ref;
+}
+
 export function watchResponse(res, abort) {
   const body = res && (res.body ?? res);
   const headers = res && res.headers;
