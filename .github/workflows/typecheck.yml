@@ -215,6 +215,10 @@ jobs:
           do
             npx --yes tsx "$file"
           done
+      - name: Brief 122 E3 staging auth tests
+        run: |
+          set -euo pipefail
+          npx --yes tsx lib/loadtest/staging-auth.test.ts
       - name: Brief 122 F1 request timing tests
         run: |
           set -euo pipefail

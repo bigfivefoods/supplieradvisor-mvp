@@ -13,6 +13,7 @@ import {
   isAuthStrict,
   verifyPrivyAccessToken,
 } from '@/lib/auth/verify-privy';
+import { authenticateLoadtestToken } from '@/lib/loadtest/staging-auth';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { assertCompanyMember } from '@/lib/customers/access';
 import {
@@ -79,6 +80,23 @@ export async function requireVerifiedUser(
   opts?: { legacyPrivyUserId?: string | null }
 ): Promise<AuthOk | AuthFail> {
   const token = extractAccessToken(request.headers, request.headers.get('cookie'));
+
+  // Staging preview only. Production returns before the signing key is used.
+  // A token that does not verify here falls through to Privy unchanged.
+  const loadtest = authenticateLoadtestToken(token, process.env, Math.floor(Date.now() / 1000));
+  if (loadtest.ok) {
+    const legacy = getCanonicalUserId(opts?.legacyPrivyUserId);
+    if (legacy && legacy.toLowerCase() !== loadtest.userId.toLowerCase() && isAuthStrict()) {
+      return fail(403, 'privyUserId does not match access token', 'USER_MISMATCH');
+    }
+    return {
+      ok: true,
+      userId: loadtest.userId,
+      verified: true,
+      emails: [],
+    };
+  }
+
   const verified = await verifyPrivyAccessToken(token);
 
   if (verified.ok) {
