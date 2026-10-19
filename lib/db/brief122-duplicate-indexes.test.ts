@@ -88,7 +88,7 @@ for (const file of files) {
 assert.deepEqual(createHits, []);
 
 const keptBlob = files
-  .filter((file) => !file.endsWith('20261025_brief122_b7_drop_duplicate_indexes.sql'))
+  .filter((file) => !file.endsWith('20261033_brief122_b7_drop_duplicate_indexes.sql'))
   .map((file) => stripComments(readFileSync(file, 'utf8')))
   .join('\n');
 for (const kept of keptInRepo) {
@@ -98,10 +98,10 @@ for (const kept of keptInRepo) {
 const migrationsDir = join(root, 'supabase/migrations');
 const migrationNames = readdirSync(migrationsDir).filter((name) => name.endsWith('.sql')).sort();
 const rollout = [
-  '20261024_brief122_pg_trgm_and_indexes.sql',
-  '20261025_brief122_b7_drop_duplicate_indexes.sql',
-  '20261026_brief122_b5_rls_select_wrapping.sql',
-  '20261027_brief122_b6_lockdown_definer_rpcs.sql',
+  '20261032_brief122_pg_trgm_and_indexes.sql',
+  '20261033_brief122_b7_drop_duplicate_indexes.sql',
+  '20261034_brief122_b5_rls_select_wrapping.sql',
+  '20261035_brief122_b6_lockdown_definer_rpcs.sql',
 ];
 for (const name of rollout) {
   assert.ok(migrationNames.includes(name), `missing ${name}`);
@@ -141,10 +141,10 @@ assert.equal(/FROM authenticated/.test(currentUserBlock), false);
 assert.match(b6, /REVOKE EXECUTE ON FUNCTION public\.rls_auto_enable\(\) FROM authenticated/);
 
 const nextRollout = [
-  '20261028_next_n1_function_search_path.sql',
-  '20261029_next_n2_fk_indexes.sql',
-  '20261030_next_n3_policy_consolidation.sql',
-  '20261031_next_n4_drop_business_users_backups.sql',
+  '20261036_next_n1_function_search_path.sql',
+  '20261037_next_n2_fk_indexes.sql',
+  '20261038_next_n3_policy_consolidation.sql',
+  '20261039_next_n4_drop_business_users_backups.sql',
 ];
 for (const name of nextRollout) {
   assert.ok(migrationNames.includes(name), `missing ${name}`);
@@ -211,9 +211,12 @@ for (const table of ['products', 'stock_levels', 'stock_movements', 'warehouses'
 
 const n4 = readFileSync(join(migrationsDir, nextRollout[3]), 'utf8');
 assert.match(n4, /20261019122057/);
-assert.match(n4, /DROP TABLE IF EXISTS public\.business_users_backup;/);
-assert.match(n4, /DROP TABLE IF EXISTS public\.business_users_final_backup;/);
+assert.match(n4, /DROP TABLE IF EXISTS public\.business_users_backup/);
+assert.match(n4, /DROP TABLE IF EXISTS public\.business_users_final_backup/);
+assert.match(n4, /brief122\.acknowledge_business_users_backup_drop/);
+assert.match(n4, /refusing to drop business_users backup tables/);
 assert.equal(/DROP TABLE[^;]*public\.business_users;/.test(n4), false);
+assert.equal(migrationNames.some((name) => /^2026102[4-9]_/.test(name) || /^2026103[01]_/.test(name)), false);
 
 const pinnedNames = [
   'record_onchain_attestation',

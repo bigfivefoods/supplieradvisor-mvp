@@ -6,7 +6,8 @@
 -- on project onkklullmgrdqoertngp):
 --   version 20261019113922
 --   name    next_n3_policy_consolidation
--- Repo filename 20261030 sorts after 20261029_next_n2_fk_indexes.sql.
+-- Repo filename 20261038 sorts after 20261037_next_n2_fk_indexes.sql.
+-- 20261038 is not a calendar day.
 -- See docs/db/2026-10-19-production-rollout.md.
 --
 -- Permissive policies are OR-ed, so sa_deny_* USING (false) did nothing next

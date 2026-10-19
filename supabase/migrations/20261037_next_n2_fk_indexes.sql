@@ -8,11 +8,15 @@
 -- CONCURRENTLY is omitted on purpose. Supabase migration tooling applies a
 -- file inside one transaction, and CREATE INDEX CONCURRENTLY cannot run
 -- there (SQLSTATE 25001). CREATE INDEX IF NOT EXISTS is legal in a
--- transaction. Where the index already exists it does nothing, so this file
--- does not rebuild production's indexes.
+-- transaction. It still locks each of these seven tables until the
+-- transaction commits, including when the index already exists. Do not
+-- execute this file on production. Mark version 20261037 applied instead:
+--   supabase migration repair --status applied 20261037
+-- See docs/db/2026-10-19-production-rollout.md. Never repair a
+-- production-only version back to reverted.
 --
--- Repo filename 20261029 sorts after 20261028_next_n1_function_search_path.sql.
--- See docs/db/2026-10-19-production-rollout.md.
+-- Repo filename 20261037 sorts after 20261036_next_n1_function_search_path.sql.
+-- 20261037 is not a calendar day. See the docs file.
 --
 -- A table that is not in this database is skipped with a notice. These seven
 -- tables are not all created by supabase/migrations; they do exist on

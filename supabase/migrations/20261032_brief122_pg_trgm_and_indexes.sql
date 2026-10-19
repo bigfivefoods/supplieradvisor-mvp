@@ -7,14 +7,21 @@
 -- CONCURRENTLY is omitted on purpose. Supabase migration tooling applies a
 -- file inside one transaction, and CREATE INDEX CONCURRENTLY cannot run
 -- there (SQLSTATE 25001). CREATE INDEX IF NOT EXISTS is legal in a
--- transaction. Where the index already exists it does nothing, so this file
--- does not rebuild production's indexes.
+-- transaction. It still takes a lock on every target table and holds those
+-- locks until the transaction commits, including when the index already
+-- exists. On production that is about 110 tables. Do not execute this file
+-- there. Mark version 20261032 applied instead:
+--   supabase migration repair --status applied 20261032
+-- See docs/db/2026-10-19-production-rollout.md. Never repair a
+-- production-only version back to reverted.
 --
--- Repo version 20261024 sorts after 20261023_brief122_merge_metadata_noop.sql.
--- The production clock time (about 202610191055) cannot be the filename:
--- 20261019105500_*.sql sorts before 20261019_fleetgraph_a.sql, because the
--- character after 20261019 is '1' in the 14-digit form and '_' in the repo
--- form, and '1' < '_'. See docs/db/2026-10-19-production-rollout.md.
+-- Repo version 20261032 sorts after 20261023_brief122_merge_metadata_noop.sql.
+-- It is not a calendar day (October has 31 days), so it does not take the
+-- version a real 20261024–20261031 migration would use. The production clock
+-- time (about 202610191055) cannot be the filename: 20261019105500_*.sql
+-- sorts before 20261019_fleetgraph_a.sql, because the character after
+-- 20261019 is '1' in the 14-digit form and '_' in the repo form, and
+-- '1' < '_'.
 --
 -- A table that is not in this database is skipped with a notice. Thirteen
 -- target tables are not created by supabase/migrations; they do exist on

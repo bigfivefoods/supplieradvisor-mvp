@@ -5,7 +5,8 @@
 -- on project onkklullmgrdqoertngp):
 --   version 20261019105914
 --   name    brief122_b5_rls_select_wrapping
--- Repo filename 20261026 sorts after the index and B7 files. The production
+-- Repo filename 20261034 sorts after the index and B7 files. 20261034 is not
+-- a calendar day. The production
 -- version cannot be the filename without sorting ahead of later 8-digit
 -- migrations. See docs/db/2026-10-19-production-rollout.md.
 --

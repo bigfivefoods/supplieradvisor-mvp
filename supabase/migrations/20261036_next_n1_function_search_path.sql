@@ -5,8 +5,9 @@
 -- on project onkklullmgrdqoertngp):
 --   version 20261019113636
 --   name    next_n1_function_search_path
--- Repo filename 20261028 sorts after 20261027_brief122_b6_lockdown_definer_rpcs.sql.
--- The production 14-digit version cannot be the filename. See
+-- Repo filename 20261036 sorts after 20261035_brief122_b6_lockdown_definer_rpcs.sql.
+-- 20261036 is not a calendar day. The production 14-digit version cannot be
+-- the filename. See
 -- docs/db/2026-10-19-production-rollout.md.
 --
 -- ALTER FUNCTION has no IF EXISTS. A function that is not in this database

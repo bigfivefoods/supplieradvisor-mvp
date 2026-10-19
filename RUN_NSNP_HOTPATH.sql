@@ -76,7 +76,7 @@ $$;
 
 REVOKE ALL ON FUNCTION public.sa_nsnp_agency_summary(bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_agency_summary(bigint) TO service_role;
--- 20261027_brief122_b6_lockdown_definer_rpcs.sql revokes this authenticated
+-- 20261035_brief122_b6_lockdown_definer_rpcs.sql revokes this authenticated
 -- grant. Re-running this file after B6 opens the function again.
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_agency_summary(bigint) TO authenticated;
 
@@ -271,7 +271,7 @@ $$;
 
 REVOKE ALL ON FUNCTION public.sa_nsnp_geo_rollup(bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_geo_rollup(bigint) TO service_role;
--- 20261027_brief122_b6_lockdown_definer_rpcs.sql revokes this authenticated
+-- 20261035_brief122_b6_lockdown_definer_rpcs.sql revokes this authenticated
 -- grant. Re-running this file after B6 opens the function again.
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_geo_rollup(bigint) TO authenticated;
 
@@ -396,7 +396,7 @@ $$;
 
 REVOKE ALL ON FUNCTION public.sa_nsnp_network_ops(bigint, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_network_ops(bigint, date) TO service_role;
--- 20261027_brief122_b6_lockdown_definer_rpcs.sql revokes this authenticated
+-- 20261035_brief122_b6_lockdown_definer_rpcs.sql revokes this authenticated
 -- grant. Re-running this file after B6 opens the function again.
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_network_ops(bigint, date) TO authenticated;
 

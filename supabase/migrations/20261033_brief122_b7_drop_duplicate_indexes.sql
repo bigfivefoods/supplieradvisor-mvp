@@ -4,8 +4,8 @@
 -- on project onkklullmgrdqoertngp):
 --   version 20261019105859
 --   name    brief122_b7_drop_duplicate_indexes
--- This repo file is 20261025 so it sorts after 20261023_brief122_merge_metadata_noop.sql
--- and after 20261024_brief122_pg_trgm_and_indexes.sql. A filename that used the
+-- This repo file is 20261033 so it sorts after 20261032_brief122_pg_trgm_and_indexes.sql.
+-- 20261033 is not a calendar day. A filename that used the
 -- production version would sort before later 8-digit migrations. See
 -- docs/db/2026-10-19-production-rollout.md.
 --
@@ -13,8 +13,8 @@
 -- gone. The guard refuses to drop an index unless the kept twin exists, is
 -- valid, and is an exact constraint-free duplicate. If neither name exists
 -- (a fresh database that never created that pair), the pair is skipped.
--- Re-applying on production drops nothing: the kept twins are still valid and
--- the 17 names are already absent.
+-- Do not execute this file on production. Mark version 20261033 applied.
+-- See docs/db/2026-10-19-production-rollout.md.
 --
 -- Kept twins stay. The older CREATE INDEX statements that would recreate the
 -- 17 names were removed from the repo in this change.

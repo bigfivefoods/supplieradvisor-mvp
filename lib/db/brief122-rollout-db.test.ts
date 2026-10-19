@@ -1,8 +1,9 @@
 /**
- * Brief 122 rollout SQL on scratch Postgres only.
- * Applies the four repo migrations. Refuses any non-localhost URL and the
- * production project ref. Refuses any database whose name is not
- * brief122rollout, before DROP SCHEMA.
+ * Brief 122 and N1–N4 rollout SQL on scratch Postgres only.
+ * Applies the eight repo migrations. Refuses any non-localhost URL, including
+ * a localhost authority whose host or hostaddr query parameter points
+ * elsewhere. Refuses the production project ref and the staging project ref.
+ * Refuses any database whose name is not brief122rollout, before DROP SCHEMA.
  *
  * Run:
  *   BRIEF122_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/brief122rollout \
@@ -13,35 +14,105 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+const PRODUCTION_PROJECT_REF = 'onkklullmgrdqoertngp';
+const STAGING_PROJECT_REF = 'wpchtkfkaavcjyfgmktn';
+const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+
+function decodedUrlText(value: string): string {
+  const parts = [value.toLowerCase()];
+  let current = value;
+  for (let i = 0; i < 2; i += 1) {
+    try {
+      const next = decodeURIComponent(current);
+      if (next === current) break;
+      current = next;
+      parts.push(next.toLowerCase());
+    } catch {
+      break;
+    }
+  }
+  return parts.join('\n');
+}
+
+function assertScratchDatabaseUrl(candidate: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    throw new Error('Refusing to run: BRIEF122_DATABASE_URL is not a URL');
+  }
+  const visible = decodedUrlText(candidate);
+  if (visible.includes(PRODUCTION_PROJECT_REF)) {
+    throw new Error('Refusing to run: production database');
+  }
+  if (visible.includes(STAGING_PROJECT_REF)) {
+    throw new Error('Refusing to run: staging database');
+  }
+  if (visible.includes('supabase.co') || visible.includes('supabase.com')) {
+    throw new Error('Refusing to run: this fixture does not connect to Supabase');
+  }
+  const endpoints: string[] = [];
+  for (const raw of [parsed.hostname, ...parsed.searchParams.getAll('host'), ...parsed.searchParams.getAll('hostaddr')]) {
+    for (const part of raw.split(',')) {
+      const host = part.trim().replace(/^\[|\]$/g, '');
+      if (host) endpoints.push(host);
+    }
+  }
+  if (
+    endpoints.length === 0 ||
+    endpoints.some((host) => !LOCAL_HOSTS.has(decodedUrlText(host).split('\n')[0].trim()))
+  ) {
+    throw new Error('Refusing to run: scratch database must be localhost');
+  }
+}
+
+function expectRefusedUrl(candidate: string, pattern: RegExp) {
+  assert.throws(() => assertScratchDatabaseUrl(candidate), pattern);
+}
+
+expectRefusedUrl(
+  'postgresql://postgres:postgres@127.0.0.1:5432/brief122rollout?host=8.8.8.8',
+  /scratch database must be localhost/,
+);
+expectRefusedUrl(
+  'postgresql://postgres:postgres@127.0.0.1:5432/brief122rollout?hostaddr=8.8.8.8',
+  /scratch database must be localhost/,
+);
+expectRefusedUrl(
+  'postgresql://127.0.0.1,evil.example:5432/brief122rollout',
+  /scratch database must be localhost/,
+);
+expectRefusedUrl(
+  'postgresql://postgres:postgres@127.0.0.1:5432/brief122rollout?host=localhost,evil.example',
+  /scratch database must be localhost/,
+);
+expectRefusedUrl(
+  `postgresql://postgres:postgres@127.0.0.1:5432/brief122rollout?host=db.${PRODUCTION_PROJECT_REF}.supabase.co`,
+  /production database|Supabase/,
+);
+expectRefusedUrl(
+  `postgresql://db.${STAGING_PROJECT_REF}.supabase.co:5432/postgres`,
+  /staging database|Supabase/,
+);
+expectRefusedUrl('postgresql://db.example:5432/brief122rollout', /scratch database must be localhost/);
+expectRefusedUrl('not a url', /not a URL/);
+assertScratchDatabaseUrl('postgresql://postgres:postgres@127.0.0.1:5432/brief122rollout');
+assertScratchDatabaseUrl('postgresql://postgres:postgres@127.0.0.1:5432/brief122rollout?host=LocalHost');
+assertScratchDatabaseUrl('postgresql://postgres:postgres@localhost:5432/brief122rollout?host=127.0.0.1');
+assertScratchDatabaseUrl('postgresql://[::1]:5432/brief122rollout');
+
 const url = process.env.BRIEF122_DATABASE_URL;
 if (!url) throw new Error('BRIEF122_DATABASE_URL is required');
+assertScratchDatabaseUrl(url);
 
-const PRODUCTION_PROJECT_REF = 'onkklullmgrdqoertngp';
-const lowerUrl = url.toLowerCase();
-if (lowerUrl.includes(PRODUCTION_PROJECT_REF)) {
-  throw new Error('Refusing to run: production database');
-}
-if (lowerUrl.includes('supabase.co') || lowerUrl.includes('supabase.com')) {
-  throw new Error('Refusing to run: this fixture does not connect to Supabase');
-}
-let host = '';
-try {
-  host = new URL(url).hostname;
-} catch {
-  throw new Error('Refusing to run: BRIEF122_DATABASE_URL is not a URL');
-}
-if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
-  throw new Error('Refusing to run: scratch database must be localhost');
-}
-
-const indexMigration = resolve('supabase/migrations/20261024_brief122_pg_trgm_and_indexes.sql');
-const b7Migration = resolve('supabase/migrations/20261025_brief122_b7_drop_duplicate_indexes.sql');
-const b5Migration = resolve('supabase/migrations/20261026_brief122_b5_rls_select_wrapping.sql');
-const b6Migration = resolve('supabase/migrations/20261027_brief122_b6_lockdown_definer_rpcs.sql');
-const n1Migration = resolve('supabase/migrations/20261028_next_n1_function_search_path.sql');
-const n2Migration = resolve('supabase/migrations/20261029_next_n2_fk_indexes.sql');
-const n3Migration = resolve('supabase/migrations/20261030_next_n3_policy_consolidation.sql');
-const n4Migration = resolve('supabase/migrations/20261031_next_n4_drop_business_users_backups.sql');
+const indexMigration = resolve('supabase/migrations/20261032_brief122_pg_trgm_and_indexes.sql');
+const b7Migration = resolve('supabase/migrations/20261033_brief122_b7_drop_duplicate_indexes.sql');
+const b5Migration = resolve('supabase/migrations/20261034_brief122_b5_rls_select_wrapping.sql');
+const b6Migration = resolve('supabase/migrations/20261035_brief122_b6_lockdown_definer_rpcs.sql');
+const n1Migration = resolve('supabase/migrations/20261036_next_n1_function_search_path.sql');
+const n2Migration = resolve('supabase/migrations/20261037_next_n2_fk_indexes.sql');
+const n3Migration = resolve('supabase/migrations/20261038_next_n3_policy_consolidation.sql');
+const n4Migration = resolve('supabase/migrations/20261039_next_n4_drop_business_users_backups.sql');
 
 function commandError(error: unknown): Error {
   const stderr =
@@ -64,9 +135,10 @@ function psql(statement: string): string {
   }
 }
 
-function psqlFile(path: string, singleTransaction: boolean) {
+function psqlFile(path: string, singleTransaction: boolean, sessionPrefix?: string) {
   const args = [url!, '-X', '-v', 'ON_ERROR_STOP=1'];
   if (singleTransaction) args.push('-1');
+  if (sessionPrefix) args.push('-c', sessionPrefix);
   args.push('-f', path);
   try {
     execFileSync('psql', args, {
@@ -563,6 +635,22 @@ psqlFile(n4Migration, true);
 assertSearchPaths();
 assert.equal(indexCount(n2Indexes.map((index) => index[0])), '7');
 assertInventoryPolicies();
+assert.equal(psql("SELECT to_regclass('public.business_users') IS NOT NULL"), 't');
+
+reset();
+psql(`
+  CREATE TABLE public.business_users (id int);
+  CREATE TABLE public.business_users_backup (id int);
+  CREATE TABLE public.business_users_final_backup (id int);
+  INSERT INTO public.business_users_backup VALUES (1);
+`);
+failsFile(n4Migration, /refusing to drop business_users backup tables/);
+assert.equal(psql('SELECT count(*)::text FROM public.business_users_backup'), '1');
+assert.equal(psql('SELECT count(*)::text FROM public.business_users_final_backup'), '0');
+assert.equal(psql("SELECT to_regclass('public.business_users') IS NOT NULL"), 't');
+psqlFile(n4Migration, true, "SET brief122.acknowledge_business_users_backup_drop = 'on'");
+assert.equal(psql("SELECT to_regclass('public.business_users_backup') IS NULL"), 't');
+assert.equal(psql("SELECT to_regclass('public.business_users_final_backup') IS NULL"), 't');
 assert.equal(psql("SELECT to_regclass('public.business_users') IS NOT NULL"), 't');
 
 reset();

@@ -19,22 +19,39 @@ Read-only `SELECT version, name FROM supabase_migrations.schema_migrations` on 1
 
 | production version | production name | repo file |
 |---|---|---|
-| *(not recorded)* | pg_trgm + 113 indexes | `supabase/migrations/20261024_brief122_pg_trgm_and_indexes.sql` |
-| `20261019105859` | `brief122_b7_drop_duplicate_indexes` | `supabase/migrations/20261025_brief122_b7_drop_duplicate_indexes.sql` |
-| `20261019105914` | `brief122_b5_rls_select_wrapping` | `supabase/migrations/20261026_brief122_b5_rls_select_wrapping.sql` |
-| `20261019105955` | `brief122_b6_lockdown_definer_rpcs` | `supabase/migrations/20261027_brief122_b6_lockdown_definer_rpcs.sql` |
+| *(not recorded)* | pg_trgm + 113 indexes | `supabase/migrations/20261032_brief122_pg_trgm_and_indexes.sql` |
+| `20261019105859` | `brief122_b7_drop_duplicate_indexes` | `supabase/migrations/20261033_brief122_b7_drop_duplicate_indexes.sql` |
+| `20261019105914` | `brief122_b5_rls_select_wrapping` | `supabase/migrations/20261034_brief122_b5_rls_select_wrapping.sql` |
+| `20261019105955` | `brief122_b6_lockdown_definer_rpcs` | `supabase/migrations/20261035_brief122_b6_lockdown_definer_rpcs.sql` |
 
-The repo keeps 8-digit versions (`YYYYMMDD_name.sql`), same as the other 180+ files, and these four sort after `20261023_brief122_merge_metadata_noop.sql`. The production 14-digit versions cannot be the filenames. `20261019105859_*.sql` sorts before `20261019_fleetgraph_a.sql` and before `20261020`–`20261023`, because the character after `20261019` is `1` in the 14-digit form and `_` in the repo form, and `1` < `_`. Those later files create tables the indexes need.
+The repo keeps 8-digit versions (`YYYYMMDD_name.sql`), same shape as the other files. These four sort after `20261023_brief122_merge_metadata_noop.sql`. The production 14-digit versions cannot be the filenames. `20261019105859_*.sql` sorts before `20261019_fleetgraph_a.sql` and before `20261020`–`20261023`, because the character after `20261019` is `1` in the 14-digit form and `_` in the repo form, and `1` < `_`. Those later files create tables the indexes need.
 
-Applying the repo files on production later is idempotent (`IF NOT EXISTS` / `IF EXISTS` / the same `ALTER POLICY` and `REVOKE`). It would insert new history versions `20261024`–`20261027`. It would not collide with `20261019105859`, `20261019105914` or `20261019105955`. To record the repo versions without running the SQL, use `supabase migration repair --status applied` for `20261024`–`20261027` after review. This change does not do that.
+`20261032`–`20261039` are not calendar days. October has 31 days, so a migration named for 24–31 Oct 2026 uses `20261024`–`20261031` and does not collide with these versions. The Supabase CLI treats the leading digits as the migration version. A longer stamp such as `20261023120000_*.sql` sorts before `20261023_brief122_merge_metadata_noop.sql`, because `1` < `_`. A suffix on `20261023_` would sort in the right place, and this repo already has many files sharing one day, but those files would all have version `20261023`. `supabase migration repair --status applied 20261023` could not name the eight rollout files separately from `20261023_brief122_merge_metadata_noop.sql`. A real migration added on 24–31 Oct 2026 sorts before `20261032`. These files stay safe to run after that, on a fresh database, because they only add the indexes, revokes, and policy text that production already has.
+
+Do not execute these files on production. `CREATE INDEX IF NOT EXISTS` inside the CLI's transaction locks each target table until commit, about 110 tables for `20261032` and 7 tables for `20261037`, even when the index already exists. Record the repo versions without running the SQL:
+
+```text
+supabase migration repair --status applied 20261032
+supabase migration repair --status applied 20261033
+supabase migration repair --status applied 20261034
+supabase migration repair --status applied 20261035
+supabase migration repair --status applied 20261036
+supabase migration repair --status applied 20261037
+supabase migration repair --status applied 20261038
+supabase migration repair --status applied 20261039
+```
+
+That inserts history versions `20261032`–`20261039`. It does not collide with `20261019105859`, `20261019105914`, `20261019105955`, `20261019113636`, `20261019113922` or `20261019122057`. This change does not run the repair.
+
+Never run `supabase migration repair --status reverted` on a production-only version. That includes every 14-digit row already in `supabase_migrations.schema_migrations` (the brief 122 and `next_n*` versions, `20261019091525 site_insights_report_archive`, and any other version with no matching repo file). Clearing those rows makes `supabase db push` treat production as behind the repo and try to apply the repo migration files, about 190 of them, to production.
 
 `20261019091525 site_insights_report_archive` is also in production history and is not part of this rollout.
 
 ## CONCURRENTLY
 
-`CREATE INDEX CONCURRENTLY` cannot run inside a transaction. The Supabase CLI applies each migration file in one transaction, so the repo file uses plain `CREATE INDEX IF NOT EXISTS`. On production the indexes already exist and the statements do nothing. On a new database the same file builds them inside the migration transaction. That is the right tool for an empty database. It is the wrong tool for a busy production table, which is why production used `CONCURRENTLY` first.
+`CREATE INDEX CONCURRENTLY` cannot run inside a transaction. The Supabase CLI applies each migration file in one transaction, so the repo files use plain `CREATE INDEX IF NOT EXISTS`. On a new database the file builds the indexes inside that transaction. That is the right tool for an empty database. On production the indexes already exist, and the same statement is still not free: it locks the table until the transaction commits. That is why production built them with `CONCURRENTLY` first, and why production must use `migration repair --status applied` for `20261032` and `20261037` instead of executing the files.
 
-`SET LOCAL lock_timeout` applies when the file runs inside a transaction. As its own autocommit statement Postgres warns and ignores it. Pasting the file in `psql` without `-1` still works.
+`SET LOCAL lock_timeout` applies when the file runs inside a transaction. As its own autocommit statement Postgres warns and ignores it. Pasting the file into `psql` without `-1` on a scratch database still works, because each statement is its own transaction. Do not paste it into production.
 
 If a target table is missing, that one index is skipped with a notice. These 13 tables are not created by `supabase/migrations` (they exist on production): `business_catalog`, `business_services`, `company_certificates`, `riad_entries`, `company_connections`, `documents`, `shared_documents`, `supplier_riad_logs`, `container_performance_daily`, `payouts`, `po_items`, `product_documents`, `product_images`. A database built only from this repo will not have those 13 indexes until the tables exist.
 
@@ -86,7 +103,7 @@ Static check, no database:
 npx --yes tsx lib/db/brief122-duplicate-indexes.test.ts
 ```
 
-Scratch Postgres only (the test refuses any host other than localhost and refuses the production project ref). Database name must be `brief122rollout`:
+Scratch Postgres only. The test parses the URL, allows only a localhost host (including `host` and `hostaddr` query parameters, which libpq uses instead of the authority host), and refuses the production ref `onkklullmgrdqoertngp` and the staging ref `wpchtkfkaavcjyfgmktn`. Database name must be `brief122rollout`:
 
 ```text
 BRIEF122_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/brief122rollout \
@@ -101,12 +118,12 @@ Read-only `SELECT version, name FROM supabase_migrations.schema_migrations` on 1
 
 | production version | production name | repo file |
 |---|---|---|
-| `20261019113636` | `next_n1_function_search_path` | `supabase/migrations/20261028_next_n1_function_search_path.sql` |
-| *(not recorded)* | 7 foreign-key indexes | `supabase/migrations/20261029_next_n2_fk_indexes.sql` |
-| `20261019113922` | `next_n3_policy_consolidation` | `supabase/migrations/20261030_next_n3_policy_consolidation.sql` |
-| `20261019122057` | `next_n4_drop_business_users_backups` | `supabase/migrations/20261031_next_n4_drop_business_users_backups.sql` |
+| `20261019113636` | `next_n1_function_search_path` | `supabase/migrations/20261036_next_n1_function_search_path.sql` |
+| *(not recorded)* | 7 foreign-key indexes | `supabase/migrations/20261037_next_n2_fk_indexes.sql` |
+| `20261019113922` | `next_n3_policy_consolidation` | `supabase/migrations/20261038_next_n3_policy_consolidation.sql` |
+| `20261019122057` | `next_n4_drop_business_users_backups` | `supabase/migrations/20261039_next_n4_drop_business_users_backups.sql` |
 
-These four sort after `20261027_brief122_b6_lockdown_definer_rpcs.sql`. The same 8-digit filename rule applies: `20261019113636_*.sql` would sort before `20261019_fleetgraph_a.sql`. Applying the repo files on production later is idempotent and would insert history versions `20261028`–`20261031`. It would not collide with `20261019113636`, `20261019113922` or `20261019122057`.
+These four sort after `20261035_brief122_b6_lockdown_definer_rpcs.sql`. The same filename rule applies: `20261019113636_*.sql` would sort before `20261019_fleetgraph_a.sql`. On production, mark `20261036`–`20261039` applied with `migration repair`. Do not execute the files. The repair warning in the history section above covers these versions too.
 
 N1 sets `search_path = public, pg_temp` on:
 
@@ -120,6 +137,8 @@ N2 creates these indexes with `CREATE INDEX IF NOT EXISTS` (no `CONCURRENTLY`, s
 
 A missing table is skipped. These six foreign keys were left unindexed on production and are not created here: `nsnp_prize_awards.period_id`, `nsnp_prize_certificates.period_id`, `nsnp_isp_sla.school_profile_id`, `products.category_id`, `industries.parent_id`, `onchain_attestations.attested_by`.
 
-N3 drops `sa_deny_anon` and `sa_deny_authenticated` on `products`, `stock_levels`, `stock_movements` and `warehouses`, and sets `products_all`, `stock_levels_all`, `stock_movements_all` and `warehouses_all` to `service_role`. Those deny policies were no-ops beside an allow-all policy. Other tables keep their deny policies. `20260709_inventory_world_class.sql` (and `RUN_THIS_FOR_INVENTORY_WORLD_CLASS.sql`, `docs/RUN_THIS_FOR_INVENTORY_WORLD_CLASS.sql`) now creates the four allow policies `TO service_role`. `sa_lock_table` in `20260714_rls_security_lockdown.sql`, `20260821_saas_db_harden.sql`, `RUN_THIS_IN_SUPABASE.sql` and `docs/RUN_THIS_IN_SUPABASE.sql` recreates the service_role allow policy on those four tables and does not recreate `sa_deny_*` there.
+N3 drops `sa_deny_anon` and `sa_deny_authenticated` on `products`, `stock_levels`, `stock_movements` and `warehouses`, and sets `products_all`, `stock_levels_all`, `stock_movements_all` and `warehouses_all` to `service_role`. Those deny policies did nothing beside an allow-all policy, because permissive policies are OR-ed. Other tables keep their deny policies. `20260709_inventory_world_class.sql` (and `RUN_THIS_FOR_INVENTORY_WORLD_CLASS.sql`, `docs/RUN_THIS_FOR_INVENTORY_WORLD_CLASS.sql`) now creates the four allow policies `TO service_role`.
 
-N4 is `DROP TABLE IF EXISTS` for `public.business_users_backup` and `public.business_users_final_backup`. Production dropped them. It did not move them to another schema. `public.business_users` stays. Repo SQL does not create the two backup tables.
+The repo copies of `sa_lock_table` in `20260714_rls_security_lockdown.sql`, `20260821_saas_db_harden.sql`, `RUN_THIS_IN_SUPABASE.sql` and `docs/RUN_THIS_IN_SUPABASE.sql` now recreate the service_role allow policy on those four tables and do not recreate `sa_deny_*` there. Production's installed function does not. It still drops every policy on the table it is called for and creates `sa_deny_anon` and `sa_deny_authenticated`, with no branch for the four inventory tables. This change does not add a migration that replaces that live function. Access is the same either way: anon and authenticated have no grants on those tables, and the allow policies are `TO service_role`. Replaying the old lockdown files on production would change the function; do not do that. Aligning the live function with the repo copy is a follow-up, only if someone is going to call `sa_lock_table` again.
+
+N4 drops `public.business_users_backup` and `public.business_users_final_backup` only when both are already absent, or both existing tables are empty, or the session has `brief122.acknowledge_business_users_backup_drop` set to `on`. If either table still has rows and that setting is off, the file raises and drops nothing. Production already dropped both tables after an export. This repo does not create them, and it does not drop `public.business_users`. On production, mark `20261039` applied. Do not execute the file.

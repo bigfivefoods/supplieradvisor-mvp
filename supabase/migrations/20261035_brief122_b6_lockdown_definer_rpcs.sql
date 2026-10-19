@@ -6,7 +6,8 @@
 -- on project onkklullmgrdqoertngp):
 --   version 20261019105955
 --   name    brief122_b6_lockdown_definer_rpcs
--- Repo filename 20261027 sorts last among these rollout files. See
+-- Repo filename 20261035 sorts after the B5 file. 20261035 is not a calendar
+-- day. See
 -- docs/db/2026-10-19-production-rollout.md.
 --
 -- Idempotent. REVOKE of a privilege that is already absent does nothing.
