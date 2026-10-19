@@ -2,6 +2,7 @@
  * Brief 122 B4. Scratch Postgres only.
  * Applies supabase/migrations/20261023_brief122_merge_metadata_noop.sql twice.
  * Refuses any non-localhost URL and the production project ref.
+ * Refuses any database whose name is not profilemeta, before DROP SCHEMA.
  * Does not connect to Supabase and does not touch production data.
  *
  * Run:
@@ -126,6 +127,11 @@ function nTupUpd(): string {
 }
 
 const STAMP = '2020-01-01 00:00:00+00';
+
+const databaseName = psql('SELECT current_database();');
+if (databaseName !== 'profilemeta') {
+  throw new Error(`Refusing to run: database must be named profilemeta (got ${databaseName})`);
+}
 
 psql(`
   DROP SCHEMA IF EXISTS public CASCADE;

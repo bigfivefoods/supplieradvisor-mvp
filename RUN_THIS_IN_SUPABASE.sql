@@ -1,3 +1,8 @@
+-- WARNING: sa_merge_profile_metadata in this file is superseded by
+-- supabase/migrations/20261023_brief122_merge_metadata_noop.sql.
+-- Do not re-run this file after that migration has been applied.
+-- Re-running it would restore the previous unconditional UPDATE of profiles.
+--
 -- SaaS harden: re-lock tenant tables, unique keys, hot-path indexes,
 -- atomic document numbers, secure module RPCs.
 -- Safe to re-run in the Supabase SQL editor.
