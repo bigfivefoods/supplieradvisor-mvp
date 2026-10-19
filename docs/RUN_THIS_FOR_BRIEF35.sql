@@ -6,7 +6,8 @@
 -- Do not re-run RUN_THIS_FOR_BRIEF33.sql.
 
 CREATE OR REPLACE FUNCTION public.sa_brief35_recode_party_gl(p_profile_id integer)
-RETURNS void LANGUAGE plpgsql AS $$
+RETURNS void LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
 DECLARE
   ar_header_id integer;
   ap_header_id integer;

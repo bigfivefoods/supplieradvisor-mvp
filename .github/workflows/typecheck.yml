@@ -135,7 +135,8 @@ jobs:
             lib/billing/brief118-access.test.ts \
             lib/onboarding/brief118-profile-columns.test.ts \
             lib/onboarding/register-profile.test.ts \
-            lib/marketing/brief121a-no-link-to-static-html.test.ts
+            lib/marketing/brief121a-no-link-to-static-html.test.ts \
+            lib/db/brief122-duplicate-indexes.test.ts
           do
             if [ -f "$file" ]; then
               if [ "$file" = "lib/recovery/brief116-pii.test.ts" ]; then
@@ -421,3 +422,33 @@ jobs:
         env:
           PROFILE_METADATA_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/profilemeta
         run: npx --yes tsx lib/business/brief122-merge-metadata-db.test.ts
+
+  brief122-rollout-db:
+    name: brief 122 rollout Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: brief122rollout
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d brief122rollout"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Run brief 122 rollout migrations against Postgres
+        env:
+          BRIEF122_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/brief122rollout
+        run: npx --yes tsx lib/db/brief122-rollout-db.test.ts

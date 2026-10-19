@@ -12,7 +12,8 @@ DROP FUNCTION IF EXISTS public.sa_add_column(text, text, text);
 DROP FUNCTION IF EXISTS public.sa_add_fk(text, text, text, text, text);
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
@@ -21,7 +22,8 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.sa_add_column(
   p_table text, p_column text, p_type text, p_default text DEFAULT NULL
-) RETURNS void LANGUAGE plpgsql AS $$
+) RETURNS void LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables
@@ -45,7 +47,8 @@ $$;
 CREATE OR REPLACE FUNCTION public.sa_add_fk(
   p_table text, p_column text, p_ref_table text,
   p_ref_column text DEFAULT 'id', p_on_delete text DEFAULT 'SET NULL'
-) RETURNS void LANGUAGE plpgsql AS $$
+) RETURNS void LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
 DECLARE
   cname text := p_table || '_' || p_column || '_fkey';
 BEGIN
@@ -70,7 +73,8 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.sa_create_index(
   p_name text, p_table text, p_columns text
-) RETURNS void LANGUAGE plpgsql AS $$
+) RETURNS void LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
 DECLARE
   col text;
   cols text[];

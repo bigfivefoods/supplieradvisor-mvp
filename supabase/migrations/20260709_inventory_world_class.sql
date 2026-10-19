@@ -2,7 +2,8 @@
 -- Safe / idempotent
 
 CREATE OR REPLACE FUNCTION public.sa_add_column(p_table text, p_column text, p_type text, p_default text DEFAULT NULL)
-RETURNS void LANGUAGE plpgsql AS $$
+RETURNS void LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=p_table
@@ -141,13 +142,13 @@ ALTER TABLE public.stock_levels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stock_movements ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS products_all ON public.products;
-CREATE POLICY products_all ON public.products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY products_all ON public.products FOR ALL TO service_role USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS warehouses_all ON public.warehouses;
-CREATE POLICY warehouses_all ON public.warehouses FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY warehouses_all ON public.warehouses FOR ALL TO service_role USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS stock_levels_all ON public.stock_levels;
-CREATE POLICY stock_levels_all ON public.stock_levels FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY stock_levels_all ON public.stock_levels FOR ALL TO service_role USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS stock_movements_all ON public.stock_movements;
-CREATE POLICY stock_movements_all ON public.stock_movements FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY stock_movements_all ON public.stock_movements FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 SELECT 'products' AS t, column_name FROM information_schema.columns
 WHERE table_schema='public' AND table_name='products'

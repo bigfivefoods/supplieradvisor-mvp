@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS public.nsnp_isp_agency_links (
 
 CREATE INDEX IF NOT EXISTS idx_isp_agency_links_isp
   ON public.nsnp_isp_agency_links (isp_profile_id, status);
-CREATE INDEX IF NOT EXISTS idx_isp_agency_links_agency
-  ON public.nsnp_isp_agency_links (agency_profile_id, status);
+-- idx_isp_agency_links_agency was removed on 2026-10-19. It duplicated
+-- idx_nsnp_isp_agency_links_agency_status from 20260906_nsnp_scale.sql.
 
 COMMENT ON TABLE public.nsnp_isp_agency_links IS
   'ISP requests association with DBE/PEU/DoH; agency must approve before schools under that agency can order from the ISP';

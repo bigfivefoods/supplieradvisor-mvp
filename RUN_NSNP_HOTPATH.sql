@@ -12,8 +12,8 @@ CREATE INDEX IF NOT EXISTS idx_nsnp_products_agency_active
   ON public.nsnp_approved_products (agency_profile_id, active)
   WHERE active IS DISTINCT FROM false;
 
-CREATE INDEX IF NOT EXISTS idx_nsnp_recipes_agency_active
-  ON public.nsnp_recipes (agency_profile_id, active);
+-- idx_nsnp_recipes_agency_active was removed on 2026-10-19. It duplicated
+-- idx_nsnp_recipes_agency from 20260728_nsnp_recipes_mrp.sql.
 
 CREATE INDEX IF NOT EXISTS idx_school_pos_isp_status
   ON public.school_purchase_orders (isp_profile_id, status);
@@ -76,6 +76,8 @@ $$;
 
 REVOKE ALL ON FUNCTION public.sa_nsnp_agency_summary(bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_agency_summary(bigint) TO service_role;
+-- 20261035_brief122_b6_lockdown_definer_rpcs.sql revokes this authenticated
+-- grant. Re-running this file after B6 opens the function again.
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_agency_summary(bigint) TO authenticated;
 
 COMMENT ON FUNCTION public.sa_nsnp_agency_summary(bigint) IS
@@ -99,11 +101,9 @@ CREATE INDEX IF NOT EXISTS idx_school_pos_school_status
 CREATE INDEX IF NOT EXISTS idx_school_pos_isp_status_date
   ON public.school_purchase_orders (isp_profile_id, status, order_date);
 
-CREATE INDEX IF NOT EXISTS idx_nsnp_deliv_school_status
-  ON public.school_nsnp_deliveries (school_profile_id, status);
-
-CREATE INDEX IF NOT EXISTS idx_nsnp_deliv_isp_status
-  ON public.school_nsnp_deliveries (isp_profile_id, status);
+-- idx_nsnp_deliv_school_status and idx_nsnp_deliv_isp_status were removed on
+-- 2026-10-19. They duplicated idx_nsnp_deliv_school and idx_nsnp_deliv_isp
+-- from 20260726_schools_deliveries_attachments.sql.
 
 DO $$
 BEGIN
@@ -271,6 +271,8 @@ $$;
 
 REVOKE ALL ON FUNCTION public.sa_nsnp_geo_rollup(bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_geo_rollup(bigint) TO service_role;
+-- 20261035_brief122_b6_lockdown_definer_rpcs.sql revokes this authenticated
+-- grant. Re-running this file after B6 opens the function again.
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_geo_rollup(bigint) TO authenticated;
 
 -- Hub / exception counts without paging 5k school ids
@@ -394,6 +396,8 @@ $$;
 
 REVOKE ALL ON FUNCTION public.sa_nsnp_network_ops(bigint, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_network_ops(bigint, date) TO service_role;
+-- 20261035_brief122_b6_lockdown_definer_rpcs.sql revokes this authenticated
+-- grant. Re-running this file after B6 opens the function again.
 GRANT EXECUTE ON FUNCTION public.sa_nsnp_network_ops(bigint, date) TO authenticated;
 
 COMMENT ON FUNCTION public.sa_nsnp_geo_rollup(bigint) IS

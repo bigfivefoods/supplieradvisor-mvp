@@ -4,6 +4,7 @@ CREATE OR REPLACE FUNCTION public.sa_module_store_is_tombstone(p_row jsonb)
 RETURNS boolean
 LANGUAGE plpgsql
 IMMUTABLE
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   IF p_row IS NULL OR jsonb_typeof(p_row) <> 'object' THEN
@@ -25,6 +26,7 @@ CREATE OR REPLACE FUNCTION public.sa_module_store_array_has_id_object(p_value js
 RETURNS boolean
 LANGUAGE plpgsql
 IMMUTABLE
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   item jsonb;
@@ -134,6 +136,7 @@ CREATE OR REPLACE FUNCTION public.sa_merge_module_store_data(
 ) RETURNS jsonb
 LANGUAGE plpgsql
 IMMUTABLE
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   existing_data jsonb := COALESCE(p_existing, '{}'::jsonb);

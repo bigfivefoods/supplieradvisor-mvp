@@ -4,7 +4,8 @@
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.sa_add_column(p_table text, p_column text, p_type text, p_default text DEFAULT NULL)
-RETURNS void LANGUAGE plpgsql AS $$
+RETURNS void LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables
