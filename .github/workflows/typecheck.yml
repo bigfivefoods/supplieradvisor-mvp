@@ -390,3 +390,33 @@ jobs:
         env:
           PROFILES_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/profiles118
         run: npx --yes tsx lib/onboarding/brief118-profiles-db.test.ts
+
+  profile-metadata-merge-db:
+    name: profile metadata Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: profilemeta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d profilemeta"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Run profile metadata merge against Postgres
+        env:
+          PROFILE_METADATA_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/profilemeta
+        run: npx --yes tsx lib/business/brief122-merge-metadata-db.test.ts

@@ -14,3 +14,16 @@ export function breakpointThresholds() {
     dropped_iterations: ['count==0'],
   };
 }
+
+/**
+ * Brief 122 B4. Module-store RPC on one company: p95 under 1s, mean under 300ms,
+ * no lock timeouts. Any non-2xx fails http_req_failed and the checks rate.
+ */
+export function moduleStorePutThresholds() {
+  return {
+    'http_req_duration{kind:module_store}': ['p(95)<1000', 'avg<300'],
+    lock_timeouts: ['count==0'],
+    http_req_failed: [{ threshold: 'rate==0', abortOnFail: true }],
+    checks: [{ threshold: 'rate==1', abortOnFail: true }],
+  };
+}

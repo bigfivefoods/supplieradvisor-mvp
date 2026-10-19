@@ -51,6 +51,34 @@ A leaked `LOADTEST_SIGNING_KEY` can mint those tokens on the staging preview onl
 
 Pass `LOADTEST_SIGNING_KEY` into k6 from the environment. Do not echo the expanded command and do not write the key into a file in this repo. `loadtest/scenarios/authed.js` reads `__ENV.LOADTEST_SIGNING_KEY` and `__ENV.LOADTEST_USERS`. The smoke profile does not call that scenario. This repository does not run k6 in CI.
 
+## Brief 122 B4 - module store token merge (staging only)
+
+This section stands on its own. The profiles above, and the staging sign-in scenario, do not call `rpc/sa_put_module_store`.
+
+`loadtest/scenarios/module-store-put.js` is a staging-only k6 script. It is not wired into CI and it was not run. `k6` is still not an npm dependency.
+
+Before any request it uses the harness guard: `assertHostAllowed` on `BASE_URL`, then `assertSupabaseRestUrl` on `LOADTEST_SUPABASE_URL`. A production host, an empty allow-list, the production project ref, or a Supabase URL whose ref is not `LOADTEST_EXPECT_PROJECT_REF` throws and sends nothing. `setup` then preflights `GET /api/loadtest/whoami` and requires `stage: "staging"`.
+
+The run is 20 VUs for 1 minute, all on the same `LOADTEST_COMPANY_ID` and `LOADTEST_MODULE`. Each iteration `POST`s `{supabase}/rest/v1/rpc/sa_put_module_store` with that module's `*_public_token` and `*_client_tokens` keys. Token mix: 4 in 5 iterations send one stable public token (the no-op metadata path once that value is stored). 1 in 5 sends a distinct token for that VU and iteration (a real metadata write). The next stable call writes the stable token back, and further stable calls are no-ops until the next distinct token. Thresholds, from Brief 122 B4: p95 under 1 second, mean under 300 ms, and 0 lock timeouts (`55P03`). A non-2xx fails the `sa_put_module_store status is 2xx` check. `http_req_failed` must stay at rate 0 and the checks rate must stay at 1, and either failure aborts the run.
+
+The script overwrites that company's `public_token` and token index. Run it only against a disposable STAGING company, never production.
+
+The service-role key is an operator secret for the staging project named by `LOADTEST_EXPECT_PROJECT_REF`. Do not point this script at production. Do not print the key.
+
+```bash
+k6 run \
+  -e BASE_URL=https://your-staging-host.example \
+  -e LOADTEST_ALLOWED_HOSTS=your-staging-host.example \
+  -e LOADTEST_EXPECT_PROJECT_REF=yourstagingref \
+  -e LOADTEST_SUPABASE_URL=https://yourstagingref.supabase.co \
+  -e LOADTEST_SERVICE_ROLE_KEY=staging-service-role-key \
+  -e LOADTEST_COMPANY_ID=123 \
+  -e LOADTEST_MODULE=fitgraph \
+  loadtest/scenarios/module-store-put.js
+```
+
+ApparelAdvisor® and ConstructionAdvisor® public token reads use the same `profiles.metadata` mirror. This script does not call those public routes. It only writes the module-store RPC on the staging company you name. ConstructionAdvisor® staff and public routes also compare-and-set on `profiles.updated_at`. A no-op merge does not change that version. A real token write does.
+
 ## Not verified here
 
-`k6 run` was not pointed at the staging preview or any other live host. The preflight, including the report-only CSP exemption, was tested with a fake response, not against a deployment. The staging sign-in was tested in process, not against the staging preview.
+`k6 run` was not pointed at the staging preview or any other live host. The preflight, including the report-only CSP exemption, was tested with a fake response, not against a deployment. The staging sign-in was tested in process, not against the staging preview. The Brief 122 B4 module-store scenario was not run.

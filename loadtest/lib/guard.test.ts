@@ -7,12 +7,14 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   assertHostAllowed,
+  assertSupabaseRestUrl,
   hostnameOf,
   prepareRun,
   productionDenyHosts,
   productionProjectRef,
   watchResponse,
 } from './guard.js';
+import { moduleStorePutThresholds } from './thresholds.js';
 import { pickUser } from './users.js';
 
 assert.equal(hostnameOf('http://localhost:3000/api'), 'localhost');
@@ -508,5 +510,75 @@ for (const name of readdirSync('.github/workflows')) {
 const pkg = readFileSync('package.json', 'utf8');
 assert.equal(pkg.includes('k6'), false);
 assert.equal(pkg.includes('loadtest'), false);
+
+const thresholds = moduleStorePutThresholds();
+assert.deepEqual(thresholds['http_req_duration{kind:module_store}'], ['p(95)<1000', 'avg<300']);
+assert.deepEqual(thresholds.lock_timeouts, ['count==0']);
+assert.deepEqual(thresholds.http_req_failed, [{ threshold: 'rate==0', abortOnFail: true }]);
+assert.deepEqual(thresholds.checks, [{ threshold: 'rate==1', abortOnFail: true }]);
+
+assert.equal(assertSupabaseRestUrl({
+  supabaseUrl: `https://user:secret@${expectRef}.supabase.co/rest/v1`,
+  expectProjectRef: expectRef,
+}), expectRef);
+assert.throws(
+  () => assertSupabaseRestUrl({
+    supabaseUrl: `https://${prodRef}.supabase.co`,
+    expectProjectRef: expectRef,
+  }),
+  /Supabase URL is production/
+);
+assert.throws(
+  () => assertSupabaseRestUrl({
+    supabaseUrl: `https://${expectRef}.supabase.co`,
+    expectProjectRef: prodRef,
+  }),
+  /production project/
+);
+assert.throws(
+  () => assertSupabaseRestUrl({
+    supabaseUrl: `https://otherref.supabase.co`,
+    expectProjectRef: expectRef,
+  }),
+  /does not match/
+);
+assert.throws(
+  () => assertSupabaseRestUrl({
+    supabaseUrl: 'https://aws-0-eu-central-1.pooler.supabase.com',
+    expectProjectRef: expectRef,
+  }),
+  /does not match/
+);
+assert.throws(
+  () => assertSupabaseRestUrl({ supabaseUrl: '', expectProjectRef: expectRef }),
+  /LOADTEST_SUPABASE_URL is missing/
+);
+
+const scenarioPath = join('loadtest/scenarios', 'module-store-put.js');
+const scenario = readFileSync(scenarioPath, 'utf8');
+const guardAt = scenario.indexOf('assertHostAllowed(');
+const supabaseAt = scenario.indexOf('assertSupabaseRestUrl(');
+const httpAt = Math.min(
+  ...['http.get(', 'http.post('].map((needle) => {
+    const at = scenario.indexOf(needle);
+    return at < 0 ? Number.POSITIVE_INFINITY : at;
+  })
+);
+assert.equal(guardAt >= 0 && supabaseAt > guardAt && httpAt > supabaseAt, true);
+assert.equal(scenario.includes('__ENV.BASE_URL'), true);
+assert.equal(scenario.includes('__ENV.LOADTEST_SUPABASE_URL'), true);
+assert.equal(scenario.includes('/rest/v1/rpc/sa_put_module_store'), true);
+assert.equal(scenario.includes('vus: 20'), true);
+assert.equal(scenario.includes('moduleStorePutThresholds()'), true);
+assert.equal(scenario.includes('lock_timeouts'), true);
+assert.equal(scenario.includes('sa_put_module_store status is 2xx'), true);
+assert.equal(scenario.includes('iteration % 5 === 0'), true);
+assert.equal(scenario.includes('4 in 5'), true);
+assert.equal(scenario.includes('1 in 5'), true);
+assert.equal(scenario.indexOf('export default function') < scenario.indexOf('JSON.stringify'), true);
+assert.equal(scenario.includes(prodRef), false);
+assert.equal(/BASE_URL\s*=\s*['"]https?:/.test(scenario), false);
+assert.equal(/supabase\.co/.test(scenario), false);
+assert.equal(scenario.includes('LOADTEST_SERVICE_ROLE_KEY'), true);
 
 console.log('guard.test.ts ok');
