@@ -15,7 +15,7 @@ CI workflows do not run k6. Do not add a workflow that does. A run needs a named
 - `LOADTEST_EXPECT_PROJECT_REF` is set and is not the production ref.
 - A preflight `GET` to `/api/loadtest/whoami` returns HTTP 200 with `stage: "staging"` and `projectRef` equal to `LOADTEST_EXPECT_PROJECT_REF`. The server ref and the public ref must be the same value. A trailing dot on a host is stripped before the deny list and the allow-list. The allow-list is an exact host match.
 
-During a run, any response header or body that contains the production project ref aborts the run.
+During a run, any response header or body that contains the production project ref aborts the run. The one exception is the report-only `Content-Security-Policy-Report-Only` header. The staging preview sends that header with the production Supabase host in `connect-src`, and the header is not enforced. The enforced `Content-Security-Policy` header is still scanned. Any other header, the body, `BASE_URL`, `LOADTEST_ALLOWED_HOSTS`, and `LOADTEST_EXPECT_PROJECT_REF` still abort the run when they name the production project ref.
 
 The profiles (`smoke`, `baseline`, `step`, `soak`, `spike`, `breakpoint`) only call that whoami route after the guard. They do not log in and they do not write. The weighted mixes (login, dashboard, lists, writes, imports, public pages, webhooks, crons) belong in a later scenarios change.
 
@@ -35,19 +35,35 @@ k6 run \
 
 A production URL exits non-zero and sends no request. An empty allow-list does the same.
 
+## Staging sign-in
+
+Authenticated k6 scenarios use `loadtest/scenarios/authed.js`. It mints a short-lived HMAC token with `LOADTEST_SIGNING_KEY` from the environment and sends it as `Authorization: Bearer`. The key is not printed.
+
+The server accepts that token only when all of these are true: `VERCEL_ENV=preview`, both Supabase URLs are staging ref `wpchtkfkaavcjyfgmktn`, `LOADTEST_ENDPOINTS=1`, and `LOADTEST_SIGNING_KEY` trims to at least 32 non-whitespace characters. A key that is only spaces is rejected. `VERCEL_ENV=production` refuses before the key is used, and so does an unset `VERCEL_ENV`. No other variable turns it on. Privy verification is unchanged for every other token.
+
+`LOADTEST_ENDPOINTS`, `LOADTEST_SIGNING_KEY`, and `LOADTEST_USERS` must be scoped to the staging branch only. Do not set them on Production or on any other preview branch.
+
+`LOADTEST_USERS` is a JSON list of the seeded users the scenario may call. The mapped subjects are `loadtest-user-1-1`, `loadtest-user-1-2`, `loadtest-user-2-1`, and `loadtest-user-3-1`. A token subject must be `loadtest-user-<company>-<index>` with company ordinal 1–5000 and user index 1–20, which is the range the seed generates. It cannot name a Privy user. `sub` must be a string. `profile_id` is not a required claim and is not checked. Company access still goes through the existing membership check.
+
+Tokens carry `exp` at most one hour after `iat`, a nonce, and `ref` equal to the staging project. Expired tokens, a wrong key, a wrong ref, and missing claims are rejected. The same token can be replayed until `exp`. There is no cross-instance nonce denylist.
+
+A leaked `LOADTEST_SIGNING_KEY` can mint those tokens on the staging preview only. It cannot turn the verifier on in production, and it is not a Privy signing key.
+
+Pass `LOADTEST_SIGNING_KEY` into k6 from the environment. Do not echo the expanded command and do not write the key into a file in this repo. `loadtest/scenarios/authed.js` reads `__ENV.LOADTEST_SIGNING_KEY` and `__ENV.LOADTEST_USERS`. The smoke profile does not call that scenario. This repository does not run k6 in CI.
+
 ## Not verified here
 
-No staging project was available. The preflight was tested with a fake response, not against a deployment. `k6 run` was not pointed at any live host.
+`k6 run` was not pointed at the staging preview or any other live host. The preflight, including the report-only CSP exemption, was tested with a fake response, not against a deployment. The staging sign-in was tested in process, not against the staging preview.
 
 ## Brief 122 B4 — module store token merge (staging only)
 
-This section stands on its own. The profiles above do not call `rpc/sa_put_module_store`.
+This section stands on its own. The profiles above, and the staging sign-in scenario, do not call `rpc/sa_put_module_store`.
 
 `loadtest/scenarios/module-store-put.js` is a staging-only k6 script. It is not wired into CI and it was not run. `k6` is still not an npm dependency.
 
 Before any request it uses the harness guard: `assertHostAllowed` on `BASE_URL`, then `assertSupabaseRestUrl` on `LOADTEST_SUPABASE_URL`. A production host, an empty allow-list, the production project ref, or a Supabase URL whose ref is not `LOADTEST_EXPECT_PROJECT_REF` throws and sends nothing. `setup` then preflights `GET /api/loadtest/whoami` and requires `stage: "staging"`.
 
-The run is 20 VUs for 1 minute, all on the same `LOADTEST_COMPANY_ID` and `LOADTEST_MODULE`. Each iteration `POST`s `{supabase}/rest/v1/rpc/sa_put_module_store` with that module's `*_public_token` and `*_client_tokens` keys. The body is identical across VUs, so the calls contend on one GymAdvisor® (`fitgraph`, when that is the module you pass) store row and its token mirror. Thresholds, from Brief 122 B4: p95 under 1 second, mean under 300 ms, and 0 lock timeouts (`55P03`).
+The run is 20 VUs for 1 minute, all on the same `LOADTEST_COMPANY_ID` and `LOADTEST_MODULE`. Each iteration `POST`s `{supabase}/rest/v1/rpc/sa_put_module_store` with that module's `*_public_token` and `*_client_tokens` keys. Token mix: 4 in 5 iterations send one stable public token (the no-op metadata path once that value is stored). 1 in 5 sends a distinct token for that VU and iteration (a real metadata write). The next stable call writes the stable token back, and further stable calls are no-ops until the next distinct token. Thresholds, from Brief 122 B4: p95 under 1 second, mean under 300 ms, and 0 lock timeouts (`55P03`). A non-2xx fails the `sa_put_module_store status is 2xx` check. `http_req_failed` must stay at rate 0 and the checks rate must stay at 1, and either failure aborts the run.
 
 The service-role key is an operator secret for the staging project named by `LOADTEST_EXPECT_PROJECT_REF`. Do not point this script at production. Do not print the key.
 
@@ -63,4 +79,4 @@ k6 run \
   loadtest/scenarios/module-store-put.js
 ```
 
-ApparelAdvisor® and ConstructionAdvisor® public token reads use the same `profiles.metadata` mirror. This script does not call those public routes. It only writes the module-store RPC on the staging company you name.
+ApparelAdvisor® and ConstructionAdvisor® public token reads use the same `profiles.metadata` mirror. This script does not call those public routes. It only writes the module-store RPC on the staging company you name. ConstructionAdvisor® staff and public routes also compare-and-set on `profiles.updated_at`. A no-op merge does not change that version. A real token write does.

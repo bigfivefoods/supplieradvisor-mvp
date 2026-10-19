@@ -26,10 +26,17 @@
 -- smaller *_tokens map is contained in the stored map, so removing a token
 -- would be skipped.
 --
--- Null, jsonb null, and {} write nothing and do not bump profiles.updated_at.
--- A token-only patch that does change a value updates metadata and does not
--- set updated_at. A patch that includes any other key still sets
--- updated_at = now(), including sa_put_company_chrome.
+-- Null, jsonb null, and {} write nothing. A real write, token key or
+-- otherwise, still sets updated_at = now(), as the previous body did.
+-- The live database also has BEFORE UPDATE trigger trg_profiles_updated_at
+-- (public.set_updated_at, from 20260709_world_class_schema.sql), which sets
+-- NEW.updated_at = NOW() on every UPDATE. Skipping the UPDATE is the only
+-- way a no-op leaves profiles.updated_at unchanged. That is safe for the
+-- ConstructionAdvisor® compare-and-set on profiles.updated_at in
+-- app/api/public/constructiongraph/route.ts and
+-- app/api/construction/constructiongraph/route.ts: a no-op changes nothing,
+-- so the version those routes already read still matches. A real token
+-- write moves the version, so a stale compare loses.
 --
 -- Signature, SECURITY DEFINER, search_path, and the service_role-only
 -- EXECUTE grant stay as they were in 20260821_saas_db_harden.sql.
@@ -49,7 +56,6 @@ DECLARE
     WHEN p_patch IS NULL OR jsonb_typeof(p_patch) = 'null' THEN '{}'::jsonb
     ELSE p_patch
   END;
-  token_only boolean;
 BEGIN
   IF p_company_id IS NULL OR p_company_id <= 0 THEN
     RAISE EXCEPTION 'company id required';
@@ -63,43 +69,25 @@ BEGIN
     RAISE EXCEPTION 'metadata patch must be a json object';
   END IF;
 
-  SELECT COALESCE(bool_and(
-    e.k LIKE '%\_token' ESCAPE '\'
-    OR e.k LIKE '%\_tokens' ESCAPE '\'
-  ), false)
-  INTO token_only
-  FROM jsonb_each(patch) AS e(k, v);
-
   -- (metadata -> k) IS NOT DISTINCT FROM (patch -> k) for every patch key.
   -- Not containment: a removed token inside a *_tokens map must still write.
-  IF token_only THEN
-    UPDATE public.profiles AS p
-    SET metadata = COALESCE(p.metadata, '{}'::jsonb) || patch
-    WHERE p.id = p_company_id
-      AND NOT (
-        SELECT COALESCE(bool_and(
-          (COALESCE(p.metadata, '{}'::jsonb) -> e.k) IS NOT DISTINCT FROM (patch -> e.k)
-        ), true)
-        FROM jsonb_each(patch) AS e(k, v)
-      );
-  ELSE
-    UPDATE public.profiles AS p
-    SET
-      metadata = COALESCE(p.metadata, '{}'::jsonb) || patch,
-      updated_at = now()
-    WHERE p.id = p_company_id
-      AND NOT (
-        SELECT COALESCE(bool_and(
-          (COALESCE(p.metadata, '{}'::jsonb) -> e.k) IS NOT DISTINCT FROM (patch -> e.k)
-        ), true)
-        FROM jsonb_each(patch) AS e(k, v)
-      );
-  END IF;
+  -- A real write always sets updated_at. Only this skip leaves it alone.
+  UPDATE public.profiles AS p
+  SET
+    metadata = COALESCE(p.metadata, '{}'::jsonb) || patch,
+    updated_at = now()
+  WHERE p.id = p_company_id
+    AND NOT (
+      SELECT COALESCE(bool_and(
+        (COALESCE(p.metadata, '{}'::jsonb) -> e.k) IS NOT DISTINCT FROM (patch -> e.k)
+      ), true)
+      FROM jsonb_each(patch) AS e(k, v)
+    );
 END;
 $$;
 
 COMMENT ON FUNCTION public.sa_merge_profile_metadata(integer, jsonb) IS
-  'Merge patch keys into profiles.metadata. Skips the UPDATE when every patch key already holds an equal value, compared per key with IS NOT DISTINCT FROM. Token-only writes do not bump updated_at.';
+  'Merge patch keys into profiles.metadata. Skips the UPDATE when every patch key already holds an equal value, compared per key with IS NOT DISTINCT FROM. A real write sets updated_at. A no-op does not.';
 
 REVOKE ALL ON FUNCTION public.sa_merge_profile_metadata(integer, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.sa_merge_profile_metadata(integer, jsonb) TO service_role;

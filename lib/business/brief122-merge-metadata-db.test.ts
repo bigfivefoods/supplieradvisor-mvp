@@ -39,6 +39,7 @@ const migrationSql = readFileSync(migrationPath, 'utf8');
 
 assert.match(migrationSql, /IS NOT DISTINCT FROM/);
 assert.match(migrationSql, /updated_at = now\(\)/);
+assert.equal(migrationSql.includes('token_only'), false);
 assert.match(migrationSql, /REVOKE ALL ON FUNCTION public\.sa_merge_profile_metadata\(integer, jsonb\) FROM PUBLIC, anon, authenticated/);
 assert.match(migrationSql, /GRANT EXECUTE ON FUNCTION public\.sa_merge_profile_metadata\(integer, jsonb\) TO service_role/);
 assert.equal(/GRANT\s+EXECUTE[\s\S]*TO\s+(anon|authenticated|PUBLIC)/i.test(migrationSql), false);
@@ -96,6 +97,26 @@ function updatedAtUnchanged(stamp: string): boolean {
   return psql(`SELECT (updated_at = timestamptz '${stamp}') FROM public.profiles WHERE id = 1;`) === 't';
 }
 
+function updatedAtText(): string {
+  return psql(`SELECT updated_at::text FROM public.profiles WHERE id = 1;`);
+}
+
+/** ConstructionAdvisor® routes compare-and-set with WHERE updated_at = the value they read. */
+function casMatchCount(stamp: string): string {
+  return psql(`
+    BEGIN;
+    WITH upd AS (
+      UPDATE public.profiles
+      SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"constructiongraph_cas":"probe"}'::jsonb,
+          updated_at = clock_timestamp()
+      WHERE id = 1 AND updated_at = timestamptz '${stamp}'
+      RETURNING id
+    )
+    SELECT count(*)::text FROM upd;
+    ROLLBACK;
+  `);
+}
+
 function nTupUpd(): string {
   return psql(`
     SELECT n_tup_upd::text
@@ -121,6 +142,18 @@ psql(`
     metadata jsonb,
     updated_at timestamptz NOT NULL DEFAULT now()
   );
+  -- Same trigger as 20260709_world_class_schema.sql: trg_profiles_updated_at
+  -- calls set_updated_at(), which sets NEW.updated_at = NOW() on every UPDATE.
+  CREATE OR REPLACE FUNCTION public.set_updated_at()
+  RETURNS TRIGGER LANGUAGE plpgsql AS $$
+  BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+  END;
+  $$;
+  CREATE TRIGGER trg_profiles_updated_at
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
   INSERT INTO public.profiles (id, metadata, updated_at)
   VALUES (
     1,
@@ -150,7 +183,40 @@ assert.equal(psql(`SELECT has_function_privilege('service_role', '${fn}', 'EXECU
 const body = psql(`SELECT prosrc FROM pg_proc WHERE oid = '${fn}'::regprocedure;`);
 assert.match(body, /IS NOT DISTINCT FROM/);
 assert.equal(body.includes('@>'), false);
+assert.equal(body.includes('token_only'), false);
+assert.match(body, /updated_at = now\(\)/);
 assert.match(body, /RETURN;/);
+const triggerDef = psql(`
+  SELECT pg_get_triggerdef(t.oid)
+  FROM pg_trigger t
+  JOIN pg_class c ON c.oid = t.tgrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public' AND c.relname = 'profiles' AND t.tgname = 'trg_profiles_updated_at' AND NOT t.tgisinternal;
+`);
+assert.match(triggerDef, /BEFORE UPDATE ON public\.profiles/);
+assert.match(triggerDef, /EXECUTE FUNCTION set_updated_at\(\)/);
+assert.match(triggerDef, /FOR EACH ROW/);
+assert.equal(
+  psql(`
+    SELECT n.nspname
+    FROM pg_trigger t
+    JOIN pg_proc p ON p.oid = t.tgfoid
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE t.tgname = 'trg_profiles_updated_at' AND NOT t.tgisinternal;
+  `),
+  'public'
+);
+assert.equal(
+  psql(`
+    BEGIN;
+    UPDATE public.profiles SET metadata = metadata WHERE id = 1;
+    SELECT (updated_at <> timestamptz '${STAMP}') FROM public.profiles WHERE id = 1;
+    ROLLBACK;
+  `),
+  't',
+  'trg_profiles_updated_at bumps updated_at on any UPDATE'
+);
+assert.equal(updatedAtUnchanged(STAMP), true);
 
 fails(
   `SET ROLE anon; SELECT public.sa_merge_profile_metadata(1, '{}'::jsonb);`,
@@ -182,6 +248,12 @@ assert.equal(
   psql(`SELECT (metadata = '{"trading_name":"Keep","fitgraph_client_tokens":{"a":"1","b":"2"}}'::jsonb) FROM public.profiles WHERE id = 1;`),
   't'
 );
+assert.equal(
+  casMatchCount(STAMP),
+  '1',
+  'ConstructionAdvisor® compare-and-set still matches after a no-op because the version did not move'
+);
+assert.equal(updatedAtUnchanged(STAMP), true);
 
 const beforeTokenXmin = xminOf();
 const beforeTokenStat = nTupUpd();
@@ -197,7 +269,9 @@ const xactToken = psql(`
 assert.equal(xactToken, '0\n1');
 assert.notEqual(xminOf(), beforeTokenXmin, 'a changed token key must write a new row version');
 assert.equal(String(Number(nTupUpd()) - Number(beforeTokenStat)), '1');
-assert.equal(updatedAtUnchanged(STAMP), true, 'token-only write must not bump profiles.updated_at');
+assert.equal(updatedAtUnchanged(STAMP), false, 'a real token write changes profiles.updated_at');
+assert.equal(casMatchCount(STAMP), '0', 'a stale ConstructionAdvisor® version loses after a real token write');
+const afterTokenAt = updatedAtText();
 const afterToken = psql(`SELECT (metadata->>'trading_name') || '|' || (metadata->>'fitgraph_public_token') FROM public.profiles WHERE id = 1;`);
 assert.equal(afterToken, 'Keep|gym_tok');
 assert.equal(
@@ -214,7 +288,8 @@ assert.equal(
 );
 assert.equal(psql(`SELECT metadata->>'trading_name' FROM public.profiles WHERE id = 1;`), 'Keep');
 assert.equal(psql(`SELECT metadata->>'fitgraph_public_token' FROM public.profiles WHERE id = 1;`), 'gym_tok');
-assert.equal(updatedAtUnchanged(STAMP), true);
+const afterRemoval = updatedAtText();
+assert.notEqual(afterRemoval, afterTokenAt, 'removing a token bumps profiles.updated_at');
 
 const beforeNewKey = xminOf();
 psql(`SELECT public.sa_merge_profile_metadata(1, '{"fitgraph_coach_tokens":{"c":"3"}}'::jsonb);`);
@@ -226,19 +301,20 @@ assert.equal(
   psql(`SELECT metadata->'fitgraph_client_tokens' FROM public.profiles WHERE id = 1;`),
   '{"a": "1"}'
 );
-assert.equal(updatedAtUnchanged(STAMP), true);
+const afterNewKey = updatedAtText();
+assert.notEqual(afterNewKey, afterRemoval, 'a new key bumps profiles.updated_at');
 
 const sameAgain = xminOf();
 psql(`SELECT public.sa_merge_profile_metadata(1, '{"fitgraph_public_token":"gym_tok","fitgraph_coach_tokens":{"c":"3"}}'::jsonb);`);
 assert.equal(xminOf(), sameAgain);
-assert.equal(updatedAtUnchanged(STAMP), true);
+assert.equal(updatedAtText(), afterNewKey, 'a repeated token patch leaves profiles.updated_at unchanged');
 
 const beforeChrome = xminOf();
 psql(`SELECT public.sa_merge_profile_metadata(1, '{"setup_status":"ready"}'::jsonb);`);
 assert.notEqual(xminOf(), beforeChrome);
 assert.equal(psql(`SELECT metadata->>'setup_status' FROM public.profiles WHERE id = 1;`), 'ready');
 assert.equal(psql(`SELECT metadata->>'trading_name' FROM public.profiles WHERE id = 1;`), 'Keep');
-assert.equal(updatedAtUnchanged(STAMP), false, 'a non-token key still bumps profiles.updated_at');
+assert.notEqual(updatedAtText(), afterNewKey, 'a non-token key bumps profiles.updated_at');
 
 const bumped = psql(`SELECT updated_at::text FROM public.profiles WHERE id = 1;`);
 const beforeMixed = xminOf();

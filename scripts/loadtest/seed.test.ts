@@ -15,7 +15,7 @@ import {
   libpqEnv,
   productionDenyHosts,
 } from './lib/guard.mjs';
-import { interpretPsql, missingColumns, redactSecrets, renderSeedSql, renderTeardownSql } from './lib/sql.mjs';
+import { interpretPsql, missingColumns, notNullWithoutDefault, omittedNotNullColumns, redactSecrets, renderSeedSql, renderTeardownSql } from './lib/sql.mjs';
 import { parseArgs, runSeed } from './seed.mjs';
 import { parseArgs as parseTeardownArgs, runTeardown } from './seed-teardown.mjs';
 
@@ -115,12 +115,64 @@ assert.match(redacted, /\[redacted-url\]/);
 assert.match(redacted, /postgres:\/\/\[redacted\]@/);
 
 assert.equal(missingColumns({}).length > 0, true);
-assert.deepEqual(
+assert.equal(
   missingColumns({
     profiles: new Set(['id', 'trading_name', 'legal_name', 'email', 'supplier_status', 'user_id', 'metadata']),
+  }).includes('profiles.created_at'),
+  true
+);
+assert.equal(
+  missingColumns({
+    profiles: new Set(['id', 'trading_name', 'legal_name', 'email', 'supplier_status', 'user_id', 'metadata', 'created_at']),
   }).some((item) => item.startsWith('profiles.')),
   false
 );
+
+const notNullSnapshot = JSON.parse(readFileSync('scripts/loadtest/schema/not-null-columns.json', 'utf8'));
+const requiredNotNull = notNullWithoutDefault(notNullSnapshot);
+assert.deepEqual(requiredNotNull.profiles, ['created_at']);
+assert.equal(omittedNotNullColumns(seedSql, notNullSnapshot).length, 0);
+assert.equal(omittedNotNullColumns(renderSeedSql('s2', 's2'), notNullSnapshot).length, 0);
+const droppedCreatedAt = seedSql.replace(/, created_at/g, '');
+assert.deepEqual(omittedNotNullColumns(droppedCreatedAt, notNullSnapshot), ['profiles.created_at']);
+const withExtra = JSON.parse(JSON.stringify(notNullSnapshot));
+withExtra.tables.customers.push({
+  column: 'must_write',
+  nullable: 'NO',
+  default: null,
+  identity: 'NO',
+  generated: 'NEVER',
+});
+assert.deepEqual(omittedNotNullColumns(seedSql, withExtra), ['customers.must_write']);
+const withDefault = JSON.parse(JSON.stringify(notNullSnapshot));
+withDefault.tables.profiles = withDefault.tables.profiles.map((col: { column: string }) =>
+  col.column === 'created_at' ? { ...col, default: 'now()' } : col
+);
+assert.equal(omittedNotNullColumns(droppedCreatedAt, withDefault).includes('profiles.created_at'), false);
+assert.match(seedSql, /created_at/);
+assert.match(seedSql, /TIMESTAMPTZ '2024-01-01 00:00:00\+00'/);
+
+const small = buildPlan('s1', { preset: 'small' });
+assert.equal(small.companies, 500);
+assert.equal(small.users, 2500);
+assert.equal(small.medianUsers, 5);
+assert.equal(small.minUsers, 5);
+assert.equal(small.maxUsers, 5);
+assert.equal(small.peers, 50);
+assert.equal(small.totals.activity_log, 10000);
+assert.equal(small.activityPerCompany, 20);
+const smallSql = renderSeedSql('s1', 'small', { preset: 'small' });
+assert.match(smallSql, /generate_series\(1, 500\)/);
+assert.match(smallSql, /IF existing = 500/);
+assert.equal(omittedNotNullColumns(smallSql, notNullSnapshot).length, 0);
+assert.equal(smallSql.includes(PRODUCTION_PROJECT_REF), false);
+const overridden = buildPlan('s2', { companies: 100, users: 400, activityPerCompany: 3 });
+assert.equal(overridden.companies, 100);
+assert.equal(overridden.users, 400);
+assert.equal(overridden.totals.activity_log, 300);
+assert.throws(() => buildPlan('s1', { companies: 5001 }), /companies must be an integer/);
+assert.throws(() => buildPlan('s1', { preset: 'small', users: 1 }), /users must be an integer/);
+assert.throws(() => buildPlan('s1', { preset: 'huge' }), /preset must be small/);
 
 const parts = libpqEnv(`${secretUrl}?sslmode=require`);
 assert.equal(parts.PGHOST, 'db.staging.example.test');
@@ -347,8 +399,33 @@ assert.equal(missing.exitCode, 1);
 
 assert.throws(() => parseArgs(['--profile', 's3']), /profile must be s1 or s2/);
 assert.throws(() => parseArgs(['--wat']), /unknown argument/);
-assert.deepEqual(parseArgs([]), { dryRun: true, apply: false, profile: 's1', batch: 's1', expectRef: '' });
-assert.deepEqual(parseArgs(['--profile', 's2']), { dryRun: true, apply: false, profile: 's2', batch: 's2', expectRef: '' });
+assert.deepEqual(parseArgs([]), {
+  dryRun: true,
+  apply: false,
+  profile: 's1',
+  batch: 's1',
+  expectRef: '',
+  preset: '',
+  companies: undefined,
+  users: undefined,
+  activityPerCompany: undefined,
+});
+assert.deepEqual(parseArgs(['--profile', 's2']), {
+  dryRun: true,
+  apply: false,
+  profile: 's2',
+  batch: 's2',
+  expectRef: '',
+  preset: '',
+  companies: undefined,
+  users: undefined,
+  activityPerCompany: undefined,
+});
+assert.equal(parseArgs(['--preset', 'small']).preset, 'small');
+assert.equal(parseArgs(['--companies', '40', '--users', '80', '--activity-per-company', '7']).companies, 40);
+assert.throws(() => parseArgs(['--preset', 'huge']), /preset must be small/);
+assert.throws(() => parseArgs(['--companies', '0']), /positive integer/);
+assert.throws(() => parseArgs(['--users', 'nope']), /positive integer/);
 assert.throws(() => assertBatchId(''), /batch id/);
 assert.throws(() => parseArgs(['--batch', 'S1']), /batch id/);
 assert.throws(() => parseArgs(['--batch', 'has space']), /batch id/);

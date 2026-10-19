@@ -1,5 +1,6 @@
 import http from 'k6/http';
 import exec from 'k6/execution';
+import { check } from 'k6';
 import { Counter } from 'k6/metrics';
 import { assertHostAllowed, assertSupabaseRestUrl, runPreflight, watchResponse } from '../lib/guard.js';
 import { moduleStorePutThresholds } from '../lib/thresholds.js';
@@ -7,6 +8,14 @@ import { moduleStorePutThresholds } from '../lib/thresholds.js';
 /**
  * Brief 122 B4. Staging only. Twenty VUs call rpc/sa_put_module_store for one
  * company and one module, with token index keys.
+ *
+ * Token mix: 4 in 5 iterations send one stable public token. Once that value
+ * is stored, those calls take the no-op metadata path until a distinct token
+ * lands. 1 in 5 sends a token named for this VU and iteration, which is a
+ * real metadata write. The next stable call writes the stable token back,
+ * and further stable calls are no-ops again.
+ *
+ * A non-2xx fails the checks rate and http_req_failed, and aborts the run.
  * The harness guard refuses production before any request. This file is not run in CI.
  */
 const lockTimeouts = new Counter('lock_timeouts');
@@ -30,18 +39,7 @@ if (!serviceKey) {
   throw new Error('Refusing to run: LOADTEST_SERVICE_ROLE_KEY is empty');
 }
 
-const token = 'loadtest-public-token';
-const body = JSON.stringify({
-  p_company_id: Number(companyId),
-  p_module: moduleKey,
-  p_data: { source: 'loadtest', updated_at: '2026-10-19T00:00:00.000Z' },
-  p_indexes: {
-    [`${moduleKey}_public_token`]: token,
-    [`${moduleKey}_client_tokens`]: { loadtest: 'loadtest-client-token' },
-  },
-  p_public_token: token,
-  p_if_updated_at: null,
-});
+const stableToken = 'loadtest-public-token';
 
 export const options = {
   scenarios: {
@@ -68,6 +66,20 @@ function noteLockTimeout(res) {
 }
 
 export default function () {
+  const iteration = exec.vu.iterationInScenario;
+  const change = iteration % 5 === 0;
+  const token = change ? `loadtest-vu${exec.vu.idInTest}-i${iteration}` : stableToken;
+  const body = JSON.stringify({
+    p_company_id: Number(companyId),
+    p_module: moduleKey,
+    p_data: { source: 'loadtest', updated_at: '2026-10-19T00:00:00.000Z' },
+    p_indexes: {
+      [`${moduleKey}_public_token`]: token,
+      [`${moduleKey}_client_tokens`]: { loadtest: change ? token : stableToken },
+    },
+    p_public_token: token,
+    p_if_updated_at: null,
+  });
   const base = String(__ENV.LOADTEST_SUPABASE_URL || '').replace(/\/$/, '');
   const res = http.post(`${base}/rest/v1/rpc/sa_put_module_store`, body, {
     headers: {
@@ -79,5 +91,8 @@ export default function () {
   });
   watchResponse(res, (message) => exec.test.abort(message));
   noteLockTimeout(res);
+  check(res, {
+    'sa_put_module_store status is 2xx': (r) => r.status >= 200 && r.status < 300,
+  });
   return res;
 }
