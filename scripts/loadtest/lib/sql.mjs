@@ -1,4 +1,4 @@
-import { BASE_VOLUME, COMPANY_COUNT, LOW_COMPANIES, MID_COMPANIES, PEER_COUNT, S2_SCALE, S2_TAIL_MULTIPLIER, USERS_LOW, USERS_MID, USERS_TAIL, WHALE_COUNT, WHALE_MULTIPLIER } from './distribution.mjs';
+import { BASE_VOLUME, resolveSeedSize, peerCount, S2_SCALE, S2_TAIL_MULTIPLIER, userCountSql, WHALE_COUNT, WHALE_MULTIPLIER } from './distribution.mjs';
 import { assertBatchId } from './guard.mjs';
 
 export const SEEDED_TABLES = [
@@ -20,7 +20,7 @@ export const SEEDED_TABLES = [
 ];
 
 export const REQUIRED_COLUMNS = {
-  profiles: ['id', 'trading_name', 'legal_name', 'email', 'supplier_status', 'user_id', 'metadata'],
+  profiles: ['id', 'trading_name', 'legal_name', 'email', 'supplier_status', 'user_id', 'metadata', 'created_at'],
   business_users: ['user_id', 'profile_id', 'role', 'status', 'email', 'name', 'metadata'],
   business_connections: ['requester_profile_id', 'requestee_profile_id', 'status', 'connection_type', 'metadata'],
   customers: ['profile_id', 'trading_name', 'email', 'phone', 'status', 'metadata'],
@@ -48,21 +48,29 @@ export function missingColumns(present, required = REQUIRED_COLUMNS) {
   return missing;
 }
 
-function volumeCase(column, profile) {
+function volumeCase(column, profile, size) {
   const base = BASE_VOLUME[column];
   const typical = profile === 's2' ? base * S2_SCALE : base;
   const whale = typical * WHALE_MULTIPLIER;
   const heavy = base * S2_TAIL_MULTIPLIER;
+  if (column === 'activity_log' && size && size.activityPerCompany != null) {
+    return String(size.activityPerCompany);
+  }
   if (profile === 's2') {
     return `CASE WHEN n <= ${WHALE_COUNT} THEN ${whale} WHEN n % 20 = 0 THEN ${heavy} ELSE ${typical} END`;
   }
   return `CASE WHEN n <= ${WHALE_COUNT} THEN ${whale} ELSE ${base} END`;
 }
 
-export function renderSeedSql(profile, batch) {
+const PROFILE_CREATED_AT = "TIMESTAMPTZ '2024-01-01 00:00:00+00'";
+
+export function renderSeedSql(profile, batch, sizeInput = {}) {
   assertBatchId(batch);
   if (profile !== 's1' && profile !== 's2') throw new Error('profile must be s1 or s2');
-  const userCase = `CASE WHEN n <= ${LOW_COMPANIES} THEN ${USERS_LOW} WHEN n <= ${LOW_COMPANIES + MID_COMPANIES} THEN ${USERS_MID} ELSE ${USERS_TAIL} END`;
+  const size = resolveSeedSize(sizeInput);
+  const companies = size.companies;
+  const peers = peerCount(size);
+  const userCase = userCountSql(size);
   const moduleCase = `3 + ((n - 1) % 4)`;
   const bytesCase = `CASE WHEN n % 50 = 0 THEN ${400 * 1024} WHEN n % 10 = 0 THEN ${50 * 1024} ELSE ${5 * 1024} END`;
   return `-- Staging seed. Generated for profile ${profile}, batch ${batch}.
@@ -78,7 +86,7 @@ BEGIN
   FROM public.profiles
   WHERE metadata->>'loadtest' = '${batch}'
     AND metadata->>'kind' = 'company';
-  IF existing = ${COMPANY_COUNT} THEN
+  IF existing = ${companies} THEN
     RAISE EXCEPTION 'LOADTEST_ALREADY_SEEDED';
   END IF;
   IF existing > 0 THEN
@@ -105,7 +113,7 @@ CREATE TEMP TABLE loadtest_company (
 ) ON COMMIT DROP;
 
 WITH inserted AS (
-  INSERT INTO public.profiles (trading_name, legal_name, email, supplier_status, user_id, metadata)
+  INSERT INTO public.profiles (trading_name, legal_name, email, supplier_status, user_id, metadata, created_at)
   SELECT
     'Loadtest Company ' || n,
     'Loadtest Company ' || n || ' Legal',
@@ -121,8 +129,9 @@ WITH inserted AS (
         SELECT jsonb_agg('mod' || m ORDER BY m)
         FROM generate_series(1, ${moduleCase}) AS m
       )
-    )
-  FROM generate_series(1, ${COMPANY_COUNT}) AS n
+    ),
+    ${PROFILE_CREATED_AT}
+  FROM generate_series(1, ${companies}) AS n
   RETURNING id, (metadata->>'ordinal')::integer AS n
 )
 INSERT INTO loadtest_company (n, id, user_n, customer_n, product_n, invoice_n, po_n, journal_n, line_n, bank_n, activity_n, stock_n, module_n, module_bytes)
@@ -137,21 +146,22 @@ SELECT
   ${volumeCase('journal_entries', profile)},
   ${volumeCase('journal_lines', profile)},
   ${volumeCase('bank_transactions', profile)},
-  ${volumeCase('activity_log', profile)},
+  ${volumeCase('activity_log', profile, size)},
   ${volumeCase('stock_levels', profile)},
   ${moduleCase},
   ${bytesCase}
 FROM inserted;
 
-INSERT INTO public.profiles (trading_name, legal_name, email, supplier_status, user_id, metadata)
+INSERT INTO public.profiles (trading_name, legal_name, email, supplier_status, user_id, metadata, created_at)
 SELECT
   'Loadtest Peer ' || n,
   'Loadtest Peer ' || n || ' Legal',
   'peer' || n || '@loadtest.invalid',
   'active',
   'loadtest-peer-' || n,
-  jsonb_build_object('loadtest', '${batch}', 'kind', 'peer', 'ordinal', n)
-FROM generate_series(1, ${PEER_COUNT}) AS n;
+  jsonb_build_object('loadtest', '${batch}', 'kind', 'peer', 'ordinal', n),
+  ${PROFILE_CREATED_AT}
+FROM generate_series(1, ${peers}) AS n;
 
 INSERT INTO public.business_connections (
   requester_profile_id, requestee_profile_id, status, connection_type, metadata
@@ -159,7 +169,7 @@ INSERT INTO public.business_connections (
 SELECT c.id, peer.id, 'active', 'partner', jsonb_build_object('loadtest', '${batch}')
 FROM public.profiles AS peer
 JOIN loadtest_company AS c
-  ON c.n = ((peer.metadata->>'ordinal')::integer - 1) % ${COMPANY_COUNT} + 1
+  ON c.n = ((peer.metadata->>'ordinal')::integer - 1) % ${companies} + 1
 WHERE peer.metadata->>'loadtest' = '${batch}'
   AND peer.metadata->>'kind' = 'peer';
 
@@ -414,6 +424,52 @@ export function interpretPsql(stderr, status) {
   }
   if (status === 0) return { exitCode: 0, alreadySeeded: false };
   return { exitCode: 1, alreadySeeded: false };
+}
+
+/**
+ * Columns a seed INSERT must name: NOT NULL, no default, not an identity,
+ * not generated. `snapshot` is the pinned information_schema extract.
+ */
+export function notNullWithoutDefault(snapshot) {
+  const out = {};
+  const tables = snapshot && snapshot.tables ? snapshot.tables : {};
+  for (const [table, columns] of Object.entries(tables)) {
+    const need = [];
+    for (const col of columns) {
+      if (!col || col.nullable !== 'NO') continue;
+      if (col.identity === 'YES') continue;
+      if (col.generated && col.generated !== 'NEVER') continue;
+      if (col.default != null && String(col.default).trim() !== '') continue;
+      if (col.column) need.push(col.column);
+    }
+    if (need.length) out[table] = need;
+  }
+  return out;
+}
+
+export function omittedNotNullColumns(sql, snapshot, tables = SEEDED_TABLES) {
+  const required = notNullWithoutDefault(snapshot);
+  const inserts = new Map();
+  const re = /INSERT INTO public\.([a-z0-9_]+)\s*\(([^)]*)\)/gi;
+  for (const match of String(sql).matchAll(re)) {
+    const table = match[1];
+    const cols = match[2].split(',').map((part) => part.trim()).filter(Boolean);
+    if (!inserts.has(table)) inserts.set(table, []);
+    inserts.get(table).push(new Set(cols));
+  }
+  const missing = [];
+  for (const table of tables) {
+    const need = required[table] || [];
+    const groups = inserts.get(table) || [];
+    if (groups.length === 0) {
+      if (need.length) missing.push(`${table}.*`);
+      continue;
+    }
+    for (const col of need) {
+      if (groups.some((have) => !have.has(col))) missing.push(`${table}.${col}`);
+    }
+  }
+  return missing;
 }
 
 export function redactSecrets(text, databaseUrl) {

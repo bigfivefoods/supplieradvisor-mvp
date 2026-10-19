@@ -1,0 +1,82 @@
+{
+  "_comment": "Pinned NOT NULL columns for the tables the staging seed writes. Read-only information_schema extract from staging ref wpchtkfkaavcjyfgmktn on 2026-10-18. Identity columns and columns with a default are stored so the test can derive the ones an INSERT must name. This file is not a migration.",
+  "projectRef": "wpchtkfkaavcjyfgmktn",
+  "tables": {
+    "activity_log": [
+      {"column": "id", "nullable": "NO", "default": "nextval('activity_log_id_seq'::regclass)", "identity": "NO", "generated": "NEVER"},
+      {"column": "action", "nullable": "NO", "default": null, "identity": "NO", "generated": "NEVER"},
+      {"column": "created_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"}
+    ],
+    "bank_accounts": [
+      {"column": "id", "nullable": "NO", "default": "nextval('bank_accounts_id_seq'::regclass)", "identity": "NO", "generated": "NEVER"},
+      {"column": "name", "nullable": "NO", "default": null, "identity": "NO", "generated": "NEVER"},
+      {"column": "status", "nullable": "NO", "default": "'active'::text", "identity": "NO", "generated": "NEVER"},
+      {"column": "created_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"},
+      {"column": "updated_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"}
+    ],
+    "bank_transactions": [
+      {"column": "id", "nullable": "NO", "default": "uuid_generate_v4()", "identity": "NO", "generated": "NEVER"}
+    ],
+    "business_connections": [
+      {"column": "id", "nullable": "NO", "default": null, "identity": "YES", "generated": "NEVER"}
+    ],
+    "business_users": [
+      {"column": "id", "nullable": "NO", "default": "nextval('business_users_id_seq'::regclass)", "identity": "NO", "generated": "NEVER"}
+    ],
+    "chart_of_accounts": [
+      {"column": "id", "nullable": "NO", "default": "nextval('chart_of_accounts_id_seq'::regclass)", "identity": "NO", "generated": "NEVER"},
+      {"column": "code", "nullable": "NO", "default": null, "identity": "NO", "generated": "NEVER"},
+      {"column": "name", "nullable": "NO", "default": null, "identity": "NO", "generated": "NEVER"},
+      {"column": "account_type", "nullable": "NO", "default": null, "identity": "NO", "generated": "NEVER"},
+      {"column": "created_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"},
+      {"column": "updated_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"}
+    ],
+    "company_module_stores": [
+      {"column": "company_id", "nullable": "NO", "default": null, "identity": "NO", "generated": "NEVER"},
+      {"column": "module", "nullable": "NO", "default": null, "identity": "NO", "generated": "NEVER"},
+      {"column": "data", "nullable": "NO", "default": "'{}'::jsonb", "identity": "NO", "generated": "NEVER"},
+      {"column": "updated_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"}
+    ],
+    "customer_invoices": [
+      {"column": "id", "nullable": "NO", "default": "nextval('customer_invoices_id_seq'::regclass)", "identity": "NO", "generated": "NEVER"},
+      {"column": "status", "nullable": "NO", "default": "'draft'::text", "identity": "NO", "generated": "NEVER"},
+      {"column": "created_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"},
+      {"column": "updated_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"}
+    ],
+    "customers": [
+      {"column": "id", "nullable": "NO", "default": "nextval('customers_id_seq'::regclass)", "identity": "NO", "generated": "NEVER"},
+      {"column": "trading_name", "nullable": "NO", "default": null, "identity": "NO", "generated": "NEVER"},
+      {"column": "status", "nullable": "NO", "default": "'active'::text", "identity": "NO", "generated": "NEVER"},
+      {"column": "created_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"},
+      {"column": "updated_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"}
+    ],
+    "journal_entries": [
+      {"column": "id", "nullable": "NO", "default": "nextval('journal_entries_id_seq'::regclass)", "identity": "NO", "generated": "NEVER"},
+      {"column": "entry_date", "nullable": "NO", "default": "CURRENT_DATE", "identity": "NO", "generated": "NEVER"},
+      {"column": "status", "nullable": "NO", "default": "'posted'::text", "identity": "NO", "generated": "NEVER"},
+      {"column": "created_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"}
+    ],
+    "journal_lines": [
+      {"column": "id", "nullable": "NO", "default": "nextval('journal_lines_id_seq'::regclass)", "identity": "NO", "generated": "NEVER"}
+    ],
+    "products": [
+      {"column": "id", "nullable": "NO", "default": null, "identity": "YES", "generated": "NEVER"},
+      {"column": "name", "nullable": "NO", "default": null, "identity": "NO", "generated": "NEVER"},
+      {"column": "category", "nullable": "NO", "default": "'General'::text", "identity": "NO", "generated": "NEVER"}
+    ],
+    "profiles": [
+      {"column": "id", "nullable": "NO", "default": null, "identity": "YES", "generated": "NEVER"},
+      {"column": "created_at", "nullable": "NO", "default": null, "identity": "NO", "generated": "NEVER"},
+      {"column": "public_id", "nullable": "NO", "default": "gen_random_uuid()", "identity": "NO", "generated": "NEVER"}
+    ],
+    "purchase_orders": [
+      {"column": "id", "nullable": "NO", "default": "nextval('purchase_orders_id_seq'::regclass)", "identity": "NO", "generated": "NEVER"}
+    ],
+    "stock_levels": [
+      {"column": "id", "nullable": "NO", "default": "nextval('stock_levels_id_seq'::regclass)", "identity": "NO", "generated": "NEVER"},
+      {"column": "qty_on_hand", "nullable": "NO", "default": "0", "identity": "NO", "generated": "NEVER"},
+      {"column": "qty_reserved", "nullable": "NO", "default": "0", "identity": "NO", "generated": "NEVER"},
+      {"column": "updated_at", "nullable": "NO", "default": "now()", "identity": "NO", "generated": "NEVER"}
+    ]
+  }
+}

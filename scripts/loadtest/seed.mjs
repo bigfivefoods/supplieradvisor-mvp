@@ -11,12 +11,31 @@ import { buildPlan, formatPlan } from './lib/distribution.mjs';
 import { assertBatchId, automationRefusal, evaluateSeedTarget, libpqEnv, readSeedEnv, targetIsSet } from './lib/guard.mjs';
 import { interpretPsql, redactSecrets, renderSeedSql } from './lib/sql.mjs';
 
+function readFlag(argv, i, flag) {
+  const raw = argv[i + 1];
+  if (raw == null || raw === '' || String(raw).startsWith('--')) {
+    throw new Error(`${flag} requires a value`);
+  }
+  return raw;
+}
+
+function readCount(raw, flag) {
+  if (!/^[1-9]\d*$/.test(String(raw))) throw new Error(`${flag} must be a positive integer`);
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value)) throw new Error(`${flag} must be a positive integer`);
+  return value;
+}
+
 export function parseArgs(argv) {
   let apply = false;
   let dryRunFlag = false;
   let profile = 's1';
   let batch = '';
   let expectRef = '';
+  let preset = '';
+  let companies;
+  let users;
+  let activityPerCompany;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--dry-run') {
@@ -24,14 +43,27 @@ export function parseArgs(argv) {
     } else if (arg === '--apply') {
       apply = true;
     } else if (arg === '--expect-ref') {
-      expectRef = argv[i + 1] || '';
+      expectRef = readFlag(argv, i, arg);
       i += 1;
     } else if (arg === '--profile') {
-      profile = argv[i + 1];
+      profile = readFlag(argv, i, arg);
       if (profile !== 's1' && profile !== 's2') throw new Error('profile must be s1 or s2');
       i += 1;
     } else if (arg === '--batch') {
-      batch = argv[i + 1] || '';
+      batch = readFlag(argv, i, arg);
+      i += 1;
+    } else if (arg === '--preset') {
+      preset = readFlag(argv, i, arg);
+      if (preset !== 'small') throw new Error('preset must be small');
+      i += 1;
+    } else if (arg === '--companies') {
+      companies = readCount(readFlag(argv, i, arg), arg);
+      i += 1;
+    } else if (arg === '--users') {
+      users = readCount(readFlag(argv, i, arg), arg);
+      i += 1;
+    } else if (arg === '--activity-per-company') {
+      activityPerCompany = readCount(readFlag(argv, i, arg), arg);
       i += 1;
     } else {
       throw new Error(`unknown argument ${arg}`);
@@ -40,7 +72,26 @@ export function parseArgs(argv) {
   if (!batch) batch = profile;
   assertBatchId(batch);
   const dryRun = dryRunFlag || !apply;
-  return { dryRun, apply: apply && !dryRunFlag, profile, batch, expectRef };
+  return {
+    dryRun,
+    apply: apply && !dryRunFlag,
+    profile,
+    batch,
+    expectRef,
+    preset,
+    companies,
+    users,
+    activityPerCompany,
+  };
+}
+
+function sizeFromArgs(args) {
+  return {
+    preset: args.preset,
+    companies: args.companies,
+    users: args.users,
+    activityPerCompany: args.activityPerCompany,
+  };
 }
 
 function childEnv(parent, databaseUrl) {
@@ -58,7 +109,8 @@ export function runSeed({ argv = [], env = {}, spawn = spawnSync, stdout = proce
     return { exitCode: 1, spawned: false };
   }
   const args = parseArgs(argv);
-  const plan = formatPlan(buildPlan(args.profile));
+  const size = sizeFromArgs(args);
+  const plan = formatPlan(buildPlan(args.profile, size));
   const target = readSeedEnv(env);
   stdout.write(plan);
 
@@ -84,7 +136,7 @@ export function runSeed({ argv = [], env = {}, spawn = spawnSync, stdout = proce
     return { exitCode: 1, spawned: false };
   }
 
-  const sql = renderSeedSql(args.profile, args.batch);
+  const sql = renderSeedSql(args.profile, args.batch, size);
   if (sql.includes('statement_timeout')) {
     stderr.write('Refusing to seed: generated SQL must not change server timeouts\n');
     return { exitCode: 1, spawned: false };
