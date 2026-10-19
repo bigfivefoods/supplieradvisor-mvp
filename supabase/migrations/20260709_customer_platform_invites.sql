@@ -11,6 +11,7 @@ DROP FUNCTION IF EXISTS public.sa_create_index(text, text, text[]);
 CREATE OR REPLACE FUNCTION public.sa_add_column(p_table text, p_column text, p_type text, p_default text DEFAULT NULL)
 RETURNS void
 LANGUAGE plpgsql
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   IF EXISTS (
@@ -37,7 +38,8 @@ $$;
 -- Same signature/parameter names as world_class_schema (p_columns, not p_column)
 CREATE OR REPLACE FUNCTION public.sa_create_index(
   p_name text, p_table text, p_columns text
-) RETURNS void LANGUAGE plpgsql AS $$
+) RETURNS void LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
 DECLARE
   col text;
   cols text[];

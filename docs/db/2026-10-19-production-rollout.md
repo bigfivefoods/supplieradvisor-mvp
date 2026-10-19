@@ -1,6 +1,6 @@
 # Production rollout, 19 Oct 2026
 
-Production Supabase `onkklullmgrdqoertngp` was changed directly on 19 Oct 2026, 12:54–13:00 SAST. This note is the repo record of that end state. It does not apply anything.
+Production Supabase `onkklullmgrdqoertngp` was changed directly on 19 Oct 2026, 12:54–13:00 SAST. A second hardening round, N1–N4, ran the same day at 13:36–14:21 SAST on staging and then on production. This note is the repo record of both end states. It does not apply anything.
 
 ## What changed, and why
 
@@ -93,4 +93,33 @@ BRIEF122_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/brief122roll
   npx --yes tsx lib/db/brief122-rollout-db.test.ts
 ```
 
-That applies the four files twice, checks 113 indexes and `pg_trgm` in `extensions`, checks the 17 names stay dropped, checks the 11 policies wrap, and checks the B6 grants. CI runs the same test against a local Postgres service.
+That applies the brief 122 files and the N1–N4 files, including a second time. It checks 113 indexes and `pg_trgm` in `extensions`, the 17 names stay dropped, the 11 policies wrap, and the B6 grants. For N1–N4 it checks the 13 search paths, the seven foreign-key indexes, that `products`, `stock_levels`, `stock_movements` and `warehouses` each end with only the `service_role` policy, and that the two backup tables are gone. CI runs the same test against a local Postgres service.
+
+## Next hardening, 13:36–14:21 SAST
+
+Read-only `SELECT version, name FROM supabase_migrations.schema_migrations` on 19 Oct 2026, after N4. N5 (leaked-password protection and auth database connections) was not part of this change.
+
+| production version | production name | repo file |
+|---|---|---|
+| `20261019113636` | `next_n1_function_search_path` | `supabase/migrations/20261028_next_n1_function_search_path.sql` |
+| *(not recorded)* | 7 foreign-key indexes | `supabase/migrations/20261029_next_n2_fk_indexes.sql` |
+| `20261019113922` | `next_n3_policy_consolidation` | `supabase/migrations/20261030_next_n3_policy_consolidation.sql` |
+| `20261019122057` | `next_n4_drop_business_users_backups` | `supabase/migrations/20261031_next_n4_drop_business_users_backups.sql` |
+
+These four sort after `20261027_brief122_b6_lockdown_definer_rpcs.sql`. The same 8-digit filename rule applies: `20261019113636_*.sql` would sort before `20261019_fleetgraph_a.sql`. Applying the repo files on production later is idempotent and would insert history versions `20261028`–`20261031`. It would not collide with `20261019113636`, `20261019113922` or `20261019122057`.
+
+N1 sets `search_path = public, pg_temp` on:
+
+`record_onchain_attestation()`, `sa_add_column(text,text,text,text)`, `sa_add_fk(text,text,text,text,text)`, `sa_brief35_recode_party_gl(integer)`, `sa_brief36_recode_member_rev(integer)`, `sa_create_index(text,text,text)`, `sa_merge_module_store_data(jsonb,jsonb)`, `sa_module_store_array_has_id_object(jsonb)`, `sa_module_store_is_tombstone(jsonb)`, `sa_title_person_name(text)`, `set_updated_at()`, `site_insights_channel(text,text,text)`, `update_updated_at_column()`.
+
+`record_onchain_attestation`, `sa_title_person_name`, `site_insights_channel` and `update_updated_at_column` are not created by this repo. N1 skips a function that is absent. `CREATE OR REPLACE` without a `SET` clause clears `proconfig`, so every repo copy of the other nine functions now carries `SET search_path = public, pg_temp`.
+
+N2 creates these indexes with `CREATE INDEX IF NOT EXISTS` (no `CONCURRENTLY`, same reason as the 113 indexes above):
+
+`idx_site_traffic_daily_company_id`, `idx_site_traffic_sites_company_id`, `idx_site_insights_portal_activity_company_id`, `idx_fg_portal_invites_company_id`, `idx_fg_portal_sessions_company_id`, `idx_recover_portal_otps_company_id`, `idx_nsnp_prize_awards_school_profile_id`.
+
+A missing table is skipped. These six foreign keys were left unindexed on production and are not created here: `nsnp_prize_awards.period_id`, `nsnp_prize_certificates.period_id`, `nsnp_isp_sla.school_profile_id`, `products.category_id`, `industries.parent_id`, `onchain_attestations.attested_by`.
+
+N3 drops `sa_deny_anon` and `sa_deny_authenticated` on `products`, `stock_levels`, `stock_movements` and `warehouses`, and sets `products_all`, `stock_levels_all`, `stock_movements_all` and `warehouses_all` to `service_role`. Those deny policies were no-ops beside an allow-all policy. Other tables keep their deny policies. `20260709_inventory_world_class.sql` (and `RUN_THIS_FOR_INVENTORY_WORLD_CLASS.sql`, `docs/RUN_THIS_FOR_INVENTORY_WORLD_CLASS.sql`) now creates the four allow policies `TO service_role`. `sa_lock_table` in `20260714_rls_security_lockdown.sql`, `20260821_saas_db_harden.sql`, `RUN_THIS_IN_SUPABASE.sql` and `docs/RUN_THIS_IN_SUPABASE.sql` recreates the service_role allow policy on those four tables and does not recreate `sa_deny_*` there.
+
+N4 is `DROP TABLE IF EXISTS` for `public.business_users_backup` and `public.business_users_final_backup`. Production dropped them. It did not move them to another schema. `public.business_users` stays. Repo SQL does not create the two backup tables.

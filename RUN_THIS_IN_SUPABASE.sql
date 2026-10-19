@@ -59,14 +59,22 @@ BEGIN
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, p_table);
   END LOOP;
 
-  EXECUTE format(
-    'CREATE POLICY %I ON public.%I FOR ALL TO anon USING (false) WITH CHECK (false)',
-    'sa_deny_anon', p_table
-  );
-  EXECUTE format(
-    'CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (false) WITH CHECK (false)',
-    'sa_deny_authenticated', p_table
-  );
+  IF p_table IN ('products', 'stock_levels', 'stock_movements', 'warehouses') THEN
+    -- N3: one allow-all policy, service_role only. Do not recreate sa_deny_*.
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO service_role USING (true) WITH CHECK (true)',
+      p_table || '_all', p_table
+    );
+  ELSE
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO anon USING (false) WITH CHECK (false)',
+      'sa_deny_anon', p_table
+    );
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (false) WITH CHECK (false)',
+      'sa_deny_authenticated', p_table
+    );
+  END IF;
 
   BEGIN
     EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', p_table);
@@ -310,6 +318,7 @@ CREATE OR REPLACE FUNCTION public.sa_module_store_is_tombstone(p_row jsonb)
 RETURNS boolean
 LANGUAGE plpgsql
 IMMUTABLE
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   IF p_row IS NULL OR jsonb_typeof(p_row) <> 'object' THEN
@@ -331,6 +340,7 @@ CREATE OR REPLACE FUNCTION public.sa_module_store_array_has_id_object(p_value js
 RETURNS boolean
 LANGUAGE plpgsql
 IMMUTABLE
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   item jsonb;
@@ -457,6 +467,7 @@ CREATE OR REPLACE FUNCTION public.sa_merge_module_store_data(
 ) RETURNS jsonb
 LANGUAGE plpgsql
 IMMUTABLE
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   existing_data jsonb := COALESCE(p_existing, '{}'::jsonb);

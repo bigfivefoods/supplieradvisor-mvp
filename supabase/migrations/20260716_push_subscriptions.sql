@@ -1,6 +1,7 @@
 -- Web Push subscriptions (PWA) for PO / deal stage alerts
 CREATE OR REPLACE FUNCTION public.sa_add_column(p_table text, p_column text, p_type text, p_default text DEFAULT NULL)
-RETURNS void LANGUAGE plpgsql AS $$
+RETURNS void LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=p_table

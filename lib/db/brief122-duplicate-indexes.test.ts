@@ -140,4 +140,152 @@ assert.equal(/FROM authenticated/.test(accessBlock), false);
 assert.equal(/FROM authenticated/.test(currentUserBlock), false);
 assert.match(b6, /REVOKE EXECUTE ON FUNCTION public\.rls_auto_enable\(\) FROM authenticated/);
 
+const nextRollout = [
+  '20261028_next_n1_function_search_path.sql',
+  '20261029_next_n2_fk_indexes.sql',
+  '20261030_next_n3_policy_consolidation.sql',
+  '20261031_next_n4_drop_business_users_backups.sql',
+];
+for (const name of nextRollout) {
+  assert.ok(migrationNames.includes(name), `missing ${name}`);
+}
+assert.ok(migrationNames.indexOf(rollout[3]) < migrationNames.indexOf(nextRollout[0]));
+for (let i = 1; i < nextRollout.length; i += 1) {
+  assert.ok(migrationNames.indexOf(nextRollout[i - 1]) < migrationNames.indexOf(nextRollout[i]));
+}
+
+const n1 = readFileSync(join(migrationsDir, nextRollout[0]), 'utf8');
+assert.match(n1, /20261019113636/);
+assert.match(n1, /next_n1_function_search_path/);
+for (const sig of [
+  'public.record_onchain_attestation()',
+  'public.sa_add_column(text,text,text,text)',
+  'public.sa_add_fk(text,text,text,text,text)',
+  'public.sa_brief35_recode_party_gl(integer)',
+  'public.sa_brief36_recode_member_rev(integer)',
+  'public.sa_create_index(text,text,text)',
+  'public.sa_merge_module_store_data(jsonb,jsonb)',
+  'public.sa_module_store_array_has_id_object(jsonb)',
+  'public.sa_module_store_is_tombstone(jsonb)',
+  'public.sa_title_person_name(text)',
+  'public.set_updated_at()',
+  'public.site_insights_channel(text,text,text)',
+  'public.update_updated_at_column()',
+]) {
+  assert.match(n1, new RegExp(sig.replace(/[().]/g, '\\$&')));
+}
+
+const n2 = stripComments(readFileSync(join(migrationsDir, nextRollout[1]), 'utf8'));
+assert.equal(/CONCURRENTLY/i.test(n2), false);
+assert.match(n2, /CREATE INDEX IF NOT EXISTS %I ON public\.%I \(%I\)/);
+for (const name of [
+  'idx_site_traffic_daily_company_id',
+  'idx_site_traffic_sites_company_id',
+  'idx_site_insights_portal_activity_company_id',
+  'idx_fg_portal_invites_company_id',
+  'idx_fg_portal_sessions_company_id',
+  'idx_recover_portal_otps_company_id',
+  'idx_nsnp_prize_awards_school_profile_id',
+]) {
+  assert.match(n2, new RegExp(name));
+}
+for (const name of [
+  'idx_nsnp_prize_awards_period_id',
+  'idx_nsnp_prize_certificates_period_id',
+  'idx_nsnp_isp_sla_school_profile_id',
+  'idx_products_category_id',
+  'idx_industries_parent_id',
+  'idx_onchain_attestations_attested_by',
+]) {
+  assert.equal(n2.includes(name), false, `${name} must stay unindexed`);
+}
+
+const n3 = readFileSync(join(migrationsDir, nextRollout[2]), 'utf8');
+assert.match(n3, /20261019113922/);
+assert.match(n3, /DROP POLICY IF EXISTS sa_deny_anon/);
+assert.match(n3, /DROP POLICY IF EXISTS sa_deny_authenticated/);
+assert.match(n3, /ALTER POLICY %I ON public\.%I TO service_role/);
+for (const table of ['products', 'stock_levels', 'stock_movements', 'warehouses']) {
+  assert.match(n3, new RegExp(`'${table}'`));
+}
+
+const n4 = readFileSync(join(migrationsDir, nextRollout[3]), 'utf8');
+assert.match(n4, /20261019122057/);
+assert.match(n4, /DROP TABLE IF EXISTS public\.business_users_backup;/);
+assert.match(n4, /DROP TABLE IF EXISTS public\.business_users_final_backup;/);
+assert.equal(/DROP TABLE[^;]*public\.business_users;/.test(n4), false);
+
+const pinnedNames = [
+  'record_onchain_attestation',
+  'sa_add_column',
+  'sa_add_fk',
+  'sa_brief35_recode_party_gl',
+  'sa_brief36_recode_member_rev',
+  'sa_create_index',
+  'sa_merge_module_store_data',
+  'sa_module_store_array_has_id_object',
+  'sa_module_store_is_tombstone',
+  'sa_title_person_name',
+  'set_updated_at',
+  'site_insights_channel',
+  'update_updated_at_column',
+];
+const fnStart = new RegExp(
+  `CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+public\\.(${pinnedNames.join('|')})\\s*\\(`,
+  'gi',
+);
+let pinnedCount = 0;
+for (const file of files) {
+  const code = readFileSync(file, 'utf8');
+  fnStart.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = fnStart.exec(code))) {
+    const openParen = match.index + match[0].length - 1;
+    let depth = 0;
+    let i = openParen;
+    for (; i < code.length; i += 1) {
+      if (code[i] === '(') depth += 1;
+      else if (code[i] === ')') {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    const body = /\bAS\s+\$[A-Za-z0-9_]*\$/i.exec(code.slice(i + 1));
+    assert.ok(body, `${file} ${match[1]} has no body`);
+    const header = code.slice(i + 1, i + 1 + body.index);
+    assert.match(header, /SET search_path = public, pg_temp/, `${file} ${match[1]}`);
+    pinnedCount += 1;
+  }
+}
+assert.ok(pinnedCount >= 13, `expected pinned function copies, got ${pinnedCount}`);
+
+const allowPolicies = stripComments(files.map((file) => readFileSync(file, 'utf8')).join('\n'));
+for (const name of ['products_all', 'warehouses_all', 'stock_levels_all', 'stock_movements_all']) {
+  const open = new RegExp(`CREATE POLICY ${name}\\b[\\s\\S]*?;`, 'g');
+  const found = allowPolicies.match(open) ?? [];
+  assert.ok(found.length >= 1, `missing ${name}`);
+  for (const statement of found) {
+    assert.match(statement, /TO service_role/, statement);
+  }
+}
+
+for (const file of [
+  'supabase/migrations/20260714_rls_security_lockdown.sql',
+  'supabase/migrations/20260821_saas_db_harden.sql',
+  'RUN_THIS_IN_SUPABASE.sql',
+  'docs/RUN_THIS_IN_SUPABASE.sql',
+]) {
+  const code = stripComments(readFileSync(join(root, file), 'utf8'));
+  assert.match(code, /p_table IN \('products', 'stock_levels', 'stock_movements', 'warehouses'\)/);
+  assert.match(code, /TO service_role USING \(true\) WITH CHECK \(true\)/);
+}
+
+const backupCreates = files.flatMap((file) => {
+  const code = stripComments(readFileSync(file, 'utf8'));
+  return ['business_users_backup', 'business_users_final_backup'].filter((name) =>
+    new RegExp(`CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+(?:public\\.)?${name}\\b`, 'i').test(code),
+  ).map((name) => `${file} creates ${name}`);
+});
+assert.deepEqual(backupCreates, []);
+
 console.log('brief122-duplicate-indexes.test.ts ok');

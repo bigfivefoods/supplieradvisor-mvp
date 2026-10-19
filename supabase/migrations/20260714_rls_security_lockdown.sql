@@ -45,15 +45,23 @@ BEGIN
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, p_table);
   END LOOP;
 
-  -- Explicit deny for anon + authenticated (defense in depth)
-  EXECUTE format(
-    'CREATE POLICY %I ON public.%I FOR ALL TO anon USING (false) WITH CHECK (false)',
-    'sa_deny_anon', p_table
-  );
-  EXECUTE format(
-    'CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (false) WITH CHECK (false)',
-    'sa_deny_authenticated', p_table
-  );
+  -- Deny anon and authenticated. The four inventory tables keep one service_role policy.
+  IF p_table IN ('products', 'stock_levels', 'stock_movements', 'warehouses') THEN
+    -- N3: one allow-all policy, service_role only. Do not recreate sa_deny_*.
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO service_role USING (true) WITH CHECK (true)',
+      p_table || '_all', p_table
+    );
+  ELSE
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO anon USING (false) WITH CHECK (false)',
+      'sa_deny_anon', p_table
+    );
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (false) WITH CHECK (false)',
+      'sa_deny_authenticated', p_table
+    );
+  END IF;
 
   -- No privileges for client roles (service_role is superuser / bypass)
   BEGIN
@@ -194,4 +202,4 @@ END $$;
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.sa_lock_table(text) IS
-  'Enable FORCE RLS, drop all policies, deny anon+authenticated on a public table';
+  'Enable FORCE RLS and drop policies. Deny anon and authenticated, except products, stock_levels, stock_movements and warehouses, which keep one service_role allow policy.';

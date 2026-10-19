@@ -4,7 +4,8 @@
 -- Paste after Brief 36 is on main. Do not re-run Brief 33 SQL.
 
 CREATE OR REPLACE FUNCTION public.sa_brief36_recode_member_rev(p_profile_id integer)
-RETURNS void LANGUAGE plpgsql AS $$
+RETURNS void LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
 DECLARE
   rev_header_id integer;
   parent_4000 integer;

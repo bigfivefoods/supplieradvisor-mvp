@@ -38,6 +38,10 @@ const indexMigration = resolve('supabase/migrations/20261024_brief122_pg_trgm_an
 const b7Migration = resolve('supabase/migrations/20261025_brief122_b7_drop_duplicate_indexes.sql');
 const b5Migration = resolve('supabase/migrations/20261026_brief122_b5_rls_select_wrapping.sql');
 const b6Migration = resolve('supabase/migrations/20261027_brief122_b6_lockdown_definer_rpcs.sql');
+const n1Migration = resolve('supabase/migrations/20261028_next_n1_function_search_path.sql');
+const n2Migration = resolve('supabase/migrations/20261029_next_n2_fk_indexes.sql');
+const n3Migration = resolve('supabase/migrations/20261030_next_n3_policy_consolidation.sql');
+const n4Migration = resolve('supabase/migrations/20261031_next_n4_drop_business_users_backups.sql');
 
 function commandError(error: unknown): Error {
   const stderr =
@@ -418,5 +422,245 @@ nsnpFunctions();
 psql(`CREATE VIEW public.v_b6_dep AS SELECT public.sa_nsnp_agency_summary(1) AS summary;`);
 failsFile(b6Migration, /dependent policy\/trigger\/view\/function references/);
 assert.equal(psql("SELECT has_function_privilege('authenticated', 'public.sa_nsnp_agency_summary(bigint)', 'EXECUTE')"), 't');
+
+const n1Signatures = [
+  'public.record_onchain_attestation()',
+  'public.sa_add_column(text,text,text,text)',
+  'public.sa_add_fk(text,text,text,text,text)',
+  'public.sa_brief35_recode_party_gl(integer)',
+  'public.sa_brief36_recode_member_rev(integer)',
+  'public.sa_create_index(text,text,text)',
+  'public.sa_merge_module_store_data(jsonb,jsonb)',
+  'public.sa_module_store_array_has_id_object(jsonb)',
+  'public.sa_module_store_is_tombstone(jsonb)',
+  'public.sa_title_person_name(text)',
+  'public.set_updated_at()',
+  'public.site_insights_channel(text,text,text)',
+  'public.update_updated_at_column()',
+];
+
+const n2Indexes = [
+  ['idx_site_traffic_daily_company_id', 'site_traffic_daily', 'company_id'],
+  ['idx_site_traffic_sites_company_id', 'site_traffic_sites', 'company_id'],
+  ['idx_site_insights_portal_activity_company_id', 'site_insights_portal_activity', 'company_id'],
+  ['idx_fg_portal_invites_company_id', 'fg_portal_invites', 'company_id'],
+  ['idx_fg_portal_sessions_company_id', 'fg_portal_sessions', 'company_id'],
+  ['idx_recover_portal_otps_company_id', 'recover_portal_otps', 'company_id'],
+  ['idx_nsnp_prize_awards_school_profile_id', 'nsnp_prize_awards', 'school_profile_id'],
+] as const;
+
+const skippedN2Indexes = [
+  'idx_nsnp_prize_awards_period_id',
+  'idx_nsnp_prize_certificates_period_id',
+  'idx_nsnp_isp_sla_school_profile_id',
+  'idx_products_category_id',
+  'idx_industries_parent_id',
+  'idx_onchain_attestations_attested_by',
+];
+
+const inventoryTables = ['products', 'stock_levels', 'stock_movements', 'warehouses'] as const;
+
+function n1FunctionSql(): string {
+  return n1Signatures
+    .map((signature) => {
+      const returns = signature.startsWith('public.set_updated_at') ? 'trigger' : 'void';
+      return `CREATE OR REPLACE FUNCTION ${signature} RETURNS ${returns} LANGUAGE plpgsql AS $$ BEGIN RETURN ${returns === 'trigger' ? 'NEW' : ''}; END $$;`;
+    })
+    .join('\n');
+}
+
+function inventoryPolicySql(): string {
+  return inventoryTables
+    .map(
+      (table) => `
+        CREATE TABLE public.${table} (id int, category_id int);
+        ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;
+        CREATE POLICY sa_deny_anon ON public.${table} FOR ALL TO anon USING (false) WITH CHECK (false);
+        CREATE POLICY sa_deny_authenticated ON public.${table} FOR ALL TO authenticated USING (false) WITH CHECK (false);
+        CREATE POLICY ${table}_all ON public.${table} FOR ALL USING (true) WITH CHECK (true);
+      `,
+    )
+    .join('\n');
+}
+
+function assertSearchPaths() {
+  const rows = psql(`
+    SELECT p.oid::regprocedure::text || '=' || coalesce(array_to_string(p.proconfig, ','), '')
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = ANY (ARRAY[
+        'record_onchain_attestation','sa_add_column','sa_add_fk','sa_brief35_recode_party_gl',
+        'sa_brief36_recode_member_rev','sa_create_index','sa_merge_module_store_data',
+        'sa_module_store_array_has_id_object','sa_module_store_is_tombstone','sa_title_person_name',
+        'set_updated_at','site_insights_channel','update_updated_at_column'
+      ])
+    ORDER BY 1;
+  `);
+  const lines = rows.split('\n').filter(Boolean);
+  assert.equal(lines.length, 13, rows);
+  for (const line of lines) {
+    assert.match(line, /=search_path=public, pg_temp$/, line);
+  }
+}
+
+function assertInventoryPolicies() {
+  const rows = psql(`
+    SELECT tablename || '|' || policyname || '|' || roles::text || '|' || cmd
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = ANY (ARRAY['products','stock_levels','stock_movements','warehouses'])
+    ORDER BY 1;
+  `);
+  assert.equal(
+    rows,
+    [
+      'products|products_all|{service_role}|ALL',
+      'stock_levels|stock_levels_all|{service_role}|ALL',
+      'stock_movements|stock_movements_all|{service_role}|ALL',
+      'warehouses|warehouses_all|{service_role}|ALL',
+    ].join('\n'),
+  );
+}
+
+reset();
+psqlFile(n1Migration, true);
+psqlFile(n2Migration, true);
+psqlFile(n3Migration, true);
+psqlFile(n4Migration, true);
+assert.equal(psql("SELECT count(*)::text FROM pg_proc WHERE pronamespace = 'public'::regnamespace"), '0');
+assert.equal(indexCount(n2Indexes.map((index) => index[0])), '0');
+assert.equal(psql("SELECT count(*)::text FROM pg_policies WHERE schemaname = 'public'"), '0');
+
+reset();
+psql(`
+  ${n1FunctionSql()}
+  ${n2Indexes.map(([, table, column]) => `CREATE TABLE public.${table} (${column} int, period_id int);`).join('\n')}
+  CREATE TABLE public.nsnp_prize_certificates (period_id int);
+  CREATE TABLE public.nsnp_isp_sla (school_profile_id int);
+  CREATE TABLE public.industries (parent_id int);
+  CREATE TABLE public.onchain_attestations (attested_by int);
+  ${inventoryPolicySql()}
+  CREATE TABLE public.business_users (id int primary key);
+  CREATE TABLE public.business_users_backup (id int);
+  CREATE TABLE public.business_users_final_backup (id int);
+`);
+psqlFile(n1Migration, true);
+psqlFile(n2Migration, true);
+psqlFile(n3Migration, true);
+psqlFile(n4Migration, true);
+assertSearchPaths();
+assert.equal(indexCount(n2Indexes.map((index) => index[0])), '7');
+assert.equal(indexCount(skippedN2Indexes), '0');
+assertInventoryPolicies();
+assert.equal(psql("SELECT to_regclass('public.business_users_backup') IS NULL"), 't');
+assert.equal(psql("SELECT to_regclass('public.business_users_final_backup') IS NULL"), 't');
+assert.equal(psql("SELECT to_regclass('public.business_users') IS NOT NULL"), 't');
+psqlFile(n1Migration, true);
+psqlFile(n2Migration, true);
+psqlFile(n3Migration, true);
+psqlFile(n4Migration, true);
+assertSearchPaths();
+assert.equal(indexCount(n2Indexes.map((index) => index[0])), '7');
+assertInventoryPolicies();
+assert.equal(psql("SELECT to_regclass('public.business_users') IS NOT NULL"), 't');
+
+reset();
+psql(n2Indexes.filter(([, table]) => table !== 'site_traffic_daily').map(([, table, column]) =>
+  `CREATE TABLE public.${table} (${column} int);`).join('\n'));
+psqlFile(n2Migration, true);
+assert.equal(indexCount(n2Indexes.map((index) => index[0])), '6');
+assert.equal(psql("SELECT to_regclass('public.idx_site_traffic_daily_company_id') IS NULL"), 't');
+
+reset();
+psql(`
+  CREATE TABLE public.products (id int);
+  ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+  CREATE POLICY sa_deny_anon ON public.products FOR ALL TO anon USING (false);
+  CREATE POLICY sa_deny_authenticated ON public.products FOR ALL TO authenticated USING (false);
+`);
+psqlFile(n3Migration, true);
+assert.equal(
+  psql("SELECT count(*)::text FROM pg_policies WHERE schemaname = 'public' AND tablename = 'products'"),
+  '0',
+);
+
+reset();
+psql(`
+  ${n1FunctionSql()}
+  ${inventoryPolicySql()}
+`);
+psqlFile(n1Migration, true);
+psql(`
+  CREATE OR REPLACE FUNCTION public.sa_add_column(text,text,text,text)
+  RETURNS void LANGUAGE plpgsql AS $$ BEGIN END $$;
+`);
+assert.equal(
+  psql(`
+    SELECT coalesce(array_to_string(proconfig, ','), '')
+    FROM pg_proc
+    WHERE oid = to_regprocedure('public.sa_add_column(text,text,text,text)');
+  `),
+  '',
+);
+psqlFile(n1Migration, true);
+assertSearchPaths();
+
+const columnHelper = readFileSync(resolve('supabase/migrations/20260709_container_ops.sql'), 'utf8');
+const columnMatch = columnHelper.match(
+  /CREATE OR REPLACE FUNCTION public\.sa_add_column[\s\S]*?\$\$;/,
+);
+if (!columnMatch) throw new Error('sa_add_column definition missing');
+assert.match(columnMatch[0], /SET search_path = public, pg_temp/);
+psql('DROP FUNCTION public.sa_add_column(text,text,text,text);');
+psql(columnMatch[0]);
+assert.equal(
+  psql(`
+    SELECT array_to_string(proconfig, ',')
+    FROM pg_proc
+    WHERE oid = to_regprocedure('public.sa_add_column(text,text,text,text)');
+  `),
+  'search_path=public, pg_temp',
+);
+
+psqlFile(n3Migration, true);
+assertInventoryPolicies();
+
+const lockdown = readFileSync(resolve('supabase/migrations/20260714_rls_security_lockdown.sql'), 'utf8');
+const lockMatch = lockdown.match(/CREATE OR REPLACE FUNCTION public\.sa_lock_table[\s\S]*?\$\$;/);
+if (!lockMatch) throw new Error('sa_lock_table definition missing');
+psql(`
+  ${lockMatch[0]}
+  CREATE TABLE public.other_locked (id int);
+`);
+psql("SELECT public.sa_lock_table('products');");
+psql("SELECT public.sa_lock_table('other_locked');");
+assert.equal(
+  psql(`
+    SELECT policyname || '|' || roles::text
+    FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'products'
+    ORDER BY 1;
+  `),
+  'products_all|{service_role}',
+);
+assert.equal(
+  psql(`
+    SELECT policyname || '|' || roles::text
+    FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'other_locked'
+    ORDER BY 1;
+  `),
+  'sa_deny_anon|{anon}\nsa_deny_authenticated|{authenticated}',
+);
+
+const inventory = readFileSync(resolve('supabase/migrations/20260709_inventory_world_class.sql'), 'utf8');
+const policyReplay = inventory
+  .split('\n')
+  .filter((line) => /^(DROP POLICY IF EXISTS|CREATE POLICY) (products_all|stock_levels_all|stock_movements_all|warehouses_all)\b/.test(line))
+  .join('\n');
+assert.match(policyReplay, /TO service_role/);
+psql(policyReplay);
+assertInventoryPolicies();
 
 console.log('brief122-rollout-db.test.ts ok');
