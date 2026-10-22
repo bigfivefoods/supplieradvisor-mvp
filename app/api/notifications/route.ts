@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  UNALLOCATED_BANK_FILTER,
+  UNALLOCATED_BANK_ORDER,
+  UNALLOCATED_BANK_SELECT,
+  unmatchedBankNotification,
+} from '@/lib/banking/bank-transaction-shape';
 
 export type AppNotification = {
   id: string;
@@ -79,10 +85,10 @@ export async function GET(request: NextRequest) {
         .limit(12),
       supabase
         .from('bank_transactions')
-        .select('id, amount, description, transaction_date')
+        .select(UNALLOCATED_BANK_SELECT)
         .eq('profile_id', companyId)
-        .or('allocation_status.eq.unmatched,allocated.eq.false,is_allocated.eq.false')
-        .order('transaction_date', { ascending: false })
+        .or(UNALLOCATED_BANK_FILTER)
+        .order(UNALLOCATED_BANK_ORDER, { ascending: false })
         .limit(8),
       supabase
         .from('product_stock')
@@ -406,19 +412,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Unmatched bank — only if query succeeded with rows
-    if (!unmatchedBank.error && (unmatchedBank.data || []).length) {
-      const n = unmatchedBank.data!.length;
-      notifications.push({
-        id: 'bank-unmatched',
-        severity: n >= 5 ? 'warning' : 'info',
-        title: `${n}+ unmatched bank line${n === 1 ? '' : 's'}`,
-        body: 'Allocate or auto-match in Accounting → Bank',
-        href: '/dashboard/accounting/bank-reconciliation',
-        created_at: unmatchedBank.data![0].transaction_date || new Date().toISOString(),
-        source: 'banking',
-      });
-    }
+    // Unallocated bank lines. A missing table, a column error, or zero rows adds nothing.
+    const bankNote = unmatchedBankNotification(
+      unmatchedBank,
+      new Date(now).toISOString()
+    );
+    if (bankNote) notifications.push(bankNote);
 
     // Low stock heuristic
     if (!lowStock.error) {
