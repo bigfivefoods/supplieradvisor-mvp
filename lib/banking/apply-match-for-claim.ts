@@ -2,6 +2,7 @@
  * Soft-link a bank transaction to an invoice after claim confirm.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { bankClaimMatchPatch } from '@/lib/banking/bank-transaction-shape';
 
 export async function applyBankMatchToInvoice(opts: {
   profileId: number;
@@ -12,14 +13,11 @@ export async function applyBankMatchToInvoice(opts: {
   try {
     const supabase = getSupabaseServer();
     const now = new Date().toISOString();
-    const updates: Record<string, unknown> = {
-      allocation_status: 'allocated',
-      allocated: true,
-      is_allocated: true,
-      invoice_id: opts.invoiceId,
-      matched_invoice_id: opts.invoiceId,
-      updated_at: now,
-    };
+    const updates: Record<string, unknown> = bankClaimMatchPatch({
+      invoiceId: opts.invoiceId,
+      now,
+      actorUserId: opts.actorUserId,
+    });
 
     let { error } = await supabase
       .from('bank_transactions')

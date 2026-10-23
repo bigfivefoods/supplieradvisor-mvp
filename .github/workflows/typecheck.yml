@@ -234,6 +234,10 @@ jobs:
         run: |
           set -euo pipefail
           npx --yes tsx lib/system/env-guard.test.ts
+      - name: Bank transaction column tests
+        run: |
+          set -euo pipefail
+          npx --yes tsx lib/banking/bank-transaction-columns.test.ts
 
   trade-portal-db:
     name: trade portal Postgres
