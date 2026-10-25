@@ -13,7 +13,9 @@ const hashes = require('./inline-script-hashes.js') as {
   executableInlineScripts: (html: string) => string[];
   cspScriptHash: (source: string) => string;
   routeFromAppHtml: (appDir: string, file: string) => string | null;
+  routeFromCacheHtml: (file: string) => string | null;
   collectInlineScriptHashes: (appDir: string) => Record<string, string[]>;
+  collectNextScriptHashes: (nextDir: string) => Record<string, string[]>;
   patchHashPlaceholder: (
     nextDir: string,
     map: Record<string, string[]>
@@ -105,6 +107,31 @@ function directiveValue(policy: string, name: string) {
   assert.equal(hashes.routeFromAppHtml('/tmp/app', '/tmp/app/index.html'), '/');
   assert.equal(hashes.routeFromAppHtml('/tmp/app', '/tmp/app/_not-found.html'), '/404');
   assert.equal(hashes.routeFromAppHtml('/tmp/app', '/tmp/app/c/[id].html'), null);
+  const cacheHash = 'a'.repeat(64);
+  assert.equal(
+    hashes.routeFromCacheHtml(
+      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$$/index.html`
+    ),
+    '/'
+  );
+  assert.equal(
+    hashes.routeFromCacheHtml(
+      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$$/login.html`
+    ),
+    '/login'
+  );
+  assert.equal(
+    hashes.routeFromCacheHtml(
+      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$$/_not-found.html`
+    ),
+    '/404'
+  );
+  assert.equal(
+    hashes.routeFromCacheHtml(
+      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$$/c/[id].html`
+    ),
+    null
+  );
 
   const os = await import('node:os');
   const fs = await import('node:fs');
@@ -127,8 +154,19 @@ function directiveValue(policy: string, name: string) {
     path.join(edge, 'middleware.js'),
     'function policy(t="__CSP_HASH_MAP__"){return t}'
   );
-  const collected = hashes.collectInlineScriptHashes(appDir);
+  const cacheDir = path.join(
+    fixture,
+    'server',
+    'route-cache',
+    'APP_PAGE',
+    'b'.repeat(64),
+    '$$'
+  );
+  fs.mkdirSync(cacheDir, { recursive: true });
+  fs.writeFileSync(path.join(cacheDir, 'pricing.html'), '<script>var price = true;</script>');
+  const collected = hashes.collectNextScriptHashes(fixture);
   assert.deepEqual(collected['/'], [hashes.cspScriptHash('var ready = true;')]);
+  assert.deepEqual(collected['/pricing'], [hashes.cspScriptHash('var price = true;')]);
   assert.deepEqual(collected['/login'], collected['/']);
   assert.ok(collected['/404']);
   const patched = hashes.patchHashPlaceholder(fixture, collected);
