@@ -22,6 +22,8 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { trackFunnel } from '@/lib/analytics/track-funnel';
+import { firstOptionalModule } from '@/lib/analytics/funnel';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -428,6 +430,10 @@ function ModulesInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
+      const firstModule = firstOptionalModule(enabled, map, isAlwaysOnModule);
+      if (firstModule) {
+        trackFunnel('first_module_enabled', { surface: 'modules', module: firstModule });
+      }
       const savedMeta =
         data.profile?.metadata && typeof data.profile.metadata === 'object'
           ? (data.profile.metadata as Record<string, unknown>)

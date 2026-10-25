@@ -31,6 +31,7 @@ import {
   extractEmailFromPrivyUser,
   getCanonicalUserId,
 } from '@/lib/auth/identity';
+import { trackFunnel } from '@/lib/analytics/track-funnel';
 import {
   BILLING_TERMS,
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
@@ -257,6 +258,7 @@ function BillingInner() {
           description: 'You are in the founding cohort — no subscription fee.',
         });
       } else if (data.trialJustStarted) {
+        trackFunnel('trial_start', { surface: 'billing' });
         toast.success(`${COMPANY_TRIAL_DAYS}-day free trial started`);
       }
 

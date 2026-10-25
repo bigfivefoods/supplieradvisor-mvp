@@ -16,14 +16,15 @@ assert.match(pkgJson, /@vercel\/speed-insights/, 'package.json must list @vercel
 assert.match(pkgJson, /@vercel\/analytics/, 'package.json must list @vercel/analytics');
 assert.doesNotMatch(pkgJson, /@sentry\/nextjs/, 'package.json must NOT list @sentry/nextjs');
 
-// CRITICAL: SpeedInsights mounted in app/layout.tsx
+// CRITICAL: Speed Insights and Analytics mounted from the root layout.
 const layoutSrc = src('app/layout.tsx');
-assert.match(layoutSrc, /import.*SpeedInsights.*from.*@vercel\/speed-insights\/next/, 'app/layout.tsx must import SpeedInsights');
-assert.match(layoutSrc, /<SpeedInsights/, 'app/layout.tsx must render <SpeedInsights />');
-
-// CRITICAL: Analytics mounted in app/layout.tsx
-assert.match(layoutSrc, /import.*Analytics.*from.*@vercel\/analytics\/next/, 'app/layout.tsx must import Analytics');
-assert.match(layoutSrc, /<Analytics/, 'app/layout.tsx must render <Analytics />');
+const metricsSrc = src('components/analytics/PublicMetrics.tsx');
+assert.match(layoutSrc, /PublicMetrics/, 'app/layout.tsx must render PublicMetrics');
+assert.match(metricsSrc, /import.*SpeedInsights.*from.*@vercel\/speed-insights\/next/, 'PublicMetrics must import SpeedInsights');
+assert.match(metricsSrc, /<SpeedInsights/, 'PublicMetrics must render <SpeedInsights />');
+assert.match(metricsSrc, /sampleRate=\{1\}/, 'Speed Insights must sample every page view');
+assert.match(metricsSrc, /import.*Analytics.*from.*@vercel\/analytics\/next/, 'PublicMetrics must import Analytics');
+assert.match(metricsSrc, /<Analytics/, 'PublicMetrics must render <Analytics />');
 
 // CRITICAL: No Privy/viem/undici/wagmi in root layout
 assert.doesNotMatch(layoutSrc, /@privy-io/, 'app/layout.tsx must not import @privy-io');
