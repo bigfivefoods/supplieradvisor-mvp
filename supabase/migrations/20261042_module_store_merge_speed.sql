@@ -142,7 +142,7 @@ CREATE OR REPLACE FUNCTION public.sa_merge_module_store_data(
 ) RETURNS jsonb
 LANGUAGE plpgsql
 IMMUTABLE
-SET search_path TO 'public', 'pg_temp'
+SET search_path = public, pg_temp
 AS $function$
 DECLARE
   existing_data jsonb := COALESCE(p_existing, '{}'::jsonb);

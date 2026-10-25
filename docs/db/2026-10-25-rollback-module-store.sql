@@ -10,12 +10,15 @@
 --
 -- sa_put_module_store selects updated_at and updates the row on every save.
 -- p_if_updated_at is accepted and not enforced. Run this only to undo 20261042.
+-- The three helpers that the repo pins use SET search_path = public, pg_temp.
+-- That is the same setting as production's SET search_path TO 'public', 'pg_temp'.
+-- The function bodies are unchanged. prosrc does not include the SET clause.
 
 CREATE OR REPLACE FUNCTION public.sa_module_store_is_tombstone(p_row jsonb)
  RETURNS boolean
  LANGUAGE plpgsql
  IMMUTABLE
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 BEGIN
   IF p_row IS NULL OR jsonb_typeof(p_row) <> 'object' THEN RETURN false; END IF;
@@ -30,7 +33,7 @@ CREATE OR REPLACE FUNCTION public.sa_module_store_array_has_id_object(p_value js
  RETURNS boolean
  LANGUAGE plpgsql
  IMMUTABLE
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 DECLARE item jsonb;
 BEGIN
@@ -153,7 +156,7 @@ CREATE OR REPLACE FUNCTION public.sa_merge_module_store_data(p_existing jsonb, p
  RETURNS jsonb
  LANGUAGE plpgsql
  IMMUTABLE
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 DECLARE
   existing_data jsonb := COALESCE(p_existing, '{}'::jsonb);
