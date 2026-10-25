@@ -1,35 +1,29 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import {
-  getStoreProduct,
-  listStoreProducts,
-  resolveStoreCompany,
-} from '@/lib/storefront/catalog';
-import {
-  parseStoreAttribution,
-  storePath,
-} from '@/lib/storefront/attribution';
-import { TradeCtas } from '@/components/storefront/StoreShell';
+import { storePath } from '@/lib/storefront/attribution';
+import { slugifyCompanyName } from '@/lib/seo/company-public';
 import { StorePrice } from '@/components/storefront/StorePrice';
-import QuoteRequestForm from '@/components/storefront/QuoteRequestForm';
 import { StoreProductAdd } from '@/components/storefront/StoreProductAdd';
 import { StoreOrderProvider } from '@/components/storefront/StoreOrderCart';
+import StoreProductTrade from '@/components/storefront/StoreProductTrade';
+import { loadCachedStoreCatalog } from '@/lib/storefront/public-cache';
+import { PUBLIC_PAGE_REVALIDATE_SECONDS } from '@/lib/seo/public-page-cache';
+
+export const revalidate = PUBLIC_PAGE_REVALIDATE_SECONDS;
 
 type Props = {
   params:
     | Promise<{ companySlug: string; productKey: string }>
     | { companySlug: string; productKey: string };
-  searchParams:
-    | Promise<Record<string, string | string[] | undefined>>
-    | Record<string, string | string[] | undefined>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await Promise.resolve(params);
-  const company = await resolveStoreCompany(p.companySlug);
+  const catalog = await loadCachedStoreCatalog(p.companySlug);
+  const company = catalog?.company;
   if (!company) return { title: 'Product' };
-  const product = await getStoreProduct(company, p.productKey);
+  const product = (catalog?.products || []).find((item) => productMatches(item, p.productKey));
   if (!product) return { title: company.tradingName };
   return {
     title: `${product.name} · ${company.tradingName}`,
@@ -39,44 +33,38 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function StoreProductPage({ params, searchParams }: Props) {
-  const p = await Promise.resolve(params);
-  const sp = await Promise.resolve(searchParams);
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(sp || {})) {
-    if (typeof v === 'string') qs.set(k, v);
-    else if (Array.isArray(v) && v[0]) qs.set(k, v[0]);
-  }
-  // Merge product key into attribution if not set
-  if (!qs.get('product')) qs.set('product', p.productKey);
-  const attr = parseStoreAttribution(qs);
-
-  const company = await resolveStoreCompany(p.companySlug);
-  if (!company) notFound();
-
-  const product = await getStoreProduct(company, p.productKey);
-  if (!product) {
-    // Brief says: missing product → store home, not hard 404
-    redirect(storePath(company.slug, null, attr));
-  }
-
-  const related = (await listStoreProducts(company, {
-    channel: attr.channel ? String(attr.channel) : null,
-  }))
-    .filter((x) => String(x.id) !== String(product.id))
-    .slice(0, 4);
-
-  const returnPath = storePath(
-    company.slug,
-    product.externalRef || product.sku || String(product.id),
-    attr
+function productMatches(
+  product: { id: number | string; sku: string | null; externalRef?: string | null; name: string },
+  productKey: string
+) {
+  const key = String(productKey || '').trim().toLowerCase();
+  if (!key) return false;
+  const slug = slugifyCompanyName(product.name);
+  return (
+    String(product.id).toLowerCase() === key ||
+    (product.sku || '').toLowerCase() === key ||
+    (product.externalRef || '').toLowerCase() === key ||
+    slug === key ||
+    slug.includes(key)
   );
+}
+
+export default async function StoreProductPage({ params }: Props) {
+  const p = await Promise.resolve(params);
+  const catalog = await loadCachedStoreCatalog(p.companySlug);
+  if (!catalog) notFound();
+  const { company, products } = catalog;
+  const product = products.find((item) => productMatches(item, p.productKey));
+  if (!product) {
+    redirect(storePath(company.slug));
+  }
+
+  const related = products.filter((item) => String(item.id) !== String(product.id)).slice(0, 4);
 
   return (
     <StoreOrderProvider
       companySlug={company.slug}
       companyName={company.tradingName}
-      attr={attr}
     >
     <div className="max-w-6xl mx-auto px-4 py-8">
       <nav className="text-xs text-slate-500 mb-4 flex flex-wrap gap-1">
@@ -150,31 +138,7 @@ export default async function StoreProductPage({ params, searchParams }: Props) 
             </p>
           </div>
 
-          {product.ctaHref ? (
-            <a
-              href={product.ctaHref}
-              className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#0077b6] px-5 text-sm font-black text-white"
-            >
-              {product.ctaLabel || 'Open shop'}
-            </a>
-          ) : (
-            <TradeCtas
-              company={company}
-              product={product}
-              attr={attr}
-              returnPath={returnPath}
-            />
-          )}
-
-          {product.ctaHref ? null : (
-            <div className="pt-2">
-              <QuoteRequestForm
-                companySlug={company.slug}
-                product={product}
-                attr={attr}
-              />
-            </div>
-          )}
+          <StoreProductTrade company={company} product={product} />
         </div>
       </div>
 
@@ -187,7 +151,7 @@ export default async function StoreProductPage({ params, searchParams }: Props) 
               return (
                 <Link
                   key={String(r.id)}
-                  href={storePath(company.slug, key, attr)}
+                  href={storePath(company.slug, key)}
                   className="rounded-2xl border border-slate-200 bg-white p-4 hover:border-[#00b4d8] transition-colors"
                 >
                   <p className="font-bold text-sm text-slate-900">{r.name}</p>

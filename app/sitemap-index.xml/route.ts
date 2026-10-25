@@ -1,5 +1,8 @@
 import { generateSitemaps } from '@/app/sitemap';
+import { PUBLIC_PAGE_REVALIDATE_SECONDS } from '@/lib/seo/public-page-cache';
 import { SITE_URL } from '@/lib/seo/site';
+
+export const revalidate = PUBLIC_PAGE_REVALIDATE_SECONDS;
 
 const DEFAULT_SHARD_IDS = [0, 1] as const;
 

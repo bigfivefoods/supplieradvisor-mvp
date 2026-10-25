@@ -4,6 +4,12 @@
  */
 
 import { SITE_URL as CANONICAL_SITE } from '@/lib/seo/site';
+import {
+  aggregateFromReviews,
+  schemaReviews,
+  sanitizeRealReviews,
+  type RealPublicReview,
+} from '@/lib/seo/public-reviews';
 
 export const SITE_URL = CANONICAL_SITE;
 
@@ -24,6 +30,7 @@ export type CompanySeoInput = {
   registration_number?: string | null;
   trust_score?: number | null;
   otifef_average?: number | null;
+  updated_at?: string | null;
 };
 
 export function companyDisplayName(c: CompanySeoInput): string {
@@ -151,7 +158,13 @@ export function companySeoDescription(
   }
   if (place) bits.push(`Based in ${place}.`);
   if (verified) bits.push('CIPC-verified identity.');
-  if (opts?.ratingAvg != null && (opts.ratingCount || 0) > 0) {
+  if (
+    opts?.ratingAvg != null &&
+    Number.isFinite(opts.ratingAvg) &&
+    opts.ratingAvg >= 1 &&
+    opts.ratingAvg <= 5 &&
+    (opts.ratingCount || 0) > 0
+  ) {
     bits.push(
       `Rated ${opts.ratingAvg.toFixed(1)}/5 from ${opts.ratingCount} public review${
         opts.ratingCount === 1 ? '' : 's'
@@ -186,12 +199,26 @@ export function companySeoKeywords(c: CompanySeoInput): string[] {
   return [...new Set(keys.map((k) => k.trim()).filter(Boolean))];
 }
 
+function finiteRating(value: number | null | undefined): number | null {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1 || n > 5) return null;
+  return Math.round(n * 10) / 10;
+}
+
+function positiveCount(value: number | null | undefined): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1) return 0;
+  return Math.floor(n);
+}
+
 /** Schema.org Organization / LocalBusiness graph for a public company page */
 export function companyJsonLdGraph(
   c: CompanySeoInput,
   opts?: {
     ratingAvg?: number | null;
     ratingCount?: number;
+    /** Source rows. When present, aggregateRating and Review come only from these. */
+    reviews?: RealPublicReview[] | null;
     pageUrl?: string;
   }
 ): Record<string, unknown> {
@@ -202,6 +229,13 @@ export function companyJsonLdGraph(
   const industry = String(c.industry || '').trim();
   const city = String(c.city || '').trim();
   const country = String(c.country || '').trim();
+  const suppliedReviews = opts?.reviews;
+  const cleanReviews = suppliedReviews ? sanitizeRealReviews(suppliedReviews) : null;
+  const fromRows = cleanReviews ? aggregateFromReviews(cleanReviews) : null;
+  const ratingAvg = fromRows ? fromRows.avg : finiteRating(opts?.ratingAvg);
+  const ratingCount = fromRows ? fromRows.count : positiveCount(opts?.ratingCount);
+  const reviewNodes = cleanReviews ? schemaReviews(cleanReviews) : [];
+  const ratingOpts = { ratingAvg, ratingCount };
   const logo = c.logo_url
     ? c.logo_url.startsWith('http')
       ? c.logo_url
@@ -222,10 +256,7 @@ export function companyJsonLdGraph(
     legalName: c.legal_name || name,
     alternateName: c.legal_name && c.legal_name !== name ? [c.legal_name] : undefined,
     url,
-    description: companySeoDescription(c, {
-      ratingAvg: opts?.ratingAvg,
-      ratingCount: opts?.ratingCount,
-    }),
+    description: companySeoDescription(c, ratingOpts),
     ...(logo
       ? {
           logo: { '@type': 'ImageObject', url: logo },
@@ -292,18 +323,17 @@ export function companyJsonLdGraph(
     },
   };
 
-  if (
-    opts?.ratingAvg != null &&
-    Number.isFinite(opts.ratingAvg) &&
-    (opts.ratingCount || 0) > 0
-  ) {
+  if (ratingAvg != null && ratingCount > 0) {
     org.aggregateRating = {
       '@type': 'AggregateRating',
-      ratingValue: opts.ratingAvg,
+      ratingValue: ratingAvg,
       bestRating: 5,
       worstRating: 1,
-      ratingCount: opts.ratingCount,
+      ratingCount,
     };
+  }
+  if (reviewNodes.length) {
+    org.review = reviewNodes;
   }
 
   const crumbItems: Array<Record<string, unknown>> = [
@@ -332,10 +362,7 @@ export function companyJsonLdGraph(
     '@id': `${url}#webpage`,
     url,
     name: companySeoTitle(c),
-    description: companySeoDescription(c, {
-      ratingAvg: opts?.ratingAvg,
-      ratingCount: opts?.ratingCount,
-    }),
+    description: companySeoDescription(c, ratingOpts),
     isPartOf: { '@type': 'WebSite', name: 'SupplierAdvisor', url: SITE_URL },
     about: { '@id': `${url}#organization` },
     mainEntity: { '@id': `${url}#organization` },
@@ -343,17 +370,14 @@ export function companyJsonLdGraph(
       ? { '@type': 'ImageObject', url: logo }
       : undefined,
     inLanguage: 'en',
-    dateModified: new Date().toISOString().slice(0, 10),
+    ...(c.updated_at ? { dateModified: String(c.updated_at).slice(0, 10) } : {}),
   };
 
   // FAQ rich results — unique per company for long-tail discovery
   const faqAnswers: Array<{ q: string; a: string }> = [
     {
       q: `Who is ${name}?`,
-      a: companySeoDescription(c, {
-        ratingAvg: opts?.ratingAvg,
-        ratingCount: opts?.ratingCount,
-      }),
+      a: companySeoDescription(c, ratingOpts),
     },
     {
       q: `Where is ${name} based?`,

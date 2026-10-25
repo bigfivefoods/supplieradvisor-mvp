@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import {
-  listStoreProducts,
-  resolveStoreCompany,
-} from '@/lib/storefront/catalog';
+import { loadCachedStoreCatalog } from '@/lib/storefront/public-cache';
+import { PUBLIC_PAGE_REVALIDATE_SECONDS } from '@/lib/seo/public-page-cache';
 import { groupProductsByCategory } from '@/lib/storefront/categories';
 import { CategorySection, StoreHero } from '@/components/storefront/StoreShell';
 import { StoreOrderProvider } from '@/components/storefront/StoreOrderCart';
+
+export const revalidate = PUBLIC_PAGE_REVALIDATE_SECONDS;
 
 type Props = {
   params: Promise<{ companySlug: string }> | { companySlug: string };
@@ -13,7 +13,7 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await Promise.resolve(params);
-  const company = await resolveStoreCompany(p.companySlug);
+  const company = (await loadCachedStoreCatalog(p.companySlug))?.company;
   return {
     title: company
       ? `${company.tradingName} catalogue`
@@ -24,7 +24,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function StoreEmbedPage({ params }: Props) {
   const p = await Promise.resolve(params);
-  const company = await resolveStoreCompany(p.companySlug);
+  const catalog = await loadCachedStoreCatalog(p.companySlug);
+  const company = catalog?.company;
   if (!company) {
     return (
       <div className="p-8 text-center text-sm text-slate-600">
@@ -32,7 +33,7 @@ export default async function StoreEmbedPage({ params }: Props) {
       </div>
     );
   }
-  const products = await listStoreProducts(company);
+  const products = catalog?.products || [];
   const grouped = groupProductsByCategory(products);
   return (
     <StoreOrderProvider

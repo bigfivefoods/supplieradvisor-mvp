@@ -1,4 +1,7 @@
 import type { MetadataRoute } from 'next';
+import { PUBLIC_PAGE_REVALIDATE_SECONDS } from '@/lib/seo/public-page-cache';
+
+export const revalidate = PUBLIC_PAGE_REVALIDATE_SECONDS;
 import {
   LOCALES,
   TRANSLATED_PATHS,

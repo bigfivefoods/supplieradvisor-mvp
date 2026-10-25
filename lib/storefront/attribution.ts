@@ -22,6 +22,22 @@ export function parseStoreAttribution(
   };
 }
 
+export function mergeStoreAttribution(
+  fallback: StoreAttribution | null | undefined,
+  search: string
+): StoreAttribution {
+  const raw = search.startsWith('?') ? search.slice(1) : search;
+  const live = parseStoreAttribution(new URLSearchParams(raw));
+  return {
+    source: live.source || fallback?.source || null,
+    ref: live.ref || fallback?.ref || null,
+    product: live.product || fallback?.product || null,
+    sku: live.sku || fallback?.sku || null,
+    name: live.name || fallback?.name || null,
+    channel: live.channel || fallback?.channel || null,
+  };
+}
+
 export function attributionToQuery(a: StoreAttribution): string {
   const p = new URLSearchParams();
   if (a.source) p.set('source', a.source);
