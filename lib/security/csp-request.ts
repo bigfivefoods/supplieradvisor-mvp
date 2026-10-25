@@ -19,6 +19,14 @@ async function sha256Source(source: string): Promise<string> {
   return `'sha256-${btoa(binary)}'`;
 }
 
+/**
+ * Playwright injects e2e/vendor/axe-core-4.10.2.min.js with addScriptTag.
+ * The hash is those exact bytes (hex sha256 b511cd9dec01c76f4b2ad1723b66b6db37d4c2eb4ed199076e1829d9ee7b75e3).
+ * A different file does not match.
+ */
+export const CSP_AXE_SCRIPT_HASH =
+  "'sha256-tRHNnewBx29LKtFyO2a22zfUwutO0ZkHbhgp2e57deM='";
+
 const stableInlineHashes = Promise.all([
   sha256Source(THEME_BOOT_SCRIPT),
   sha256Source(SERVICE_WORKER_BOOT_SCRIPT),
@@ -33,6 +41,6 @@ export async function contentSecurityPolicyForRequest(
     nonce,
     embed: isEmbedDocumentPath(pathname),
     dev: process.env.NODE_ENV !== 'production',
-    scriptHashes: [...stable, ...scriptHashesForPath(pathname)],
+    scriptHashes: [CSP_AXE_SCRIPT_HASH, ...stable, ...scriptHashesForPath(pathname)],
   });
 }

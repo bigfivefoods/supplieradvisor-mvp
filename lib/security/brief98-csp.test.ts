@@ -190,9 +190,12 @@ function directiveValue(policy: string, name: string) {
 
   const { THEME_BOOT_SCRIPT } = await import('../theme/theme');
   const { SERVICE_WORKER_BOOT_SCRIPT } = await import('../pwa/register-script');
-  const { contentSecurityPolicyForRequest } = await import('./csp-request');
+  const { contentSecurityPolicyForRequest, CSP_AXE_SCRIPT_HASH } = await import('./csp-request');
   const themed = await contentSecurityPolicyForRequest('/login', nonce);
   const scriptSrc = directiveValue(themed, 'script-src');
+  assert.ok(scriptSrc.includes(CSP_AXE_SCRIPT_HASH));
+  const axeBytes = fs.readFileSync(path.join(process.cwd(), 'e2e/vendor/axe-core-4.10.2.min.js'));
+  assert.equal(hashes.cspScriptHash(axeBytes.toString('utf8')), CSP_AXE_SCRIPT_HASH);
   assert.match(scriptSrc, new RegExp(hashes.cspScriptHash(THEME_BOOT_SCRIPT).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(
     scriptSrc,
