@@ -11,6 +11,11 @@ import { loadCachedStoreCatalog } from '@/lib/storefront/public-cache';
 /** Literal required by Next.js segment config. Keep equal to PUBLIC_PAGE_REVALIDATE_SECONDS. */
 export const revalidate = 3600;
 
+/** No build-time paths. The first request caches each product page for revalidate seconds. */
+export function generateStaticParams() {
+  return [];
+}
+
 type Props = {
   params:
     | Promise<{ companySlug: string; productKey: string }>

@@ -12,6 +12,11 @@ type Props = {
 /** Literal required by Next.js segment config. Keep equal to PUBLIC_PAGE_REVALIDATE_SECONDS. */
 export const revalidate = 3600;
 
+/** No build-time paths. The first request caches each store for revalidate seconds. */
+export function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await Promise.resolve(params);
   const catalog = await loadCachedStoreCatalog(p.companySlug);

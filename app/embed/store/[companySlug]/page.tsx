@@ -7,6 +7,11 @@ import { StoreOrderProvider } from '@/components/storefront/StoreOrderCart';
 /** Literal required by Next.js segment config. Keep equal to PUBLIC_PAGE_REVALIDATE_SECONDS. */
 export const revalidate = 3600;
 
+/** No build-time paths. The first request caches each embed for revalidate seconds. */
+export function generateStaticParams() {
+  return [];
+}
+
 type Props = {
   params: Promise<{ companySlug: string }> | { companySlug: string };
 };

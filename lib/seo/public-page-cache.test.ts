@@ -114,6 +114,9 @@ for (const file of segmentFiles) {
   const source = readFileSync(join(root, file), 'utf8');
   assert.match(source, /export const revalidate = 3600;/);
   assert.equal(source.includes('revalidate = PUBLIC_PAGE_REVALIDATE_SECONDS'), false);
+  if (file !== 'app/sitemap.ts' && file !== 'app/sitemap-index.xml/route.ts') {
+    assert.match(source, /export function generateStaticParams\(\)/);
+  }
 }
 
 console.log('public-page-cache.test.ts ok');
