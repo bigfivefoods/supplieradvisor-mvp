@@ -5,7 +5,11 @@
 import { companyPublicPath } from '@/lib/seo/company-public';
 import { publicStoreSlug } from '@/lib/storefront/public-store';
 
-/** Full-route and data cache lifetime for public SEO pages. */
+/**
+ * Full-route and data cache lifetime for public SEO pages.
+ * Route segment configs must repeat the number 3600 as a literal.
+ * Next.js rejects an imported binding in `export const revalidate`.
+ */
 export const PUBLIC_PAGE_REVALIDATE_SECONDS = 3600;
 
 export const PUBLIC_SITEMAP_TAG = 'public-sitemap';

@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
-import { PUBLIC_PAGE_REVALIDATE_SECONDS } from '@/lib/seo/public-page-cache';
 
-export const revalidate = PUBLIC_PAGE_REVALIDATE_SECONDS;
+/** Literal required by Next.js segment config. Keep equal to PUBLIC_PAGE_REVALIDATE_SECONDS. */
+export const revalidate = 3600;
 import {
   LOCALES,
   TRANSLATED_PATHS,

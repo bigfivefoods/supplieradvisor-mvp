@@ -13,10 +13,10 @@ import {
   loadCachedPublicRatings,
   loadPublicCompany,
 } from '@/lib/seo/load-public-company';
-import { PUBLIC_PAGE_REVALIDATE_SECONDS } from '@/lib/seo/public-page-cache';
 import CompanyPublicView from './CompanyPublicView';
 
-export const revalidate = PUBLIC_PAGE_REVALIDATE_SECONDS;
+/** Literal required by Next.js segment config. Keep equal to PUBLIC_PAGE_REVALIDATE_SECONDS. */
+export const revalidate = 3600;
 
 type Props = { params: Promise<{ id: string }> };
 

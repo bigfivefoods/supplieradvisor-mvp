@@ -8,9 +8,8 @@ import { StoreProductAdd } from '@/components/storefront/StoreProductAdd';
 import { StoreOrderProvider } from '@/components/storefront/StoreOrderCart';
 import StoreProductTrade from '@/components/storefront/StoreProductTrade';
 import { loadCachedStoreCatalog } from '@/lib/storefront/public-cache';
-import { PUBLIC_PAGE_REVALIDATE_SECONDS } from '@/lib/seo/public-page-cache';
-
-export const revalidate = PUBLIC_PAGE_REVALIDATE_SECONDS;
+/** Literal required by Next.js segment config. Keep equal to PUBLIC_PAGE_REVALIDATE_SECONDS. */
+export const revalidate = 3600;
 
 type Props = {
   params:

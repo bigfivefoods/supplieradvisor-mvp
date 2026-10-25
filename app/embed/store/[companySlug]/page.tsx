@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import { loadCachedStoreCatalog } from '@/lib/storefront/public-cache';
-import { PUBLIC_PAGE_REVALIDATE_SECONDS } from '@/lib/seo/public-page-cache';
 import { groupProductsByCategory } from '@/lib/storefront/categories';
 import { CategorySection, StoreHero } from '@/components/storefront/StoreShell';
 import { StoreOrderProvider } from '@/components/storefront/StoreOrderCart';
 
-export const revalidate = PUBLIC_PAGE_REVALIDATE_SECONDS;
+/** Literal required by Next.js segment config. Keep equal to PUBLIC_PAGE_REVALIDATE_SECONDS. */
+export const revalidate = 3600;
 
 type Props = {
   params: Promise<{ companySlug: string }> | { companySlug: string };

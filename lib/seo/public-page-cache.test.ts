@@ -2,6 +2,9 @@
  * Run: npx --yes tsx lib/seo/public-page-cache.test.ts
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { companyJsonLdGraph } from './company-public';
 import { companyOpenRewritePath } from './company-open-rewrite';
 import {
@@ -97,5 +100,20 @@ const paths = publicInvalidationPaths({
 assert.ok(paths.includes('/c/big-five-foods-102'));
 assert.ok(paths.includes('/store/big-five-foods'));
 assert.ok(paths.includes('/sitemap.xml'));
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
+const segmentFiles = [
+  'app/c/[id]/page.tsx',
+  'app/embed/store/[companySlug]/page.tsx',
+  'app/sitemap.ts',
+  'app/sitemap-index.xml/route.ts',
+  'app/store/[companySlug]/page.tsx',
+  'app/store/[companySlug]/products/[productKey]/page.tsx',
+];
+for (const file of segmentFiles) {
+  const source = readFileSync(join(root, file), 'utf8');
+  assert.match(source, /export const revalidate = 3600;/);
+  assert.equal(source.includes('revalidate = PUBLIC_PAGE_REVALIDATE_SECONDS'), false);
+}
 
 console.log('public-page-cache.test.ts ok');

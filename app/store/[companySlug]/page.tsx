@@ -5,13 +5,12 @@ import { StoreOrderProvider } from '@/components/storefront/StoreOrderCart';
 import StoreLiveCatalog from '@/components/storefront/StoreLiveCatalog';
 import { storeEmbedPath } from '@/lib/storefront/public-store';
 import { loadCachedStoreCatalog } from '@/lib/storefront/public-cache';
-import { PUBLIC_PAGE_REVALIDATE_SECONDS } from '@/lib/seo/public-page-cache';
-
 type Props = {
   params: Promise<{ companySlug: string }> | { companySlug: string };
 };
 
-export const revalidate = PUBLIC_PAGE_REVALIDATE_SECONDS;
+/** Literal required by Next.js segment config. Keep equal to PUBLIC_PAGE_REVALIDATE_SECONDS. */
+export const revalidate = 3600;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await Promise.resolve(params);
