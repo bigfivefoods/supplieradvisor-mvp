@@ -44,5 +44,5 @@ Close #12, #13, #14, #15, #16, #17, #18, #19, and #20. If a piece is still missi
 
 | PR | Recommendation |
 | --- | --- |
-| [#214](https://github.com/bigfivefoods/supplieradvisor-mvp/pull/214) | stripe 16 to 23. Lockfiles only. No application file imports the `stripe` package today (payments in the product go through Paystack). Do not merge the untouched Dependabot branch. Use the tested upgrade branch from this triage instead. |
-| [#215](https://github.com/bigfivefoods/supplieradvisor-mvp/pull/215) | jose 5 to 6. **NEEDS APPROVAL.** `lib/auth/verify-privy.ts` verifies Privy access tokens with `jose`. Do not merge the untouched Dependabot branch. Use the tested upgrade branch from this triage, and do not deploy it without Craig's approval. |
+| [#214](https://github.com/bigfivefoods/supplieradvisor-mvp/pull/214) | stripe 16 to 23. Lockfiles only. No application file imports the `stripe` package today (payments in the product go through Paystack). Do not merge the untouched Dependabot branch. The tested upgrade is [#307](https://github.com/bigfivefoods/supplieradvisor-mvp/pull/307) (`stripe` 23.0.1, import test only, no API call). |
+| [#215](https://github.com/bigfivefoods/supplieradvisor-mvp/pull/215) | jose 5 to 6. **NEEDS APPROVAL.** `lib/auth/verify-privy.ts` verifies Privy access tokens with `jose`. Do not merge the untouched Dependabot branch. The tested upgrade is [#308](https://github.com/bigfivefoods/supplieradvisor-mvp/pull/308) (`jose` 6.2.13). Typecheck passed. It still needs Craig's approval and a live sign-in check before production. |
