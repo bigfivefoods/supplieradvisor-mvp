@@ -48,7 +48,8 @@ function main() {
     process.exit(1);
   }
   if (!map['/'] || !map['/login']) {
-    console.error('CSP hash patch: home and login hashes are required');
+    const sample = routes.slice(0, 12).join(', ') || '(none)';
+    console.error(`CSP hash patch: home and login hashes are required (sample routes: ${sample})`);
     process.exit(1);
   }
 

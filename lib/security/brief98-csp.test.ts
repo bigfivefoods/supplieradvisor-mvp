@@ -110,25 +110,25 @@ function directiveValue(policy: string, name: string) {
   const cacheHash = 'a'.repeat(64);
   assert.equal(
     hashes.routeFromCacheHtml(
-      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$$/index.html`
+      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$/index.html`
     ),
     '/'
   );
   assert.equal(
     hashes.routeFromCacheHtml(
-      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$$/login.html`
+      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$/login.html`
     ),
     '/login'
   );
   assert.equal(
     hashes.routeFromCacheHtml(
-      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$$/_not-found.html`
+      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$/_not-found.html`
     ),
     '/404'
   );
   assert.equal(
     hashes.routeFromCacheHtml(
-      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$$/c/[id].html`
+      `/tmp/.next/server/route-cache/APP_PAGE/${cacheHash}/$/c/[id].html`
     ),
     null
   );
@@ -160,7 +160,7 @@ function directiveValue(policy: string, name: string) {
     'route-cache',
     'APP_PAGE',
     'b'.repeat(64),
-    '$$'
+    '$'
   );
   fs.mkdirSync(cacheDir, { recursive: true });
   fs.writeFileSync(path.join(cacheDir, 'pricing.html'), '<script>var price = true;</script>');
