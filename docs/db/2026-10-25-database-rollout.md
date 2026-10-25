@@ -38,15 +38,15 @@ Scratch Postgres 16, database `improve26`, 12,000 events across the three sites 
 
 | check | before | after |
 |---|---:|---:|
-| `site_insights_explore` p95, 12,000 events | 1865.2 ms (1804.9, 1865.2, 1815.2, 1825.9, 1863.4) | 150.9 ms (138.1, 137.7, 139.4, 138.8, 150.9, 144.3, 139.6) |
-| no-op `sa_merge_module_store_data`, 817 KB text (2,000 bookings, 800 sessions, 200 clients) | 36.0 ms | 20.1 ms |
-| one booking changed inside that document | | 27.6 ms |
-| `sa_put_module_store` of the same document, unchanged | 38.5 ms, and the row is rewritten | 21.0 ms, and `updated_at` stays put |
-| `sa_put_module_store` of the whole document with one booking changed | 42.2 ms | 32.5 ms |
+| `site_insights_explore` p95, 12,000 events | 2137.4 ms (2137.4, 2098.3, 2013.4, 2035.0, 2001.1) | 155.6 ms (155.6, 155.2, 151.1, 152.9, 149.8, 151.4, 152.6) |
+| no-op `sa_merge_module_store_data`, 817 KB text (2,000 bookings, 800 sessions, 200 clients) | 39.4 ms | 16.8 ms |
+| one booking changed inside that document | | 27.4 ms |
+| `sa_put_module_store` of the same document, unchanged | 41.4 ms, and the row is rewritten | 18.7 ms, and `updated_at` stays put |
+| `sa_put_module_store` of the whole document with one booking changed | 36.4 ms | 26.8 ms |
 
 The explore JSON matched the previous function for the three-site window and for a one-site UTC window. A standalone `EXPLAIN (ANALYZE, BUFFERS)` of the new hash join over those 12,000 rows was a hash join, execution about 9.6 ms, 421 shared buffer hits. The production figure of about 2,269,089 hits is the nested loop inside the old function, not this plan.
 
-This VM is faster than production, and the scratch document compresses more than the live GymAdvisor® book (about 2.4 MB of text, 395 KB stored). The production mean of 1340.5 ms lines up with repeating `jsonb_set` on that book. The new function leaves an unchanged id-array in place and skips the row update when the merged document and token are unchanged, which is the about 809 KB of WAL on a no-op save. A real edit still rewrites the changed array and the row.
+This VM is faster than production, and the scratch document compresses more than the live GymAdvisor® book (about 2.4 MB of text, 395 KB stored). The production mean of 1340.5 ms lines up with repeating `jsonb_set` on that book. The new function leaves an unchanged id-array in place only when every element has a unique id, and it skips the row update when the merged document and token are unchanged, which is the about 809 KB of WAL on a no-op save. A real edit still rewrites the changed array and the row. Partial-field saves, nested key removal, id-less duplication, and duplicate-id folding were checked against the live function bodies.
 
 A growth load of 132,000 events and 15,000 visitor ids, same machine, was slower than the production-like load. The old function's first call was 9761.8 ms and a second call was cancelled after several minutes. The new function was about 1.1 s (1075–1187 ms) after the content spark was one grouped pass. That is under the old time and above the 500 ms target. Production volume is the target. At about 13 times today's event count the report needs another pass.
 
@@ -76,6 +76,25 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS site_insights_events_pageview_vid_ts_idx
   WHERE kind = 'pageview' AND vid IS NOT NULL;
 ```
 
+Confirm the index is valid before recording history. A failed `CONCURRENTLY` build leaves an invalid index, and a later `IF NOT EXISTS` then does nothing:
+
+```sql
+SELECT c.relname, i.indisvalid, i.indisready
+FROM pg_index i
+JOIN pg_class c ON c.oid = i.indexrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relname = 'site_insights_events_pageview_vid_ts_idx';
+```
+
+`indisvalid` must be true. If it is not:
+
+```sql
+DROP INDEX CONCURRENTLY IF EXISTS public.site_insights_events_pageview_vid_ts_idx;
+```
+
+Run the `CREATE INDEX CONCURRENTLY` again, then check `indisvalid` again. Do the same check for each index in step 6, using that index's name. Do not mark the migration applied while any of these indexes is missing or invalid.
+
 Then record the repo version without executing `supabase/migrations/20261040_site_insights_pageview_vid_index.sql`. That file takes a lock until its transaction commits.
 
 ```text
@@ -100,9 +119,23 @@ Rollback: execute `docs/db/2026-10-25-rollback-site-insights-explore.sql`. That 
 
 Execute `supabase/migrations/20261042_module_store_merge_speed.sql`.
 
-The merge result is the same: incoming id wins, incoming order first, then existing ids that were not sent, tombstones and `removed_ids` dropped, nested objects recurse, scalars overwrite. An unchanged id-array is not rebuilt, and a no-op save does not bump `company_module_stores.updated_at`. The stored jsonb is unchanged. `p_if_updated_at` is still accepted and not enforced, matching the function installed on production on 25 Oct 2026. `20260920_brief52_merge_speed_and_409_fix.sql` raises `stale_module_store`. Turning that check back on would 409 the second save from a tab that still holds the page-load timestamp.
+The id-array merge is the live one. An incoming object is `existing || incoming`, so a partial row keeps fields the client did not send. `DISTINCT ON` keeps the first stored object for that id. Incoming order comes first, then stored rows whose ids were not sent. Tombstones and `removed_ids` are dropped. A nested object is replaced by `||`. A key the client removed from settings or config is deleted. There is no recursive merge.
 
-Rollback: execute `docs/db/2026-10-25-rollback-module-store.sql`. That restores the live merge and a `sa_put_module_store` that updates the row on every save.
+An id-array is skipped only when the live merge would return that same array: nothing removed, no tombstone, every element has an id, and the ids are unique. An element with no id is not skipped. The live function appends each id-less stored element again, so saving the same array duplicates those elements. This step keeps that duplication.
+
+A save whose merged jsonb and token are unchanged does not `UPDATE` the row, so `company_module_stores.updated_at` stays put. The stored jsonb is the same. `p_if_updated_at` is still accepted and not enforced, matching the function installed on production on 25 Oct 2026. `20260920_brief52_merge_speed_and_409_fix.sql` raises `stale_module_store`. Turning that check back on would 409 the second save from a tab that still holds the page-load timestamp.
+
+Who reads that column:
+
+- GymAdvisor® desk saves that call `sa_put_module_store` stamp a new `updated_at` inside the jsonb (`writeFitgraphPatchToMetadata` in `lib/fitness/fitgraph.ts`). That changes the document, so the column still moves. An empty diff never calls the RPC (`prepareFitgraphDeltaWrite` in `lib/fitness/fitgraph-delta.ts`).
+- The desk's CAS token is the string `saveFitgraphPatch` returns (`lib/fitness/fitgraph-io.ts`), which `FitgraphWorkbench` stores from the POST response. It is not a read of `company_module_stores.updated_at`. `p_if_updated_at` stays unenforced, so a tab that keeps the page-load stamp still saves.
+- `lib/b2c/care.ts` only checks that the column is non-null, meaning a fitgraph row exists. A no-op leaves the existing timestamp.
+- The Garmin webhook (`app/api/public/fitgraph/garmin/webhook/route.ts`) and the advisor cron (`app/api/services/advisor/cron/route.ts`) take the newest 200 and 400 module-store rows by this column. They do not poll one company for a tick. A save that does not change the document does not move that company up the queue. A save that changes the document still does.
+- Item fields named `updated_at` inside the jsonb are data. The field merge still keeps them when the client omits them.
+
+No UI found that treats a change of `company_module_stores.updated_at` as "this save just landed" for one open book.
+
+Rollback: execute `docs/db/2026-10-25-rollback-module-store.sql`. That file is the live `pg_get_functiondef` output from 25 Oct 2026, including a `sa_put_module_store` that updates the row on every save.
 
 ### 5. Security definer helpers — Craig's approval required
 
@@ -123,7 +156,7 @@ Policies already point at `app_private` and keep working while `app_private` gra
 
 ### 6. Six foreign-key indexes
 
-Run statements 2 through 7 of `docs/db/2026-10-25-indexes-concurrently.sql` one at a time. Wait for each. Do not execute `supabase/migrations/20261044_unindexed_fk_indexes.sql` on production. That file locks each table until commit. A missing table is skipped when the repo file runs on a fresh database.
+Run statements 2 through 7 of `docs/db/2026-10-25-indexes-concurrently.sql` one at a time. Wait for each. After each one, run the `indisvalid` check from step 2 with that index's name. If the index is invalid, drop it with `DROP INDEX CONCURRENTLY` and create it again before the next statement. Do not execute `supabase/migrations/20261044_unindexed_fk_indexes.sql` on production. That file locks each table until commit. A missing table is skipped when the repo file runs on a fresh database.
 
 ```text
 supabase migration repair --status applied 20261044
@@ -183,7 +216,9 @@ The advisor reported 723 unused indexes. A read of `pg_stat_user_indexes` on 25 
 ## Behaviour notes
 
 - `site_insights_explore` keeps the same arguments, site whitelist, 400-day cap, 30-minute session gap, and JSON shape. `site_insights_channel` is not replaced.
-- A no-op module save no longer moves `updated_at`. A real change still sets `updated_at` to `now()`.
+- A module save that does not change the jsonb or the token leaves `company_module_stores.updated_at` where it is. A real change still sets it to `now()`. See step 4 for the readers of that column.
+- An id-less element in an id-array is appended again on every save, matching the live function. The unchanged-array skip does not apply to those elements.
+- `site_insights_explore` turns `enable_nestloop` off for the first-seen hash join and then restores the session's previous value.
 - `p_if_updated_at` stays unenforced.
 - `sa_put_module_store` stays executable by `service_role` only.
 - `sa_merge_module_store_data` and `sa_module_store_merge_id_array` keep their existing grants. This rollout does not revoke them.

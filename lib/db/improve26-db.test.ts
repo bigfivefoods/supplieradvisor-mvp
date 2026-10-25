@@ -152,6 +152,13 @@ for (const file of [migration40, migration41, migration42, migration43, migratio
   assert.equal(sql.includes(STAGING_PROJECT_REF), false, file);
   assert.equal(/\bcompany_id\s*=\s*110\b/.test(sql), false, file);
 }
+const migration42Sql = readFileSync(migration42, 'utf8');
+assert.match(migration42Sql, /e\.item \|\| i\.item/);
+assert.doesNotMatch(migration42Sql, /sa_merge_module_store_data\(existing_value, incoming_value\)/);
+assert.match(readFileSync(migration43, 'utf8'), /lock_timeout/);
+assert.match(readFileSync(migration43, 'utf8'), /0 = ANY \(pol\.polroles\)/);
+assert.match(readFileSync(migration43, 'utf8'), /\\m\(app_private\\.\)\?get_current_user_id\\M/);
+assert.match(readFileSync(migration41, 'utf8'), /current_setting\('enable_nestloop'\)/);
 
 function reset() {
   psql(`
@@ -394,6 +401,26 @@ psql(`
     '{"tags":[1,2],"bookings":[{"id":"a"}]}'::jsonb,
     '{"tags":[9],"bookings":[{"id":"a","n":1}]}'::jsonb
   );
+  INSERT INTO public.merge_cases
+  SELECT 'partial_fields', public.sa_merge_module_store_data(
+    '{"bookings":[{"id":"a","n":1,"notes":"keep"}]}'::jsonb,
+    '{"bookings":[{"id":"a","name":"Ann"}]}'::jsonb
+  );
+  INSERT INTO public.merge_cases
+  SELECT 'nested_removal', public.sa_merge_module_store_data(
+    '{"settings":{"tz":"UTC","theme":"dark","keep":1}}'::jsonb,
+    '{"settings":{"tz":"Africa/Johannesburg"}}'::jsonb
+  );
+  INSERT INTO public.merge_cases
+  SELECT 'id_less', public.sa_merge_module_store_data(
+    '{"bookings":[{"id":"a","n":1},{"label":"note"}]}'::jsonb,
+    '{"bookings":[{"id":"a","n":1},{"label":"note"}]}'::jsonb
+  );
+  INSERT INTO public.merge_cases
+  SELECT 'duplicate_id', public.sa_merge_module_store_data(
+    '{"bookings":[{"id":"a","n":1,"extra":true},{"id":"a","n":2}]}'::jsonb,
+    '{"bookings":[{"id":"a","n":1,"extra":true},{"id":"a","n":2}]}'::jsonb
+  );
 `);
 
 const mergeBefore: number[] = [];
@@ -467,6 +494,14 @@ psql(`
   CREATE POLICY notes_owner ON public.notes
     FOR INSERT TO authenticated
     WITH CHECK (public.get_current_user_id() = '11111111-1111-1111-1111-111111111111' OR profile_id = 0);
+  CREATE POLICY notes_public ON public.notes
+    FOR INSERT TO PUBLIC, authenticated
+    WITH CHECK (public.user_has_access_to_profile(profile_id));
+  CREATE OR REPLACE FUNCTION public.my_get_current_user_id()
+  RETURNS text LANGUAGE sql STABLE AS $fn$ SELECT 'x' $fn$;
+  CREATE POLICY notes_decoy ON public.notes
+    FOR DELETE TO authenticated
+    USING (public.my_get_current_user_id() = 'x');
   CREATE TABLE public.industries (id bigint PRIMARY KEY, parent_id bigint REFERENCES public.industries(id));
   CREATE TABLE public.school_profiles (id bigint PRIMARY KEY);
   CREATE TABLE public.nsnp_isp_sla (id bigint PRIMARY KEY, school_profile_id bigint REFERENCES public.school_profiles(id) ON DELETE SET NULL);
@@ -536,35 +571,62 @@ console.log(explainBefore);
 console.log('EXPLAIN after hash join:');
 console.log(explainAfter);
 
-for (const name of ['patch', 'tombstone', 'removed', 'weird_bool', 'garbage_bool', 'deleted_at', 'scalar_array']) {
-  const sql =
-    name === 'weird_bool'
-      ? `SELECT to_jsonb(public.sa_module_store_is_tombstone('{"_deleted":"yes"}'::jsonb))`
-      : name === 'garbage_bool'
-        ? `SELECT to_jsonb(public.sa_module_store_is_tombstone('{"_deleted":"nope"}'::jsonb))`
-        : name === 'deleted_at'
-          ? `SELECT to_jsonb(public.sa_module_store_is_tombstone('{"deleted_at":"2026-01-01"}'::jsonb))`
-          : name === 'patch'
-            ? `SELECT public.sa_merge_module_store_data(
-                '{"bookings":[{"id":"a","n":1},{"id":"b","n":2}],"settings":{"tz":"UTC","keep":1},"removed_ids":{}}'::jsonb,
-                '{"bookings":[{"id":"b","n":9},{"id":"c","n":3}],"settings":{"tz":"Africa/Johannesburg"},"updated_at":"t"}'::jsonb)`
-            : name === 'tombstone'
-              ? `SELECT public.sa_merge_module_store_data(
-                  '{"bookings":[{"id":"a","_deleted":true},{"id":"b","n":2}]}'::jsonb,
-                  '{"bookings":[{"id":"a","_deleted":true},{"id":"b","n":2}]}'::jsonb)`
-              : name === 'removed'
-                ? `SELECT public.sa_merge_module_store_data(
-                    '{"bookings":[{"id":"a"},{"id":"b"},{"id":" c "}]}'::jsonb,
-                    '{"bookings":[{"id":"b","n":1}],"removed_ids":{"bookings":["a"]}}'::jsonb)`
-                : `SELECT public.sa_merge_module_store_data(
-                    '{"tags":[1,2],"bookings":[{"id":"a"}]}'::jsonb,
-                    '{"tags":[9],"bookings":[{"id":"a","n":1}]}'::jsonb)`;
+const mergeSql: Record<string, string> = {
+  weird_bool: `SELECT to_jsonb(public.sa_module_store_is_tombstone('{"_deleted":"yes"}'::jsonb))`,
+  garbage_bool: `SELECT to_jsonb(public.sa_module_store_is_tombstone('{"_deleted":"nope"}'::jsonb))`,
+  deleted_at: `SELECT to_jsonb(public.sa_module_store_is_tombstone('{"deleted_at":"2026-01-01"}'::jsonb))`,
+  patch: `SELECT public.sa_merge_module_store_data(
+    '{"bookings":[{"id":"a","n":1},{"id":"b","n":2}],"settings":{"tz":"UTC","keep":1},"removed_ids":{}}'::jsonb,
+    '{"bookings":[{"id":"b","n":9},{"id":"c","n":3}],"settings":{"tz":"Africa/Johannesburg"},"updated_at":"t"}'::jsonb)`,
+  tombstone: `SELECT public.sa_merge_module_store_data(
+    '{"bookings":[{"id":"a","_deleted":true},{"id":"b","n":2}]}'::jsonb,
+    '{"bookings":[{"id":"a","_deleted":true},{"id":"b","n":2}]}'::jsonb)`,
+  removed: `SELECT public.sa_merge_module_store_data(
+    '{"bookings":[{"id":"a"},{"id":"b"},{"id":" c "}]}'::jsonb,
+    '{"bookings":[{"id":"b","n":1}],"removed_ids":{"bookings":["a"]}}'::jsonb)`,
+  scalar_array: `SELECT public.sa_merge_module_store_data(
+    '{"tags":[1,2],"bookings":[{"id":"a"}]}'::jsonb,
+    '{"tags":[9],"bookings":[{"id":"a","n":1}]}'::jsonb)`,
+  partial_fields: `SELECT public.sa_merge_module_store_data(
+    '{"bookings":[{"id":"a","n":1,"notes":"keep"}]}'::jsonb,
+    '{"bookings":[{"id":"a","name":"Ann"}]}'::jsonb)`,
+  nested_removal: `SELECT public.sa_merge_module_store_data(
+    '{"settings":{"tz":"UTC","theme":"dark","keep":1}}'::jsonb,
+    '{"settings":{"tz":"Africa/Johannesburg"}}'::jsonb)`,
+  id_less: `SELECT public.sa_merge_module_store_data(
+    '{"bookings":[{"id":"a","n":1},{"label":"note"}]}'::jsonb,
+    '{"bookings":[{"id":"a","n":1},{"label":"note"}]}'::jsonb)`,
+  duplicate_id: `SELECT public.sa_merge_module_store_data(
+    '{"bookings":[{"id":"a","n":1,"extra":true},{"id":"a","n":2}]}'::jsonb,
+    '{"bookings":[{"id":"a","n":1,"extra":true},{"id":"a","n":2}]}'::jsonb)`,
+};
+for (const [name, sql] of Object.entries(mergeSql)) {
   assert.equal(
     psql(`SELECT (${sql}) = (SELECT old_result FROM public.merge_cases WHERE name = '${name}')`),
     't',
     name,
   );
 }
+assert.equal(
+  psql(`SELECT (${mergeSql.partial_fields}) = '{"bookings":[{"id":"a","n":1,"notes":"keep","name":"Ann"}]}'::jsonb`),
+  't',
+  'partial field save keeps omitted notes',
+);
+assert.equal(
+  psql(`SELECT (${mergeSql.nested_removal}) = '{"settings":{"tz":"Africa/Johannesburg"}}'::jsonb`),
+  't',
+  'nested object replace deletes omitted keys',
+);
+assert.equal(
+  psql(`SELECT (${mergeSql.id_less}) = '{"bookings":[{"id":"a","n":1},{"label":"note"},{"label":"note"}]}'::jsonb`),
+  't',
+  'id-less stored elements are appended again',
+);
+assert.equal(
+  psql(`SELECT (${mergeSql.duplicate_id}) = '{"bookings":[{"id":"a","extra":true,"n":1},{"id":"a","extra":true,"n":2}]}'::jsonb`),
+  't',
+  'duplicate ids fold onto the first stored object',
+);
 
 const mergeAfter: number[] = [];
 for (let i = 0; i < 5; i += 1) {
@@ -646,6 +708,51 @@ assert.match(
 assert.match(
   psql(`SELECT pg_get_expr(polwithcheck, polrelid) FROM pg_policy WHERE polname = 'notes_owner'`),
   /app_private\.get_current_user_id/,
+);
+assert.equal(
+  psql(`SELECT (0 = ANY(polroles))::text FROM pg_policy WHERE polname = 'notes_public'`),
+  'true',
+);
+// Postgres stores TO PUBLIC, authenticated as {0} and warns that the named
+// roles are ignored. The migration still emits PUBLIC when oid 0 is present
+// beside a named role, so a mixed catalog row is not rewritten as the named
+// role only.
+assert.equal(
+  psql(`
+    WITH pol AS (
+      SELECT ARRAY[0::oid, (SELECT oid FROM pg_roles WHERE rolname = 'authenticated')]::oid[] AS polroles
+    )
+    SELECT string_agg(part, ', ' ORDER BY sort, part)
+    FROM pol, LATERAL (
+      SELECT 0 AS sort, 'PUBLIC'::text AS part
+      WHERE pol.polroles IS NULL
+         OR cardinality(pol.polroles) = 0
+         OR 0 = ANY (pol.polroles)
+      UNION ALL
+      SELECT 1, quote_ident(r.rolname)
+      FROM pg_roles r
+      WHERE r.oid = ANY (pol.polroles)
+    ) parts
+  `),
+  'PUBLIC, authenticated',
+);
+assert.match(
+  psql(`SELECT pg_get_expr(polwithcheck, polrelid) FROM pg_policy WHERE polname = 'notes_public'`),
+  /app_private\.user_has_access_to_profile/,
+);
+const decoyExpr = psql(`SELECT pg_get_expr(polqual, polrelid) FROM pg_policy WHERE polname = 'notes_decoy'`);
+assert.match(decoyExpr, /my_get_current_user_id/);
+assert.doesNotMatch(decoyExpr, /app_private/);
+assert.equal(
+  lastLine(`
+    SELECT set_config('enable_nestloop', 'off', false);
+    SELECT public.site_insights_explore(
+      timestamptz '2026-10-01', timestamptz '2026-10-26',
+      ARRAY['supplieradvisor.com'], 'Africa/Johannesburg'
+    );
+    SELECT current_setting('enable_nestloop');
+  `),
+  'off',
 );
 assert.equal(psql(`SELECT has_function_privilege('authenticated', 'public.get_current_user_id()', 'EXECUTE')`), 'f');
 assert.equal(psql(`SELECT has_function_privilege('authenticated', 'public.user_has_access_to_profile(bigint)', 'EXECUTE')`), 'f');

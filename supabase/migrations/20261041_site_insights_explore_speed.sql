@@ -35,6 +35,7 @@ declare
   v_to_day date;
   out jsonb := '[]'::jsonb;
   s text;
+  v_nestloop text;
 begin
   if p_to <= p_from or p_to - p_from > interval '400 days' then
     raise exception 'site_insights_explore: bad range';
@@ -95,20 +96,27 @@ begin
   where true;
 
 
-  -- Session SET, restored before this function returns. is_local would
-  -- raise outside an explicit transaction block. A later error aborts the
-  -- statement, and Postgres rolls the SET back with the transaction.
+  -- Session SET for this one statement, then the previous value is put
+  -- back. is_local would raise outside an explicit transaction block.
+  -- Forcing the value to on would change a session that had it off.
+  v_nestloop := current_setting('enable_nestloop');
   perform set_config('enable_nestloop', 'off', false);
-  drop table if exists _sx_first;
-  create temporary table _sx_first on commit drop as
-  select e.site, e.vid, (min(e.ts) at time zone v_tz)::date as first_day
-  from public.site_insights_events e
-  join (
-    select distinct site, vid from _sx_e where vid is not null
-  ) v on v.site = e.site and v.vid = e.vid
-  where e.kind = 'pageview'
-  group by e.site, e.vid;
-  perform set_config('enable_nestloop', 'on', false);
+  begin
+    drop table if exists _sx_first;
+    create temporary table _sx_first on commit drop as
+    select e.site, e.vid, (min(e.ts) at time zone v_tz)::date as first_day
+    from public.site_insights_events e
+    join (
+      select distinct site, vid from _sx_e where vid is not null
+    ) v on v.site = e.site and v.vid = e.vid
+    where e.kind = 'pageview'
+    group by e.site, e.vid;
+    perform set_config('enable_nestloop', v_nestloop, false);
+  exception
+    when others then
+      perform set_config('enable_nestloop', v_nestloop, false);
+      raise;
+  end;
   create index on _sx_e (site, kind, path);
   create index on _sx_v (site, in_range);
   drop table if exists _sx_spark;

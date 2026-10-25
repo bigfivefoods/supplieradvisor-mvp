@@ -22,6 +22,13 @@
 -- JWT verification, or the app's auth code.
 --
 -- 20261043 is not a calendar day. It sorts after 20261042.
+--
+-- DROP/CREATE POLICY takes ACCESS EXCLUSIVE. Production has no matching
+-- policies, so the rewrite loop changes nothing there. lock_timeout still
+-- bounds the wait on any other database.
+
+SET LOCAL lock_timeout = '3s';
+SET LOCAL statement_timeout = '60s';
 
 DO $need_auth$
 BEGIN
@@ -143,20 +150,20 @@ BEGIN
   LOOP
     new_qual := pol.qual;
     new_check := pol.chk;
-    -- Postgres regular expressions have no lookbehind. Replace a public.
-    -- qualification first, then any remaining call, including one that is
-    -- already app_private., so a second run does not double the schema.
+    -- \m and \M are word boundaries, so my_get_current_user_id is left
+    -- alone. public. is replaced first. A later pass covers an unqualified
+    -- name and a name that is already app_private., without doubling it.
     IF new_qual IS NOT NULL THEN
-      new_qual := regexp_replace(new_qual, 'public\.user_has_access_to_profile', 'app_private.user_has_access_to_profile', 'g');
-      new_qual := regexp_replace(new_qual, 'public\.get_current_user_id', 'app_private.get_current_user_id', 'g');
-      new_qual := regexp_replace(new_qual, '(app_private\.)?user_has_access_to_profile', 'app_private.user_has_access_to_profile', 'g');
-      new_qual := regexp_replace(new_qual, '(app_private\.)?get_current_user_id', 'app_private.get_current_user_id', 'g');
+      new_qual := regexp_replace(new_qual, '\mpublic\.user_has_access_to_profile\M', 'app_private.user_has_access_to_profile', 'g');
+      new_qual := regexp_replace(new_qual, '\mpublic\.get_current_user_id\M', 'app_private.get_current_user_id', 'g');
+      new_qual := regexp_replace(new_qual, '\m(app_private\.)?user_has_access_to_profile\M', 'app_private.user_has_access_to_profile', 'g');
+      new_qual := regexp_replace(new_qual, '\m(app_private\.)?get_current_user_id\M', 'app_private.get_current_user_id', 'g');
     END IF;
     IF new_check IS NOT NULL THEN
-      new_check := regexp_replace(new_check, 'public\.user_has_access_to_profile', 'app_private.user_has_access_to_profile', 'g');
-      new_check := regexp_replace(new_check, 'public\.get_current_user_id', 'app_private.get_current_user_id', 'g');
-      new_check := regexp_replace(new_check, '(app_private\.)?user_has_access_to_profile', 'app_private.user_has_access_to_profile', 'g');
-      new_check := regexp_replace(new_check, '(app_private\.)?get_current_user_id', 'app_private.get_current_user_id', 'g');
+      new_check := regexp_replace(new_check, '\mpublic\.user_has_access_to_profile\M', 'app_private.user_has_access_to_profile', 'g');
+      new_check := regexp_replace(new_check, '\mpublic\.get_current_user_id\M', 'app_private.get_current_user_id', 'g');
+      new_check := regexp_replace(new_check, '\m(app_private\.)?user_has_access_to_profile\M', 'app_private.user_has_access_to_profile', 'g');
+      new_check := regexp_replace(new_check, '\m(app_private\.)?get_current_user_id\M', 'app_private.get_current_user_id', 'g');
     END IF;
     replaced := new_qual IS DISTINCT FROM pol.qual OR new_check IS DISTINCT FROM pol.chk;
     IF NOT replaced THEN
@@ -171,10 +178,24 @@ BEGIN
       ELSE 'ALL'
     END;
     permissive := CASE WHEN pol.polpermissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END;
-    SELECT COALESCE(string_agg(quote_ident(r.rolname), ', '), 'PUBLIC')
+    -- oid 0 is PUBLIC. It can sit beside named roles. pg_roles has no row
+    -- for 0, so a join on polroles would drop PUBLIC from a mixed list.
+    -- An empty role list is PUBLIC as well.
+    SELECT string_agg(part, ', ' ORDER BY sort, part)
       INTO role_list
-    FROM pg_roles r
-    WHERE r.oid = ANY (pol.polroles);
+    FROM (
+      SELECT 0 AS sort, 'PUBLIC'::text AS part
+      WHERE pol.polroles IS NULL
+         OR cardinality(pol.polroles) = 0
+         OR 0 = ANY (pol.polroles)
+      UNION ALL
+      SELECT 1, quote_ident(r.rolname)
+      FROM pg_roles r
+      WHERE r.oid = ANY (pol.polroles)
+    ) parts;
+    IF role_list IS NULL OR role_list = '' THEN
+      role_list := 'PUBLIC';
+    END IF;
     using_sql := CASE WHEN new_qual IS NULL THEN '' ELSE format(' USING (%s)', new_qual) END;
     check_sql := CASE WHEN new_check IS NULL THEN '' ELSE format(' WITH CHECK (%s)', new_check) END;
 
