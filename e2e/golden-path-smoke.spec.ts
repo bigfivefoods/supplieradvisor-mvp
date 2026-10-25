@@ -268,9 +268,12 @@ test.describe('Golden path smoke (public)', () => {
       expect(res.headers()['content-security-policy']).toContain(
         "frame-ancestors 'none'"
       );
-      expect(res.headers()['content-security-policy-report-only']).toContain(
-        "default-src 'self'"
-      );
+      expect(res.headers()['content-security-policy-report-only']).toBeFalsy();
+      const scriptSrc = String(res.headers()['content-security-policy'] || '')
+        .split(';')
+        .find((part) => part.trim().startsWith('script-src'));
+      expect(scriptSrc || '').not.toContain('unsafe-inline');
+      expect(scriptSrc || '').toContain('nonce-');
     }
 
     const embedRes = await request.get(`${base}/embed/containers/test`);
@@ -279,6 +282,10 @@ test.describe('Golden path smoke (public)', () => {
       "frame-ancestors *"
     );
     expect(embedRes.headers()['content-security-policy-report-only']).toBeFalsy();
+    const embedScriptSrc = String(embedRes.headers()['content-security-policy'] || '')
+      .split(';')
+      .find((part) => part.trim().startsWith('script-src'));
+    expect(embedScriptSrc || '').not.toContain('unsafe-inline');
   });
 
   test('protected invoice docs without auth → 401', async ({ request }) => {

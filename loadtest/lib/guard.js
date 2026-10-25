@@ -105,11 +105,12 @@ export function headersToText(headers) {
 }
 
 /**
- * The staging preview's report-only Content-Security-Policy names the
- * production Supabase host in connect-src. That header is not enforced.
- * It is the only header skipped by the production-ref scan. The enforced
- * Content-Security-Policy header, every other header, the body, and env
- * values are still scanned.
+ * Older staging previews sent a report-only Content-Security-Policy that
+ * named the production Supabase host in connect-src. That header was not
+ * enforced. Current deploys do not send it. It remains the only header
+ * skipped by the production-ref scan so an old preview cannot hide the
+ * ref there. The enforced Content-Security-Policy header, every other
+ * header, the body, and env values are still scanned.
  */
 export const REPORT_ONLY_CSP_HEADER = 'content-security-policy-report-only';
 
