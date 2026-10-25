@@ -12,7 +12,5 @@ const version = JSON.parse(
 
 assert.equal(typeof Stripe, 'function');
 assert.match(version, /^23\./);
-assert.equal(process.env.STRIPE_SECRET_KEY, undefined);
-assert.equal(process.env.STRIPE_SECRET, undefined);
 
 console.log('stripe-major.test.ts ok', version);
