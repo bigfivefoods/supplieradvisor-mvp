@@ -559,6 +559,24 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    try {
+      const { revalidatePublicCompanySurfaces } = await import(
+        '@/lib/seo/revalidate-public-pages'
+      );
+      revalidatePublicCompanySurfaces({
+        companyId,
+        tradingName: profile.trading_name,
+        legalName: profile.legal_name,
+        metadata: profile.metadata,
+        previousTradingName:
+          existing.trading_name != null ? String(existing.trading_name) : null,
+        previousLegalName: existing.legal_name != null ? String(existing.legal_name) : null,
+        previousMetadata: existing.metadata,
+      });
+    } catch (revalidateError) {
+      console.warn('public page revalidate failed', revalidateError);
+    }
+
     await logActivity({
       profile_id: companyId,
       actor_user_id: mem.userId,

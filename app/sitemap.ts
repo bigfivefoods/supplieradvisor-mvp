@@ -1,4 +1,7 @@
 import type { MetadataRoute } from 'next';
+
+/** Literal required by Next.js segment config. Keep equal to PUBLIC_PAGE_REVALIDATE_SECONDS. */
+export const revalidate = 3600;
 import {
   LOCALES,
   TRANSLATED_PATHS,

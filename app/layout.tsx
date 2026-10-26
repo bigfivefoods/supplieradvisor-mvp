@@ -4,9 +4,8 @@ import './globals.css';
 import LocaleHtml from '@/components/i18n/LocaleHtml';
 import { PublicProviders } from '@/components/PublicProviders';
 import JsonLd from '@/components/seo/JsonLd';
-import { SpeedInsights } from '@vercel/speed-insights/next';
-import { Analytics } from '@vercel/analytics/next';
 import VisitRecorder from '@/components/insights/VisitRecorder';
+import PublicMetrics from '@/components/analytics/PublicMetrics';
 import {
   DEFAULT_DESCRIPTION,
   DEFAULT_TITLE,
@@ -136,8 +135,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`min-h-dvh antialiased bg-sa-bg text-sa-text ${notoSansArabic.variable}`}>
         <PublicProviders>{children}</PublicProviders>
         <VisitRecorder />
-        <SpeedInsights />
-        <Analytics />
+        <PublicMetrics />
       </body>
     </LocaleHtml>
   );

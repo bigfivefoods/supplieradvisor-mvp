@@ -2,8 +2,13 @@
  * Paginated load of all discoverable public companies for sitemap + directory SEO.
  * Shared so sitemap and directory never silently cap at a few hundred rows.
  */
+import { unstable_cache } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isEligibleForDiscovery } from '@/lib/business/completeness';
+import {
+  PUBLIC_PAGE_REVALIDATE_SECONDS,
+  PUBLIC_SITEMAP_TAG,
+} from '@/lib/seo/public-page-cache';
 
 export type PublicCompanyRow = {
   id: number;
@@ -38,7 +43,20 @@ const SELECT_MIN =
  * Fetch every named profile (paginated), then filter with isEligibleForDiscovery.
  * @param maxRows hard cap for safety (default 50_000)
  */
-export async function loadAllPublicCompanyRows(
+export function loadAllPublicCompanyRows(
+  maxRows = 50_000
+): Promise<PublicCompanyRow[]> {
+  return unstable_cache(
+    () => loadAllPublicCompanyRowsUncached(maxRows),
+    ['public-company-rows-v1', String(maxRows)],
+    {
+      revalidate: PUBLIC_PAGE_REVALIDATE_SECONDS,
+      tags: [PUBLIC_SITEMAP_TAG],
+    }
+  )();
+}
+
+async function loadAllPublicCompanyRowsUncached(
   maxRows = 50_000
 ): Promise<PublicCompanyRow[]> {
   const supabase = getSupabaseServer();

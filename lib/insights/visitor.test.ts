@@ -369,7 +369,11 @@ assert.doesNotMatch(forwardSrc, /WEBSITE_INSIGHTS_FORWARD/);
 
 const layout = readFileSync(resolve('app/layout.tsx'), 'utf8');
 assert.match(layout, /VisitRecorder/);
-assert.match(layout, /<Analytics/);
+assert.match(layout, /PublicMetrics/);
+assert.match(
+  readFileSync(resolve('components/analytics/PublicMetrics.tsx'), 'utf8'),
+  /<Analytics/
+);
 
 console.log('visitor insights tests ok');
 }
