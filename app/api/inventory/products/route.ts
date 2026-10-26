@@ -11,6 +11,17 @@ import {
   stripSelectColumn,
 } from '@/lib/portals/select-retry';
 
+function revalidateStore(companyId: number) {
+  if (!Number.isFinite(companyId) || companyId <= 0) return;
+  void import('@/lib/seo/revalidate-public-pages')
+    .then(({ revalidatePublicCompanySurfaces }) => {
+      revalidatePublicCompanySurfaces({ companyId });
+    })
+    .catch((error) => {
+      console.warn('store revalidate failed', error);
+    });
+}
+
 /** Live products has both status and is_active (paste RUN_THIS_FOR_PRODUCTS_IS_ACTIVE.sql). */
 const PRODUCT_LIST_COLUMNS =
   'id, profile_id, name, sku, barcode, gtin, gtin14, public_id, category, product_type, uom, base_currency, sell_price, cost_price, prices, reorder_level, reorder_qty, short_description, long_description, lead_time_days, moq, status, is_active, primary_image_url, specs_sheet_url, specs_sheet_name, track_lot, track_serial, is_sellable, is_purchasable, metadata, qr_payload, onchain_status, onchain_hash, updated_at, created_at';
@@ -229,6 +240,7 @@ async function productsPost(request: NextRequest) {
         { status: 500 }
       );
     }
+    revalidateStore(companyId);
     return NextResponse.json({ success: true, product: data });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
@@ -366,6 +378,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    revalidateStore(companyId);
     return NextResponse.json({
       success: true,
       product: data,
@@ -389,6 +402,7 @@ export async function DELETE(request: NextRequest) {
     const supabase = getSupabaseServer();
     const { error } = await supabase.from('products').delete().eq('id', id).eq('profile_id', companyId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    revalidateStore(companyId);
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

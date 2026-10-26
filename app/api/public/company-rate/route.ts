@@ -279,6 +279,18 @@ export async function POST(request: NextRequest) {
       read: false,
     });
 
+    try {
+      const { revalidatePublicCompanySurfaces } = await import(
+        '@/lib/seo/revalidate-public-pages'
+      );
+      revalidatePublicCompanySurfaces({
+        companyId,
+        tradingName: profile.trading_name != null ? String(profile.trading_name) : null,
+      });
+    } catch (revalidateError) {
+      console.warn('rating revalidate failed', revalidateError);
+    }
+
     return NextResponse.json({
       success: true,
       stored,

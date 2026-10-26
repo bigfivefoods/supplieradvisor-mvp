@@ -1,6 +1,9 @@
 import { generateSitemaps } from '@/app/sitemap';
 import { SITE_URL } from '@/lib/seo/site';
 
+/** Literal required by Next.js segment config. Keep equal to PUBLIC_PAGE_REVALIDATE_SECONDS. */
+export const revalidate = 3600;
+
 const DEFAULT_SHARD_IDS = [0, 1] as const;
 
 export async function GET() {

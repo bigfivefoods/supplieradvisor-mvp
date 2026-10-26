@@ -37,9 +37,10 @@ const embed = src('app/embed/store/[companySlug]/page.tsx');
 assert.match(embed, /StoreOrderProvider/);
 assert.match(embed, /website-embed/);
 
-const profile = src('app/c/[id]/page.tsx');
+const profile = src('app/c/[id]/CompanyPublicView.tsx');
 assert.match(profile, /Order from catalogue/);
 assert.match(profile, /publicStorePath/);
+assert.match(src('app/c/[id]/page.tsx'), /revalidate/);
 
 assert.match(src('lib/storefront/catalog.ts'), /applyStorefrontCatalog/);
 assert.match(

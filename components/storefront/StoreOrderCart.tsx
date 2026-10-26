@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { Loader2, ShoppingCart, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { mergeStoreAttribution } from '@/lib/storefront/attribution';
 import type { StoreAttribution, StoreProduct } from '@/lib/storefront/types';
 import { formatStoreMoney, storeLineTotal } from '@/lib/storefront/money';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -105,6 +106,8 @@ export function StoreOrderProvider({
     }
     setBusy(true);
     try {
+      const live =
+        typeof window === 'undefined' ? attr : mergeStoreAttribution(attr, window.location.search);
       const companyId = getSelectedCompanyId();
       const res = await fetch(`/api/storefront/${companySlug}/quotes`, {
         method: 'POST',
@@ -133,9 +136,9 @@ export function StoreOrderProvider({
             unitPrice: l.product.price,
           })),
           notes: form.notes || undefined,
-          source: attr?.source || 'storefront-cart',
-          ref: attr?.ref,
-          channel: attr?.channel || 'wholesale',
+          source: live?.source || 'storefront-cart',
+          ref: live?.ref,
+          channel: live?.channel || 'wholesale',
           product: lines[0]?.product.externalRef,
         }),
       });

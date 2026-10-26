@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { mergeStoreAttribution } from '@/lib/storefront/attribution';
 import type { StoreAttribution, StoreProduct } from '@/lib/storefront/types';
 import { formatStoreMoney, storeLineTotal } from '@/lib/storefront/money';
 import { StorePrice } from '@/components/storefront/StorePrice';
@@ -43,12 +44,14 @@ export default function QuoteRequestForm({
     e.preventDefault();
     setBusy(true);
     try {
+      const live =
+        typeof window === 'undefined' ? attr : mergeStoreAttribution(attr, window.location.search);
       const companyId = getSelectedCompanyId();
       const lines = [
         {
-          name: product?.name || attr?.name || 'Product',
-          sku: product?.sku || attr?.sku,
-          externalRef: product?.externalRef || attr?.product,
+          name: product?.name || live?.name || 'Product',
+          sku: product?.sku || live?.sku,
+          externalRef: product?.externalRef || live?.product,
           productId: typeof product?.id === 'number' ? product.id : null,
           quantity: Math.max(1, Number(form.quantity) || 1),
           unitPrice: product?.price,
@@ -70,10 +73,10 @@ export default function QuoteRequestForm({
           address: form.address || undefined,
           lines,
           notes: form.notes || undefined,
-          source: attr?.source,
-          ref: attr?.ref,
-          channel: attr?.channel || (product?.quoteFirst ? 'institutional' : null),
-          product: product?.externalRef || attr?.product,
+          source: live?.source,
+          ref: live?.ref,
+          channel: live?.channel || (product?.quoteFirst ? 'institutional' : null),
+          product: product?.externalRef || live?.product,
         }),
       });
       const data = await res.json();
