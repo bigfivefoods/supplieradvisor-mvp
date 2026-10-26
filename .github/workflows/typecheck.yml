@@ -456,3 +456,33 @@ jobs:
         env:
           BRIEF122_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/brief122rollout
         run: npx --yes tsx lib/db/brief122-rollout-db.test.ts
+
+  improve26-db:
+    name: improve26 database
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: improve26
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d improve26"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Run 26 Oct database migrations against Postgres
+        env:
+          IMPROVE26_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/improve26
+        run: npx --yes tsx lib/db/improve26-db.test.ts
