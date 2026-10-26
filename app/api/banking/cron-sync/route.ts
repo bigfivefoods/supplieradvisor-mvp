@@ -3,6 +3,9 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   banklinkConfig,
   fetchBankLinkTransactions,
+  fetchFnbTransactions,
+  fnbConfig,
+  isFnbIntegrationCompany,
   ingestCanonicalTxns,
   startSyncRun,
   finishSyncRun,
@@ -97,10 +100,56 @@ async function runCron(request: NextRequest) {
         await triggerBankLinkSync(externalAccountId);
       }
 
+      // Sample data only for sandbox/demo connections. Live FNB connections
+      // always call the real FNB provider, regardless of BankLink mode.
       let txns =
-        conn.provider === 'sandbox' || cfg.mode === 'sandbox'
+        conn.provider === 'sandbox' ||
+        (cfg.mode === 'sandbox' && conn.provider !== 'fnb')
           ? sandboxTransactions()
           : [];
+
+      if (conn.provider === 'fnb') {
+        let fnbError: string | null = null;
+        if (!isFnbIntegrationCompany(companyId)) {
+          fnbError = 'FNB Integration Channel is not available for this company';
+        } else {
+          const accountNumber = String(
+            externalAccountId || fnbConfig().accountNumber || ''
+          ).replace(/\s+/g, '');
+          const pulled = await fetchFnbTransactions({ accountNumber });
+          if (pulled.error && !pulled.txns.length) {
+            fnbError = pulled.error;
+          } else {
+            txns = pulled.txns;
+          }
+        }
+        if (fnbError) {
+          const runId = await startSyncRun({
+            companyId,
+            connectionId: Number(conn.id),
+            bankAccountId,
+            provider: 'fnb',
+            trigger: 'cron',
+          });
+          await finishSyncRun(runId, {
+            fetched: 0,
+            inserted: 0,
+            duplicates: 0,
+            errors: 1,
+            error_message: fnbError,
+            status: 'error',
+          });
+          await supabase
+            .from('bank_connections')
+            .update({
+              last_error: fnbError,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', conn.id);
+          results.push({ connectionId: conn.id, error: fnbError });
+          continue;
+        }
+      }
 
       if (conn.provider === 'banklink' && cfg.mode === 'live' && externalAccountId) {
         const pulled = await fetchBankLinkTransactions({

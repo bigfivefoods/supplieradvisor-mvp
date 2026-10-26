@@ -47,7 +47,33 @@ export function fnbConfig() {
 export function maskAccountNumber(raw?: string | null): string | null {
   const digits = String(raw || '').replace(/\s+/g, '');
   if (!digits) return null;
-  return `…${digits.slice(-4)}`;
+  return `****${digits.slice(-4)}`;
+}
+
+/** Statement path with the account masked, safe for errors and logs. */
+export function maskedStatementPath(template: string, account: string): string {
+  return template.replace('{accountNumber}', maskAccountNumber(account) || '****');
+}
+
+/**
+ * Redact secrets and full account numbers from FNB response bodies before
+ * logging. Any run of 6+ digits keeps only its last 4.
+ */
+export function redactFnbText(text: string, account?: string): string {
+  let out = String(text || '');
+  const acct = String(account || '').replace(/\s+/g, '');
+  if (acct) out = out.split(acct).join(maskAccountNumber(acct) || '****');
+  out = out.replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, '$1[redacted]');
+  out = out.replace(
+    /("?(?:access_token|refresh_token|client_secret|clientSecret|token|authorization|password)"?\s*[:=]\s*"?)[^",}\s]+/gi,
+    '$1[redacted]'
+  );
+  const cfg = fnbConfig();
+  for (const secret of [cfg.clientSecret, cfg.clientId]) {
+    if (secret && secret.length >= 6) out = out.split(secret).join('[redacted]');
+  }
+  out = out.replace(/\d{6,}/g, (m) => `****${m.slice(-4)}`);
+  return out.slice(0, 2000);
 }
 
 type TokenOk = {
@@ -450,7 +476,13 @@ export function parseFnbStatementPayload(data: unknown): CanonicalTxn[] {
 async function fnbJson(
   path: string,
   init: RequestInit & { token: string }
-): Promise<{ ok: boolean; status: number; data: unknown; error?: string }> {
+): Promise<{
+  ok: boolean;
+  status: number;
+  data: unknown;
+  error?: string;
+  text?: string;
+}> {
   const { token, ...rest } = init;
   const cfg = fnbConfig();
   const url = path.startsWith('http')
@@ -484,6 +516,7 @@ async function fnbJson(
         ok: false,
         status: res.status,
         data,
+        text,
         error:
           pickStr(rec, [
             'error_description',
@@ -543,6 +576,7 @@ export async function fetchFnbTransactions(opts?: {
   }
 
   const template = cfg.statementPath || DEFAULT_STATEMENT_PATH;
+  const shownPath = maskedStatementPath(template, account);
   const pathBase = template.replace('{accountNumber}', encodeURIComponent(account));
   const all: CanonicalTxn[] = [];
   let lastItemKey = '';
@@ -557,12 +591,25 @@ export async function fetchFnbTransactions(opts?: {
       method: 'GET',
     });
     tried.push(
-      `GET ${template} → ${res.status}${res.error ? ` ${res.error}` : ''}`
+      `GET ${shownPath} → ${res.status}${res.error ? ` ${redactFnbText(res.error, account)}` : ''}`
     );
+    if (!res.ok) {
+      console.warn(
+        JSON.stringify({
+          kind: 'fnb_statement_error',
+          path: shownPath,
+          status: res.status,
+          page,
+          fromDate: from,
+          toDate: to,
+          body: redactFnbText(res.text || res.error || '', account),
+        })
+      );
+    }
     if (res.status === 401 || res.status === 403) {
       return {
         txns: [],
-        error: res.error || 'FNB rejected the access token',
+        error: `FNB rejected the access token for account ${maskAccountNumber(account)} (HTTP ${res.status})${res.error ? `: ${redactFnbText(res.error, account)}` : ''}`,
         tokenUrl: token.tokenUrl,
         tried,
       };
@@ -571,7 +618,7 @@ export async function fetchFnbTransactions(opts?: {
     if (!res.ok && res.status === 400 && msg.includes('not provisioned')) {
       return {
         txns: [],
-        error: `FNB Transaction History accepted GET ${template} but account ${maskAccountNumber(account)} is not provisioned. Ask Integration Channel / Online Banking Enterprise to enable this operating account.`,
+        error: `FNB Transaction History accepted GET ${shownPath} but account ${maskAccountNumber(account)} is not provisioned. Ask Integration Channel / Online Banking Enterprise to enable this operating account.`,
         tokenUrl: token.tokenUrl,
         tried,
       };
@@ -579,9 +626,7 @@ export async function fetchFnbTransactions(opts?: {
     if (!res.ok) {
       return {
         txns: [],
-        error:
-          res.error ||
-          `FNB statement pull failed for ${maskAccountNumber(account)}`,
+        error: `FNB statement pull failed for account ${maskAccountNumber(account)} (GET ${shownPath} → ${res.status})${res.error ? `: ${redactFnbText(res.error, account)}` : ''}`,
         tokenUrl: token.tokenUrl,
         tried,
       };

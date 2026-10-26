@@ -238,6 +238,7 @@ jobs:
         run: |
           set -euo pipefail
           npx --yes tsx lib/banking/bank-transaction-columns.test.ts
+          npx --yes tsx lib/banking/fnb-sync-errors.test.ts
 
   trade-portal-db:
     name: trade portal Postgres
