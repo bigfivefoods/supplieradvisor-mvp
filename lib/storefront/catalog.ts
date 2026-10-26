@@ -24,6 +24,7 @@ import {
   readStoreSlugCache,
   writeStoreSlugCache,
 } from './slug-cache';
+import { filterStoreProducts } from './filter-products';
 
 const EXACT_PROFILE_COLUMNS =
   'id, trading_name, legal_name, logo_url, short_description, description, verification_status, city, country, metadata, is_discoverable';
@@ -420,25 +421,7 @@ export async function listStoreProducts(
 
   products = applyStorefrontCatalog(products, pick);
 
-  if (opts?.channel) {
-    const ch = String(opts.channel).toLowerCase();
-    products = products.filter(
-      (p) => p.channels.includes(ch as StoreChannel) || p.channels.length === 0
-    );
-  }
-
-  if (opts?.q) {
-    const q = opts.q.toLowerCase();
-    products = products.filter((p) => {
-      const hay = [p.name, p.sku, p.externalRef, p.category, p.description]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }
-
-  return products;
+  return filterStoreProducts(products, opts);
 }
 
 async function appendGymShopToStoreProducts(

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { canonicalRedirectForAppHost } from '@/lib/http/app-host';
 import { isPublicApiPath, isRecoverPortalPath } from '@/lib/auth/public-paths';
+import { companyOpenRewritePath } from '@/lib/seo/company-open-rewrite';
 
 /**
  * Edge middleware — app-host redirect, security headers, coarse API gate.
@@ -54,6 +55,17 @@ export function middleware(request: NextRequest) {
     applySecurityHeaders(redirect);
     redirect.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
     return redirect;
+  }
+
+  const openPath = companyOpenRewritePath(
+    pathname,
+    request.nextUrl.searchParams.get('from'),
+    request.nextUrl.searchParams.get('src')
+  );
+  if (openPath) {
+    const url = request.nextUrl.clone();
+    url.pathname = openPath;
+    return NextResponse.rewrite(url);
   }
 
   // Signed-out portal shells. No API is opened. Tokens are never cached.
