@@ -134,6 +134,13 @@ export async function POST(request: NextRequest) {
         accountNumber,
       });
       if (pulled.error && !pulled.txns.length) {
+        await supabase
+          .from('bank_connections')
+          .update({
+            last_error: pulled.error,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', conn.id);
         void import('@/lib/notifications/email-alerts').then(
           ({ notifyBankSyncFailed }) =>
             notifyBankSyncFailed({
