@@ -30,7 +30,10 @@ import {
   superLinkExampleDealValue,
 } from '@/lib/sales-contractor/agreement';
 import type { SalesContractorAgreement } from '@/lib/sales-contractor/types';
-import { contractorContractingParty } from '@/lib/sales-contractor/party';
+import {
+  contractorContractingParty,
+  contractorExecutionLine,
+} from '@/lib/sales-contractor/party';
 import type { ProgramCriterion } from '@/lib/sales-program';
 
 type ProgramBrief = {
@@ -57,7 +60,8 @@ export default function SalesAgreementPage() {
   const [signatureName, setSignatureName] = useState('');
   const [contractorCompanyName, setContractorCompanyName] = useState('');
   const [contractorRegistrationNumber, setContractorRegistrationNumber] = useState('');
-  const entitySync = useRef({ company: '', registration: '' });
+  const [signerCapacity, setSignerCapacity] = useState('');
+  const entitySync = useRef({ company: '', registration: '', capacity: '' });
   const previewTicket = useRef(0);
   const [downloading, setDownloading] = useState(false);
   const [contractVersion, setContractVersion] = useState('');
@@ -91,11 +95,14 @@ export default function SalesAgreementPage() {
       const storedRegistration = String(
         data.agreement?.contractor_registration_number || ''
       );
+      const storedCapacity = String(data.agreement?.contractor_signer_capacity || '');
       setContractorCompanyName(storedCompany);
       setContractorRegistrationNumber(storedRegistration);
+      setSignerCapacity(storedCapacity);
       entitySync.current = {
         company: storedCompany.trim(),
         registration: storedRegistration.trim(),
+        capacity: storedCapacity.trim(),
       };
       setContractVersion(
         data.program?.contract_version || data.contractVersion || ''
@@ -117,12 +124,13 @@ export default function SalesAgreementPage() {
     if (!signed) {
       params.set('contractorCompanyName', contractorCompanyName.trim());
       params.set('contractorRegistrationNumber', contractorRegistrationNumber.trim());
+      params.set('contractorSignerCapacity', signerCapacity.trim());
     }
     return params;
   };
 
   const refreshPreview = useCallback(
-    async (company: string, registration: string) => {
+    async (company: string, registration: string, capacity: string) => {
       if (!companyId || !privyUserId) return;
       const ticket = ++previewTicket.current;
       const params = new URLSearchParams({
@@ -130,6 +138,7 @@ export default function SalesAgreementPage() {
         privyUserId,
         contractorCompanyName: company,
         contractorRegistrationNumber: registration,
+        contractorSignerCapacity: capacity,
       });
       const res = await fetch(`/api/sales/agreement?${params}`, { cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
@@ -144,10 +153,11 @@ export default function SalesAgreementPage() {
           intent: 'draft',
           contractorCompanyName: company,
           contractorRegistrationNumber: registration,
+          contractorSignerCapacity: capacity,
         }),
       }).catch(() => null);
       if (ticket !== previewTicket.current) return;
-      if (saved?.ok) entitySync.current = { company, registration };
+      if (saved?.ok) entitySync.current = { company, registration, capacity };
     },
     [companyId, privyUserId]
   );
@@ -156,19 +166,22 @@ export default function SalesAgreementPage() {
     if (loading || signed) return;
     const company = contractorCompanyName.trim();
     const registration = contractorRegistrationNumber.trim();
+    const capacity = signerCapacity.trim();
     if (
       company === entitySync.current.company &&
-      registration === entitySync.current.registration
+      registration === entitySync.current.registration &&
+      capacity === entitySync.current.capacity
     ) {
       return;
     }
     const timer = window.setTimeout(() => {
-      void refreshPreview(company, registration);
+      void refreshPreview(company, registration, capacity);
     }, 400);
     return () => window.clearTimeout(timer);
   }, [
     contractorCompanyName,
     contractorRegistrationNumber,
+    signerCapacity,
     loading,
     signed,
     refreshPreview,
@@ -277,6 +290,7 @@ export default function SalesAgreementPage() {
           signatureName: signatureName.trim(),
           contractorCompanyName: contractorCompanyName.trim(),
           contractorRegistrationNumber: contractorRegistrationNumber.trim(),
+          contractorSignerCapacity: signerCapacity.trim(),
           userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
         }),
       });
@@ -453,7 +467,13 @@ export default function SalesAgreementPage() {
               <p className="font-semibold text-emerald-900">Agreement signed</p>
               <p className="text-sm text-emerald-800">
                 {agreement?.contractor_company_name?.trim()
-                  ? contractorContractingParty({
+                  ? contractorExecutionLine({
+                      personName: agreement.signature_name || agreement.contractor_name || '',
+                      companyName: agreement.contractor_company_name,
+                      registrationNumber: agreement.contractor_registration_number,
+                      capacity: agreement.contractor_signer_capacity,
+                    }) ||
+                    contractorContractingParty({
                       personName: agreement.signature_name || agreement.contractor_name || '',
                       companyName: agreement.contractor_company_name,
                       registrationNumber: agreement.contractor_registration_number,
@@ -648,9 +668,32 @@ export default function SalesAgreementPage() {
             />
             <p className="mt-1.5 text-xs text-neutral-500">
               Leave this blank to contract in your own name. If you enter a company, the
-              agreement names that company and you sign on its behalf.
+              agreement is with that company. You sign only as its authorised representative.
             </p>
           </div>
+          {contractorCompanyName.trim() ? (
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">
+                Your capacity{' '}
+                <span className="font-medium normal-case tracking-normal text-neutral-400">
+                  (optional)
+                </span>
+              </label>
+              <input
+                type="text"
+                value={signerCapacity}
+                onChange={(e) => setSignerCapacity(e.target.value)}
+                placeholder="Director"
+                maxLength={80}
+                autoComplete="organization-title"
+                className="w-full rounded-2xl bg-slate-50 border border-neutral-200 px-4 py-3 text-slate-900 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+              />
+              <p className="mt-1.5 text-xs text-neutral-500">
+                For example Director. Shown in the signature block only when a company name
+                is entered.
+              </p>
+            </div>
+          ) : null}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">
               Company registration number{' '}

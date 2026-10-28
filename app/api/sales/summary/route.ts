@@ -17,6 +17,7 @@ import {
   liveCommissionTiers,
   resolveProgramSettings,
 } from '@/lib/sales-program';
+import { commissionActivityLabel } from '@/lib/sales-contractor/party';
 
 function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -259,7 +260,12 @@ export async function GET(request: NextRequest) {
       })),
       ...ledger.slice(0, 5).map((r) => ({
         id: `l-${r.id}`,
-        label: `${r.status} commission · ${r.customer_name || r.source_type}`,
+        label: commissionActivityLabel({
+          status: String(r.status || ''),
+          customerName: r.customer_name ? String(r.customer_name) : null,
+          sourceType: r.source_type ? String(r.source_type) : null,
+          companyName: agreement?.contractor_company_name,
+        }),
         amount: Number(r.deal_amount || 0),
         commission: Number(r.commission_amount || 0),
         at: String(r.created_at || now.toISOString()),

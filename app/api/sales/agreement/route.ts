@@ -22,9 +22,11 @@ import {
   resolveProgramSettings,
 } from '@/lib/sales-program';
 import {
+  agreementFilenameParty,
   cleanAgreementText,
   CONTRACTOR_COMPANY_NAME_MAX,
   CONTRACTOR_REGISTRATION_MAX,
+  CONTRACTOR_SIGNER_CAPACITY_MAX,
   contractorContractingParty,
   withContractorEntityMetadata,
 } from '@/lib/sales-contractor/party';
@@ -71,6 +73,7 @@ export async function GET(request: NextRequest) {
     const registrationParam = request.nextUrl.searchParams.get(
       'contractorRegistrationNumber'
     );
+    const capacityParam = request.nextUrl.searchParams.get('contractorSignerCapacity');
     const contractorCompanyName =
       !reallySigned && companyParam !== null
         ? cleanAgreementText(companyParam, CONTRACTOR_COMPANY_NAME_MAX) || null
@@ -79,6 +82,11 @@ export async function GET(request: NextRequest) {
       !reallySigned && registrationParam !== null
         ? cleanAgreementText(registrationParam, CONTRACTOR_REGISTRATION_MAX) || null
         : agr.agreement.contractor_registration_number || null;
+    const signerCapacity = contractorCompanyName
+      ? !reallySigned && capacityParam !== null
+        ? cleanAgreementText(capacityParam, CONTRACTOR_SIGNER_CAPACITY_MAX) || null
+        : agr.agreement.contractor_signer_capacity || null
+      : null;
     // Live company sales program for pending; freeze only after real e-sign
     const tiers = liveCommissionTiers(program, agr.agreement);
     const contractVersion = reallySigned
@@ -94,6 +102,7 @@ export async function GET(request: NextRequest) {
       },
       contractorCompanyName,
       contractorRegistrationNumber,
+      signerCapacity,
     });
 
     // Portal access for managers (exempt) vs actual e-signature
@@ -112,6 +121,7 @@ export async function GET(request: NextRequest) {
       agreementId: agr.agreement.id,
       contractorCompanyName,
       contractorRegistrationNumber,
+      signerCapacity,
     };
 
     const safeCo = ctx.companyName
@@ -121,6 +131,12 @@ export async function GET(request: NextRequest) {
     const verSlug = String(contractVersion || SALES_CONTRACTOR_CONTRACT_VERSION)
       .replace(/[^\w.\-]+/g, '-')
       .slice(0, 48);
+    const partySlug = agreementFilenameParty(contractorCompanyName, '')
+      .replace(/[^\w\-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40);
+    const filePrefix = partySlug ? `${partySlug}-` : '';
 
     // PDF download (default download path)
     if (format === 'download' || format === 'pdf') {
@@ -129,8 +145,8 @@ export async function GET(request: NextRequest) {
         meta: agreementMeta,
       });
       const filename = reallySigned
-        ? `sales-contractor-agreement-signed-${safeCo}-v${verSlug}.pdf`
-        : `sales-contractor-agreement-draft-${safeCo}-v${verSlug}.pdf`;
+        ? `sales-contractor-agreement-signed-${filePrefix}${safeCo}-v${verSlug}.pdf`
+        : `sales-contractor-agreement-draft-${filePrefix}${safeCo}-v${verSlug}.pdf`;
       return new NextResponse(new Uint8Array(pdf), {
         status: 200,
         headers: {
@@ -149,8 +165,8 @@ export async function GET(request: NextRequest) {
         meta: agreementMeta,
       });
       const filename = reallySigned
-        ? `sales-contractor-agreement-signed-${safeCo}-v${verSlug}.html`
-        : `sales-contractor-agreement-draft-${safeCo}-v${verSlug}.html`;
+        ? `sales-contractor-agreement-signed-${filePrefix}${safeCo}-v${verSlug}.html`
+        : `sales-contractor-agreement-draft-${filePrefix}${safeCo}-v${verSlug}.html`;
       return new NextResponse(doc, {
         status: 200,
         headers: {
@@ -236,9 +252,13 @@ export async function POST(request: NextRequest) {
       body.contractorRegistrationNumber,
       CONTRACTOR_REGISTRATION_MAX
     );
+    const entityCapacity = entityCompany
+      ? cleanAgreementText(body.contractorSignerCapacity, CONTRACTOR_SIGNER_CAPACITY_MAX)
+      : '';
     const entity = {
       company: entityCompany || null,
       registration: entityRegistration || null,
+      capacity: entityCapacity || null,
     };
 
     if (!draftOnly && !body.accepted) {

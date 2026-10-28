@@ -15,6 +15,10 @@ import {
 } from '@/lib/business/permissions';
 import { logActivity } from '@/lib/customers/access';
 import { salesContractorInviteEmailHtml } from '@/lib/sales-contractor/agreement';
+import {
+  contractorExecutionLine,
+  readContractorEntity,
+} from '@/lib/sales-contractor/party';
 import { resolveProgramSettings } from '@/lib/sales-program';
 import {
   requireCompanyRoles,
@@ -232,6 +236,40 @@ export async function POST(request: NextRequest) {
 
     let emailId: string | null = null;
     const isSalesContractor = role === 'sales_contractor';
+    let contractorCompany: string | null = null;
+    let contractorReg: string | null = null;
+    let signerCapacity: string | null = null;
+    if (isSalesContractor && memberId) {
+      const loaded = await supabaseAdmin
+        .from('sales_contractor_agreements')
+        .select('metadata, contractor_company_name, contractor_registration_number, status')
+        .eq('profile_id', companyId)
+        .eq('business_user_id', memberId)
+        .order('id', { ascending: false })
+        .limit(5);
+      const fallback =
+        loaded.error &&
+        /contractor_company_name|contractor_registration_number|column|schema cache/i.test(
+          loaded.error.message || ''
+        )
+          ? await supabaseAdmin
+              .from('sales_contractor_agreements')
+              .select('metadata, status')
+              .eq('profile_id', companyId)
+              .eq('business_user_id', memberId)
+              .order('id', { ascending: false })
+              .limit(5)
+          : null;
+      const source = fallback || loaded;
+      const rows = source.error ? [] : source.data || [];
+      const pending = rows.find((row) => String(row.status || '') !== 'signed') || rows[0];
+      if (pending) {
+        const entity = readContractorEntity(pending);
+        contractorCompany = entity.contractor_company_name;
+        contractorReg = entity.contractor_registration_number;
+        signerCapacity = entity.contractor_signer_capacity;
+      }
+    }
     const salesProgram = isSalesContractor
       ? await resolveProgramSettings(companyId)
       : null;
@@ -246,6 +284,9 @@ export async function POST(request: NextRequest) {
           inviteLink,
           program: salesProgram,
           programSummary: salesProgram?.program_summary,
+          contractorCompanyName: contractorCompany,
+          contractorRegistrationNumber: contractorReg,
+          signerCapacity,
         })
       : teamInviteEmailHtml({
           inviteeName: name || null,
@@ -255,18 +296,38 @@ export async function POST(request: NextRequest) {
           inviteLink,
         });
     const emailText = isSalesContractor
-      ? [
-          `Hello${name ? ` ${name}` : ''},`,
-          '',
-          `${inviterName} invited you to the customer sales team at ${displayCompany}.`,
-          '',
-          'Open this join link to accept (expires in 14 days):',
-          inviteLink,
-          '',
-          'Sign in with this same email address.',
-          '',
-          '— SupplierAdvisor',
-        ].join('\n')
+      ? contractorCompany
+        ? [
+            `Hello ${contractorCompany},`,
+            '',
+            `${inviterName} invited ${contractorCompany} to the customer sales team at ${displayCompany}.`,
+            contractorExecutionLine({
+              personName: name || null,
+              companyName: contractorCompany,
+              registrationNumber: contractorReg,
+              capacity: signerCapacity,
+            }),
+            'This email is sent to the person who signs.',
+            '',
+            'Open this join link to accept (expires in 14 days):',
+            inviteLink,
+            '',
+            'Sign in with this same email address.',
+            '',
+            '— SupplierAdvisor®',
+          ].join('\n')
+        : [
+            `Hello${name ? ` ${name}` : ''},`,
+            '',
+            `${inviterName} invited you to the customer sales team at ${displayCompany}.`,
+            '',
+            'Open this join link to accept (expires in 14 days):',
+            inviteLink,
+            '',
+            'Sign in with this same email address.',
+            '',
+            '— SupplierAdvisor',
+          ].join('\n')
       : teamInviteEmailText({
           inviteeName: name || null,
           companyName: displayCompany,
@@ -275,7 +336,9 @@ export async function POST(request: NextRequest) {
           inviteLink,
         });
     const emailSubject = isSalesContractor
-      ? `Join the ${displayCompany} sales team — your join link inside`
+      ? contractorCompany
+        ? `Join the ${displayCompany} sales team — agreement with ${contractorCompany}`
+        : `Join the ${displayCompany} sales team — your join link inside`
       : `Join ${displayCompany} on SupplierAdvisor — your join link inside`;
 
     try {

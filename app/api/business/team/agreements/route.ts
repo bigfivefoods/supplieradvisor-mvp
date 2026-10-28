@@ -22,6 +22,7 @@ import { auditLog } from '@/lib/audit/log';
 import { logActivity } from '@/lib/customers/access';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import {
+  agreementFilenameParty,
   agreementResendDecision,
   contractorContractingParty,
   withResendMetadata,
@@ -159,6 +160,7 @@ export async function GET(request: NextRequest) {
         },
         contractorCompanyName: agreement.contractor_company_name,
         contractorRegistrationNumber: agreement.contractor_registration_number,
+        signerCapacity: agreement.contractor_signer_capacity,
       });
       const pdf = await buildSalesAgreementPdf({
         bodyHtml,
@@ -176,9 +178,13 @@ export async function GET(request: NextRequest) {
           agreementId: agreement.id,
           contractorCompanyName: agreement.contractor_company_name,
           contractorRegistrationNumber: agreement.contractor_registration_number,
+          signerCapacity: agreement.contractor_signer_capacity,
         },
       });
-      const who = fileSlug(contractorName, 'contractor');
+      const who = fileSlug(
+        agreementFilenameParty(agreement.contractor_company_name, contractorName),
+        'contractor'
+      );
       const safeCo = fileSlug(companyName, 'company');
       const verSlug = fileSlug(String(contractVersion), 'agreement');
       const filename = accepted
@@ -347,6 +353,7 @@ export async function POST(request: NextRequest) {
       hiringCompanyName: hiringCompany,
       contractorCompanyName: agreement?.contractor_company_name,
       contractorRegistrationNumber: agreement?.contractor_registration_number,
+      signerCapacity: agreement?.contractor_signer_capacity,
       invitedBy: manager.name || null,
       memberStatus: status,
       joinLink,
