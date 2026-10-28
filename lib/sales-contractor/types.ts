@@ -10,6 +10,11 @@ export type SalesContractorAgreement = {
   user_id: string | null;
   contractor_email: string | null;
   contractor_name: string | null;
+  /** Set when the contract is in a company name. Blank means the person. */
+  contractor_company_name?: string | null;
+  contractor_registration_number?: string | null;
+  contract_resent_at?: string | null;
+  contract_resend_count?: number;
   status: AgreementStatus;
   contract_version: string;
   commission_tiers: CommissionTier[];

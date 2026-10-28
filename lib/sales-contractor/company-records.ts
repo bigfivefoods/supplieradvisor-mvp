@@ -1,4 +1,5 @@
 import { userIdMatchVariants } from '@/lib/auth/identity';
+import { contractorContractingParty, readContractorEntity } from './party';
 import { isLifetimeSalesAccess } from './subscription';
 
 /** One stored sales-contractor agreement. The PDF is rebuilt from these fields. */
@@ -29,8 +30,12 @@ export type SalesContractorProof = {
   signatureName: string | null;
   signatureEmail: string | null;
   contractorName: string | null;
+  contractorCompanyName: string | null;
+  contractorRegistrationNumber: string | null;
   contractVersion: string | null;
   acceptedIp: string | null;
+  contractResentAt: string | null;
+  contractResendCount: number;
   lifetime: boolean;
 };
 
@@ -127,11 +132,16 @@ export function proofFromMember(
       signatureName: null,
       signatureEmail: null,
       contractorName: null,
+      contractorCompanyName: null,
+      contractorRegistrationNumber: null,
       contractVersion: null,
       acceptedIp: null,
+      contractResentAt: null,
+      contractResendCount: 0,
       lifetime: false,
     };
   }
+  const entity = readContractorEntity(row);
   return {
     memberId,
     onFile: true,
@@ -141,10 +151,30 @@ export function proofFromMember(
     signatureName: row.signature_name ? String(row.signature_name) : null,
     signatureEmail: row.signature_email ? String(row.signature_email) : null,
     contractorName: row.contractor_name ? String(row.contractor_name) : null,
+    contractorCompanyName: entity.contractor_company_name,
+    contractorRegistrationNumber: entity.contractor_registration_number,
     contractVersion: row.contract_version ? String(row.contract_version) : null,
     acceptedIp: row.accepted_ip ? String(row.accepted_ip) : null,
+    contractResentAt: entity.contract_resent_at,
+    contractResendCount: entity.contract_resend_count,
     lifetime: isComplimentary(row),
   };
+}
+
+/** Name shown to admins. Blank company keeps the person's name. */
+export function agreementPartyLabel(proof: {
+  signatureName?: string | null;
+  contractorName?: string | null;
+  contractorCompanyName?: string | null;
+  contractorRegistrationNumber?: string | null;
+}): string {
+  const person = proof.signatureName || proof.contractorName || '';
+  const party = contractorContractingParty({
+    personName: person,
+    companyName: proof.contractorCompanyName,
+    registrationNumber: proof.contractorRegistrationNumber,
+  });
+  return party || 'Signature not on file';
 }
 
 export function proofsForContractors(

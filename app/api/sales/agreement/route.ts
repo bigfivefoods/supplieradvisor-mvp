@@ -5,6 +5,7 @@ import {
   getOrCreateAgreement,
   isAgreementSigned,
   mapAgreementRow,
+  updateSalesAgreementRow,
 } from '@/lib/sales-contractor/access';
 import {
   buildSalesAgreementDownloadDocument,
@@ -20,6 +21,13 @@ import {
   programSnapshotForAgreement,
   resolveProgramSettings,
 } from '@/lib/sales-program';
+import {
+  cleanAgreementText,
+  CONTRACTOR_COMPANY_NAME_MAX,
+  CONTRACTOR_REGISTRATION_MAX,
+  contractorContractingParty,
+  withContractorEntityMetadata,
+} from '@/lib/sales-contractor/party';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -59,6 +67,18 @@ export async function GET(request: NextRequest) {
       'Sales Contractor';
     const program = await resolveProgramSettings(companyId);
     const reallySigned = isAgreementSigned(agr.agreement);
+    const companyParam = request.nextUrl.searchParams.get('contractorCompanyName');
+    const registrationParam = request.nextUrl.searchParams.get(
+      'contractorRegistrationNumber'
+    );
+    const contractorCompanyName =
+      !reallySigned && companyParam !== null
+        ? cleanAgreementText(companyParam, CONTRACTOR_COMPANY_NAME_MAX) || null
+        : agr.agreement.contractor_company_name || null;
+    const contractorRegistrationNumber =
+      !reallySigned && registrationParam !== null
+        ? cleanAgreementText(registrationParam, CONTRACTOR_REGISTRATION_MAX) || null
+        : agr.agreement.contractor_registration_number || null;
     // Live company sales program for pending; freeze only after real e-sign
     const tiers = liveCommissionTiers(program, agr.agreement);
     const contractVersion = reallySigned
@@ -72,6 +92,8 @@ export async function GET(request: NextRequest) {
         ...program,
         commission_tiers: tiers,
       },
+      contractorCompanyName,
+      contractorRegistrationNumber,
     });
 
     // Portal access for managers (exempt) vs actual e-signature
@@ -88,6 +110,8 @@ export async function GET(request: NextRequest) {
       signatureName: agr.agreement.signature_name,
       signatureEmail: agr.agreement.signature_email || ctx.email || null,
       agreementId: agr.agreement.id,
+      contractorCompanyName,
+      contractorRegistrationNumber,
     };
 
     const safeCo = ctx.companyName
@@ -203,7 +227,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }
 
-    if (!body.accepted) {
+    const draftOnly = body.intent === 'draft';
+    const entityCompany = cleanAgreementText(
+      body.contractorCompanyName,
+      CONTRACTOR_COMPANY_NAME_MAX
+    );
+    const entityRegistration = cleanAgreementText(
+      body.contractorRegistrationNumber,
+      CONTRACTOR_REGISTRATION_MAX
+    );
+    const entity = {
+      company: entityCompany || null,
+      registration: entityRegistration || null,
+    };
+
+    if (!draftOnly && !body.accepted) {
       return NextResponse.json(
         { error: 'You must accept the agreement to continue.' },
         { status: 400 }
@@ -211,7 +249,7 @@ export async function POST(request: NextRequest) {
     }
 
     const signatureName = String(body.signatureName || '').trim();
-    if (signatureName.length < 2) {
+    if (!draftOnly && signatureName.length < 2) {
       return NextResponse.json(
         { error: 'Please type your full legal name as signature.' },
         { status: 400 }
@@ -230,6 +268,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (isAgreementSigned(agr.agreement)) {
+      if (draftOnly) {
+        return NextResponse.json(
+          { error: 'This agreement is already signed.' },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({
         success: true,
         alreadySigned: true,
@@ -237,41 +281,70 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const supabase = getSupabaseServer();
+    const { data: existingRow } = await supabase
+      .from('sales_contractor_agreements')
+      .select('metadata')
+      .eq('id', agr.agreement.id)
+      .maybeSingle();
+    const entityMetadata = withContractorEntityMetadata(existingRow?.metadata, entity);
+
+    if (draftOnly) {
+      const now = new Date().toISOString();
+      const saved = await updateSalesAgreementRow(agr.agreement.id, {
+        contractor_company_name: entity.company,
+        contractor_registration_number: entity.registration,
+        metadata: entityMetadata,
+        updated_at: now,
+      });
+      if (saved.error) {
+        return NextResponse.json({ error: saved.error.message }, { status: 500 });
+      }
+      return NextResponse.json({
+        success: true,
+        draft: true,
+        agreement: mapAgreementRow(saved.data || {}),
+      });
+    }
+
     const program = await resolveProgramSettings(companyId);
     const tiers = program.commission_tiers;
     const snapshot = programSnapshotForAgreement(program);
-    const supabase = getSupabaseServer();
     const now = new Date().toISOString();
-    const { data, error } = await supabase
-      .from('sales_contractor_agreements')
-      .update({
-        status: 'signed',
-        signed_at: now,
-        signature_name: signatureName,
-        signature_email: ctx.email || null,
-        user_id: ctx.userId,
-        contractor_name: signatureName,
-        contract_version: program.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION,
-        commission_tiers: tiers,
-        max_commission_pct: program.max_commission_pct,
-        min_commission_pct: program.min_commission_pct,
-        currency: program.currency || 'ZAR',
-        terms_summary: tiersSummaryText(tiers),
-        updated_at: now,
-        metadata: {
-          signed_via: 'sales_portal',
-          program_snapshot: snapshot,
-          user_agent:
-            typeof body.userAgent === 'string' ? body.userAgent.slice(0, 300) : null,
-        },
-      })
-      .eq('id', agr.agreement.id)
-      .select('*')
-      .single();
+    const saved = await updateSalesAgreementRow(agr.agreement.id, {
+      status: 'signed',
+      signed_at: now,
+      signature_name: signatureName,
+      signature_email: ctx.email || null,
+      user_id: ctx.userId,
+      contractor_name: signatureName,
+      contractor_company_name: entity.company,
+      contractor_registration_number: entity.registration,
+      contract_version: program.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION,
+      commission_tiers: tiers,
+      max_commission_pct: program.max_commission_pct,
+      min_commission_pct: program.min_commission_pct,
+      currency: program.currency || 'ZAR',
+      terms_summary: tiersSummaryText(tiers),
+      updated_at: now,
+      metadata: {
+        ...entityMetadata,
+        signed_via: 'sales_portal',
+        program_snapshot: snapshot,
+        user_agent:
+          typeof body.userAgent === 'string' ? body.userAgent.slice(0, 300) : null,
+        contract_resent_at: agr.agreement.contract_resent_at || null,
+        contract_resend_count: agr.agreement.contract_resend_count || 0,
+      },
+    });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (saved.error || !saved.data) {
+      return NextResponse.json(
+        { error: saved.error?.message || 'Could not save the agreement' },
+        { status: 500 }
+      );
     }
+    const data = saved.data;
 
     void logActivity({
       profile_id: companyId,
@@ -279,7 +352,11 @@ export async function POST(request: NextRequest) {
       action: 'sales_contractor.agreement_signed',
       entity_type: 'sales_contractor_agreement',
       entity_id: String(agr.agreement.id),
-      summary: `${signatureName} signed Independent Sales Contractor Agreement`,
+      summary: `${contractorContractingParty({
+        personName: signatureName,
+        companyName: entity.company,
+        registrationNumber: entity.registration,
+      })} signed Independent Sales Contractor Agreement`,
       metadata: {
         version: program.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION,
       },

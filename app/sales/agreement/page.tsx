@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -30,6 +30,7 @@ import {
   superLinkExampleDealValue,
 } from '@/lib/sales-contractor/agreement';
 import type { SalesContractorAgreement } from '@/lib/sales-contractor/types';
+import { contractorContractingParty } from '@/lib/sales-contractor/party';
 import type { ProgramCriterion } from '@/lib/sales-program';
 
 type ProgramBrief = {
@@ -54,6 +55,10 @@ export default function SalesAgreementPage() {
   const [companyName, setCompanyName] = useState('');
   const [accepted, setAccepted] = useState(false);
   const [signatureName, setSignatureName] = useState('');
+  const [contractorCompanyName, setContractorCompanyName] = useState('');
+  const [contractorRegistrationNumber, setContractorRegistrationNumber] = useState('');
+  const entitySync = useRef({ company: '', registration: '' });
+  const previewTicket = useRef(0);
   const [downloading, setDownloading] = useState(false);
   const [contractVersion, setContractVersion] = useState('');
   const [program, setProgram] = useState<ProgramBrief | null>(null);
@@ -82,6 +87,16 @@ export default function SalesAgreementPage() {
       );
       setAgreement(data.agreement || null);
       setCompanyName(data.companyName || '');
+      const storedCompany = String(data.agreement?.contractor_company_name || '');
+      const storedRegistration = String(
+        data.agreement?.contractor_registration_number || ''
+      );
+      setContractorCompanyName(storedCompany);
+      setContractorRegistrationNumber(storedRegistration);
+      entitySync.current = {
+        company: storedCompany.trim(),
+        registration: storedRegistration.trim(),
+      };
       setContractVersion(
         data.program?.contract_version || data.contractVersion || ''
       );
@@ -98,15 +113,76 @@ export default function SalesAgreementPage() {
     void load();
   }, [load]);
 
+  const entityParams = (params: URLSearchParams) => {
+    if (!signed) {
+      params.set('contractorCompanyName', contractorCompanyName.trim());
+      params.set('contractorRegistrationNumber', contractorRegistrationNumber.trim());
+    }
+    return params;
+  };
+
+  const refreshPreview = useCallback(
+    async (company: string, registration: string) => {
+      if (!companyId || !privyUserId) return;
+      const ticket = ++previewTicket.current;
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        privyUserId,
+        contractorCompanyName: company,
+        contractorRegistrationNumber: registration,
+      });
+      const res = await fetch(`/api/sales/agreement?${params}`, { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (ticket !== previewTicket.current) return;
+      if (res.ok) setHtml(data.html || '');
+      const saved = await fetch('/api/sales/agreement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          intent: 'draft',
+          contractorCompanyName: company,
+          contractorRegistrationNumber: registration,
+        }),
+      }).catch(() => null);
+      if (ticket !== previewTicket.current) return;
+      if (saved?.ok) entitySync.current = { company, registration };
+    },
+    [companyId, privyUserId]
+  );
+
+  useEffect(() => {
+    if (loading || signed) return;
+    const company = contractorCompanyName.trim();
+    const registration = contractorRegistrationNumber.trim();
+    if (
+      company === entitySync.current.company &&
+      registration === entitySync.current.registration
+    ) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void refreshPreview(company, registration);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [
+    contractorCompanyName,
+    contractorRegistrationNumber,
+    loading,
+    signed,
+    refreshPreview,
+  ]);
+
   const downloadAgreement = async () => {
     if (!companyId || !privyUserId) return;
     setDownloading(true);
     try {
-      const params = new URLSearchParams({
+      const params = entityParams(new URLSearchParams({
         companyId: String(companyId),
         privyUserId,
         format: 'pdf',
-      });
+      }));
       const res = await fetch(`/api/sales/agreement?${params}`, {
         cache: 'no-store',
       });
@@ -146,11 +222,11 @@ export default function SalesAgreementPage() {
     if (!companyId || !privyUserId) return;
     setDownloading(true);
     try {
-      const params = new URLSearchParams({
+      const params = entityParams(new URLSearchParams({
         companyId: String(companyId),
         privyUserId,
         format: 'html',
-      });
+      }));
       const res = await fetch(`/api/sales/agreement?${params}`, {
         cache: 'no-store',
       });
@@ -199,6 +275,8 @@ export default function SalesAgreementPage() {
           privyUserId,
           accepted: true,
           signatureName: signatureName.trim(),
+          contractorCompanyName: contractorCompanyName.trim(),
+          contractorRegistrationNumber: contractorRegistrationNumber.trim(),
           userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
         }),
       });
@@ -374,11 +452,19 @@ export default function SalesAgreementPage() {
             <div>
               <p className="font-semibold text-emerald-900">Agreement signed</p>
               <p className="text-sm text-emerald-800">
-                {agreement?.signature_name} ·{' '}
+                {agreement?.contractor_company_name?.trim()
+                  ? contractorContractingParty({
+                      personName: agreement.signature_name || agreement.contractor_name || '',
+                      companyName: agreement.contractor_company_name,
+                      registrationNumber: agreement.contractor_registration_number,
+                    })
+                  : agreement?.signature_name}
+                {' · '}
                 {agreement?.signed_at
                   ? new Date(agreement.signed_at).toLocaleString('en-ZA')
-                  : ''}{' '}
-                · version {agreement?.contract_version}
+                  : ''}
+                {' · version '}
+                {agreement?.contract_version}
               </p>
               <p className="text-xs text-emerald-700 mt-1">
                 Keep a downloaded copy for your records. You can re-download anytime from this page.
@@ -544,6 +630,48 @@ export default function SalesAgreementPage() {
               otherwise.
             </span>
           </label>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">
+              Company name{' '}
+              <span className="font-medium normal-case tracking-normal text-neutral-400">
+                (optional)
+              </span>
+            </label>
+            <input
+              type="text"
+              value={contractorCompanyName}
+              onChange={(e) => setContractorCompanyName(e.target.value)}
+              placeholder="X (Pty) Ltd"
+              maxLength={160}
+              autoComplete="organization"
+              className="w-full rounded-2xl bg-slate-50 border border-neutral-200 px-4 py-3 text-slate-900 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+            />
+            <p className="mt-1.5 text-xs text-neutral-500">
+              Leave this blank to contract in your own name. If you enter a company, the
+              agreement names that company and you sign on its behalf.
+            </p>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">
+              Company registration number{' '}
+              <span className="font-medium normal-case tracking-normal text-neutral-400">
+                (optional)
+              </span>
+            </label>
+            <input
+              type="text"
+              value={contractorRegistrationNumber}
+              onChange={(e) => setContractorRegistrationNumber(e.target.value)}
+              placeholder="2020/123456/07"
+              maxLength={64}
+              autoComplete="off"
+              className="w-full rounded-2xl bg-slate-50 border border-neutral-200 px-4 py-3 text-slate-900 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+            />
+            <p className="mt-1.5 text-xs text-neutral-500">
+              Registration number, such as a CIPC number. It is shown on the agreement
+              only when a company name is entered.
+            </p>
+          </div>
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">
               Full legal name (electronic signature under ECTA)

@@ -12,6 +12,7 @@ import {
   SALES_CONTRACTOR_CONTRACT_VERSION,
   type AgreementDownloadMeta,
 } from './agreement';
+import { contractingPartyFromMeta } from './party';
 
 type Block =
   | { kind: 'h'; text: string }
@@ -423,7 +424,7 @@ export async function buildSalesAgreementPdf(params: {
       ? [
           'Certificate of electronic acceptance (ECTA)',
           `Status: SIGNED / ACCEPTED`,
-          `Signatory: ${meta.signatureName || meta.contractorName || '—'}`,
+          `Signatory: ${contractingPartyFromMeta(meta, 'signatory') || '—'}`,
           `Email: ${meta.signatureEmail || '—'}`,
           `Signed at: ${
             meta.signedAt
@@ -442,7 +443,7 @@ export async function buildSalesAgreementPdf(params: {
       : [
           'Document status: NOT YET SIGNED',
           'This PDF is for review only. It is not a completed contract until the Contractor accepts electronically in the Sales Portal (checkbox + full legal name + secure sign-in).',
-          `Proposed contractor: ${meta.contractorName}`,
+          `Proposed contractor: ${contractingPartyFromMeta(meta, 'contractor')}`,
           `Company: ${meta.companyName}`,
           `Version: ${version}  ·  Generated: ${generated}`,
         ];

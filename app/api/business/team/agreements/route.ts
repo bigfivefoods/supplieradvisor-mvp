@@ -9,13 +9,24 @@ import {
   SALES_CONTRACTOR_CONTRACT_VERSION,
 } from '@/lib/sales-contractor/agreement';
 import { buildSalesAgreementPdf } from '@/lib/sales-contractor/agreement-pdf';
-import { mapAgreementRow } from '@/lib/sales-contractor/access';
+import { mapAgreementRow, updateSalesAgreementRow } from '@/lib/sales-contractor/access';
 import {
+  agreementPartyLabel,
   pickStoredAgreement,
   proofsForContractors,
   type AgreementStoreRow,
 } from '@/lib/sales-contractor/company-records';
 import { liveCommissionTiers, resolveProgramSettings } from '@/lib/sales-program';
+import { buildTeamInviteLink } from '@/lib/invites/email';
+import { auditLog } from '@/lib/audit/log';
+import { logActivity } from '@/lib/customers/access';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
+import {
+  agreementResendDecision,
+  contractorContractingParty,
+  withResendMetadata,
+} from '@/lib/sales-contractor/party';
+import { deliverSalesContractorAgreementEmail } from '@/lib/sales-contractor/send-agreement';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -146,6 +157,8 @@ export async function GET(request: NextRequest) {
           commission_tiers: tiers,
           contract_version: contractVersion,
         },
+        contractorCompanyName: agreement.contractor_company_name,
+        contractorRegistrationNumber: agreement.contractor_registration_number,
       });
       const pdf = await buildSalesAgreementPdf({
         bodyHtml,
@@ -161,6 +174,8 @@ export async function GET(request: NextRequest) {
             (member.email ? String(member.email) : null) ||
             (member.invited_email ? String(member.invited_email) : null),
           agreementId: agreement.id,
+          contractorCompanyName: agreement.contractor_company_name,
+          contractorRegistrationNumber: agreement.contractor_registration_number,
         },
       });
       const who = fileSlug(contractorName, 'contractor');
@@ -207,6 +222,197 @@ export async function GET(request: NextRequest) {
       success: true,
       storage: 'sales_contractor_agreements',
       records,
+    });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST { companyId, memberId }
+ * Resend the unsigned agreement to the sales contractor.
+ * A signed agreement is refused. Does not create an agreement row.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const companyId = Number(body.companyId);
+    const memberId = Number(body.memberId);
+    if (!Number.isFinite(companyId) || !Number.isFinite(memberId)) {
+      return NextResponse.json(
+        { error: 'companyId and memberId are required' },
+        { status: 400 }
+      );
+    }
+
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+    const manager = await assertCanManageTeam(gate.userId, companyId);
+    if (!manager.ok) {
+      return NextResponse.json({ error: manager.error }, { status: manager.status });
+    }
+
+    const rl = checkRateLimit({
+      key: `agreement-resend:${companyId}:${memberId}`,
+      limit: 5,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rl.ok) {
+      const limited = rateLimitResponse(rl.retryAfterSeconds);
+      return NextResponse.json(limited.body, {
+        status: limited.status,
+        headers: limited.headers,
+      });
+    }
+
+    const supabase = getSupabaseServer();
+    const { data: member, error: memberErr } = await supabase
+      .from('business_users')
+      .select('id, profile_id, user_id, name, email, invited_email, role, status, invite_token')
+      .eq('profile_id', companyId)
+      .eq('id', memberId)
+      .maybeSingle();
+    if (memberErr) {
+      return NextResponse.json({ error: memberErr.message }, { status: 500 });
+    }
+    if (!member || !isListedTeamMember(member.status)) {
+      return NextResponse.json({ error: 'Team member not found' }, { status: 404 });
+    }
+    if (normalizeTeamRole(member.role) !== 'sales_contractor') {
+      return NextResponse.json(
+        { error: 'Resend contract is only for a sales contractor.' },
+        { status: 400 }
+      );
+    }
+
+    const { data: agreementRows, error: agreementErr } = await supabase
+      .from('sales_contractor_agreements')
+      .select(AGREEMENT_SELECT)
+      .eq('profile_id', companyId)
+      .order('id', { ascending: false })
+      .limit(500);
+    if (agreementErr) {
+      if (missingTable(agreementErr.message)) {
+        return NextResponse.json(
+          { error: 'Sales contractor agreements are not available yet.' },
+          { status: 503 }
+        );
+      }
+      return NextResponse.json({ error: agreementErr.message }, { status: 500 });
+    }
+
+    const stored = pickStoredAgreement(
+      { id: Number(member.id), user_id: member.user_id ? String(member.user_id) : null },
+      (agreementRows || []) as unknown as AgreementStoreRow[],
+      companyId
+    );
+    const agreement = stored
+      ? mapAgreementRow(stored as unknown as Record<string, unknown>)
+      : null;
+    const email = String(member.email || member.invited_email || agreement?.contractor_email || '')
+      .trim()
+      .toLowerCase();
+    const decision = agreementResendDecision({
+      email,
+      status: agreement?.status,
+    });
+    if (!decision.ok) {
+      return NextResponse.json({ error: decision.error }, { status: decision.status });
+    }
+
+    const { data: company } = await supabase
+      .from('profiles')
+      .select('trading_name, legal_name')
+      .eq('id', companyId)
+      .maybeSingle();
+    const hiringCompany =
+      company?.trading_name || company?.legal_name || 'Your company';
+    const personName =
+      agreement?.signature_name ||
+      agreement?.contractor_name ||
+      (member.name ? String(member.name) : '') ||
+      '';
+    const status = String(member.status || '').toLowerCase();
+    const token = member.invite_token ? String(member.invite_token) : '';
+    const joinLink = status !== 'active' && token ? buildTeamInviteLink(token) : null;
+
+    const sent = await deliverSalesContractorAgreementEmail({
+      to: decision.email,
+      personName,
+      hiringCompanyName: hiringCompany,
+      contractorCompanyName: agreement?.contractor_company_name,
+      contractorRegistrationNumber: agreement?.contractor_registration_number,
+      invitedBy: manager.name || null,
+      memberStatus: status,
+      joinLink,
+    });
+    if (!sent.ok) {
+      return NextResponse.json({ error: sent.error }, { status: sent.status });
+    }
+
+    const resentAt = new Date().toISOString();
+    if (agreement && stored) {
+      const saved = await updateSalesAgreementRow(agreement.id, {
+        metadata: withResendMetadata(
+          (stored as { metadata?: unknown }).metadata,
+          resentAt
+        ),
+        contract_resent_at: resentAt,
+        updated_at: resentAt,
+      });
+      if (saved.error) {
+        console.error('agreement resend stamp:', saved.error.message);
+      }
+    }
+
+    const party = contractorContractingParty({
+      personName,
+      companyName: agreement?.contractor_company_name,
+      registrationNumber: agreement?.contractor_registration_number,
+    });
+    const summary = `Resent the sales contractor agreement to ${party || decision.email}`;
+    void logActivity({
+      profile_id: companyId,
+      actor_user_id: gate.userId,
+      action: 'sales_contractor.agreement_resent',
+      entity_type: 'sales_contractor_agreement',
+      entity_id: agreement ? String(agreement.id) : String(memberId),
+      summary,
+      metadata: {
+        email: decision.email,
+        resentAt,
+        contractor_company_name: agreement?.contractor_company_name || null,
+      },
+    });
+    void auditLog({
+      companyId,
+      actorUserId: gate.userId,
+      action: 'sales_contractor.agreement_resent',
+      entityType: 'sales_contractor_agreement',
+      entityId: agreement ? agreement.id : memberId,
+      summary,
+      metadata: {
+        email: decision.email,
+        resentAt,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Agreement sent to ${decision.email}`,
+      resentAt,
+      email: decision.email,
+      party: agreementPartyLabel({
+        signatureName: personName,
+        contractorName: personName,
+        contractorCompanyName: agreement?.contractor_company_name,
+        contractorRegistrationNumber: agreement?.contractor_registration_number,
+      }),
     });
   } catch (e: unknown) {
     return NextResponse.json(
