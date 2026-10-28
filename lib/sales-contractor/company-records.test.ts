@@ -3,6 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import {
+  agreementPartyLabel,
   agreementProofLabel,
   pickStoredAgreement,
   proofFromMember,
@@ -67,7 +68,30 @@ assert.equal(proof.agreementId, 13);
 assert.equal(proof.status, 'signed');
 assert.equal(proof.lifetime, true);
 assert.equal(proof.signatureEmail, 'pamoosthuizen@outlook.com');
+assert.equal(proof.contractorCompanyName, null);
+assert.equal(proof.contractResendCount, 0);
 assert.equal(agreementProofLabel(proof), 'Signed');
+assert.equal(agreementPartyLabel(proof), 'Pam Oosthuizen');
+
+const companyProof = proofFromMember(82, {
+  ...pam,
+  status: 'pending',
+  signed_at: null,
+  metadata: {
+    contractor_company_name: 'X (Pty) Ltd',
+    contractor_registration_number: '2020/123456/07',
+    contract_resent_at: '2026-10-28T08:00:00.000Z',
+    contract_resend_count: 2,
+  },
+});
+assert.equal(companyProof.contractorCompanyName, 'X (Pty) Ltd');
+assert.equal(companyProof.contractorRegistrationNumber, '2020/123456/07');
+assert.equal(companyProof.contractResentAt, '2026-10-28T08:00:00.000Z');
+assert.equal(companyProof.contractResendCount, 2);
+assert.equal(
+  agreementPartyLabel(companyProof),
+  'X (Pty) Ltd (registration number 2020/123456/07), represented by Pam Oosthuizen'
+);
 
 const list = proofsForContractors(
   [

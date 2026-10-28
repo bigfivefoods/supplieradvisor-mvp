@@ -239,6 +239,11 @@ jobs:
           set -euo pipefail
           npx --yes tsx lib/banking/bank-transaction-columns.test.ts
           npx --yes tsx lib/banking/fnb-sync-errors.test.ts
+      - name: Sales contractor agreement tests
+        run: |
+          set -euo pipefail
+          npx --yes tsx lib/sales-contractor/company-records.test.ts
+          npx --yes tsx lib/sales-contractor/agreement-party.test.ts
 
   trade-portal-db:
     name: trade portal Postgres

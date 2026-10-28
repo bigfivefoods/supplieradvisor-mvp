@@ -19,6 +19,13 @@ import {
   SALES_SUBSCRIPTION_TERM_MONTHS,
   SALES_SUBSCRIPTION_TOTAL_ZAR,
 } from './subscription';
+import {
+  cleanAgreementText,
+  CONTRACTOR_COMPANY_NAME_MAX,
+  CONTRACTOR_REGISTRATION_MAX,
+  contractingPartyFromMeta,
+  contractorContractingParty,
+} from './party';
 
 /** Bump when legal text changes — forces re-sign awareness in UI. */
 export const SALES_CONTRACTOR_CONTRACT_VERSION = 'ISC-2026.10-ZA';
@@ -73,6 +80,9 @@ export type AgreementDownloadMeta = {
   signatureEmail?: string | null;
   agreementId?: number | null;
   generatedAt?: string;
+  /** Contractor's own company. Blank keeps the agreement in the person's name. */
+  contractorCompanyName?: string | null;
+  contractorRegistrationNumber?: string | null;
 };
 
 /**
@@ -99,7 +109,7 @@ export function buildSalesAgreementDownloadDocument(params: {
       <h2>Certificate of electronic acceptance (ECTA)</h2>
       <table>
         <tr><th>Status</th><td><strong>SIGNED / ACCEPTED</strong></td></tr>
-        <tr><th>Signatory name</th><td>${escapeHtml(meta.signatureName || meta.contractorName)}</td></tr>
+        <tr><th>Signatory name</th><td>${escapeHtml(contractingPartyFromMeta(meta, 'signatory') || meta.signatureName || meta.contractorName || '')}</td></tr>
         <tr><th>Signatory email</th><td>${escapeHtml(meta.signatureEmail || '—')}</td></tr>
         <tr><th>Signed at</th><td>${escapeHtml(
           meta.signedAt
@@ -124,7 +134,7 @@ export function buildSalesAgreementDownloadDocument(params: {
       It is not a completed contract until the Contractor accepts electronically in the
       SupplierAdvisor Sales Portal (checkbox + full legal name + secure sign-in).</p>
       <table>
-        <tr><th>Proposed contractor</th><td>${escapeHtml(meta.contractorName)}</td></tr>
+        <tr><th>Proposed contractor</th><td>${escapeHtml(contractingPartyFromMeta(meta, 'contractor'))}</td></tr>
         <tr><th>Company</th><td>${escapeHtml(meta.companyName)}</td></tr>
         <tr><th>Contract version</th><td>${escapeHtml(version)}</td></tr>
         <tr><th>Generated</th><td>${escapeHtml(generated)}</td></tr>
@@ -277,6 +287,9 @@ export function getSalesContractorAgreementHtml(params: {
   tiers?: CommissionTier[] | null;
   /** Company sales program (legal, criteria, email domain). */
   program?: AgreementHtmlProgram | null;
+  /** Optional. When set, this company is the Contractor and the person signs for it. */
+  contractorCompanyName?: string | null;
+  contractorRegistrationNumber?: string | null;
 }): string {
   const { contractorName, companyName } = params;
   const program = params.program || null;
@@ -337,7 +350,30 @@ export function getSalesContractorAgreementHtml(params: {
   const topRate = tiers[tiers.length - 1]?.ratePct ?? MAX_COMMISSION_PCT;
   const exampleNameHint = 'name';
   const co = escape(companyName);
-  const cn = escape(contractorName || 'the Sales Contractor');
+  const personLabel = contractorName || 'the Sales Contractor';
+  const partyLabel = contractorContractingParty({
+    personName: personLabel,
+    companyName: params.contractorCompanyName,
+    registrationNumber: params.contractorRegistrationNumber,
+  });
+  const cn = escape(partyLabel);
+  const companyEntity = cleanAgreementText(
+    params.contractorCompanyName,
+    CONTRACTOR_COMPANY_NAME_MAX
+  );
+  const companyReg = companyEntity
+    ? cleanAgreementText(params.contractorRegistrationNumber, CONTRACTOR_REGISTRATION_MAX)
+    : '';
+  const authorityNote = companyEntity
+    ? `\n  <p>The Contractor is <strong>${escape(companyEntity)}</strong>${
+        companyReg ? ` (registration number ${escape(companyReg)})` : ''
+      }. <strong>${escape(personLabel.trim() || 'the Sales Contractor')}</strong> signs this Agreement for and on behalf of that company and warrants that they are authorised to do so.</p>`
+    : '';
+  const authorityBullet = companyEntity
+    ? `\n    <li>where a company is named as the Contractor, signs for and on behalf of <strong>${escape(companyEntity)}</strong>${
+        companyReg ? ` (registration number ${escape(companyReg)})` : ''
+      } and warrants authority to bind that company;</li>`
+    : '';
 
   const kpiRows = salesCriteria
     .map(
@@ -429,7 +465,7 @@ export function getSalesContractorAgreementHtml(params: {
       an independent contractor for the purposes of this Agreement.
     </li>
   </ol>
-  <p>The Company and the Contractor are each a “<strong>Party</strong>” and together the “<strong>Parties</strong>”.</p>
+  <p>The Company and the Contractor are each a “<strong>Party</strong>” and together the “<strong>Parties</strong>”.</p>${authorityNote}
 
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">B. RECITALS</h3>
   <p><strong>WHEREAS</strong> the Company wishes to appoint independent sales contractors to promote and sell its products and services through the SupplierAdvisor Sales Contractor Portal;</p>
@@ -614,7 +650,7 @@ export function getSalesContractorAgreementHtml(params: {
     <li>accepts appointment as an independent sales contractor;</li>
     <li>accepts that the <strong>only KPIs / sales criteria</strong> are those listed in clause 4A for this Company program;</li>
     <li>accepts that commission is <strong>personal sales only</strong> (not multi-level marketing; no downline, no connections-of-connections) under clause 10, at rates <strong>${escape(ratesLabel)}</strong>, plus portal subscription and @${escape(emailDomain)} mailbox rules where configured;</li>
-    <li>intends this e-signature to have the same effect as a handwritten signature under ECTA.</li>
+    <li>intends this e-signature to have the same effect as a handwritten signature under ECTA.</li>${authorityBullet}
   </ul>
   <p>16.2 The Company may retain audit logs (timestamp, identity, IP/user agent where available) as evidence of acceptance.</p>
 
@@ -732,4 +768,96 @@ export function salesContractorInviteEmailHtml(params: {
   </div>
 </body>
 </html>`;
+}
+
+/**
+ * Email that sends the unsigned agreement back to the contractor.
+ * Uses the same SupplierAdvisor® shell as the sales-team invite.
+ * A blank contractor company leaves the company sentence out.
+ */
+export function salesContractorAgreementEmail(params: {
+  personName?: string | null;
+  hiringCompanyName: string;
+  contractorCompanyName?: string | null;
+  contractorRegistrationNumber?: string | null;
+  agreementLink: string;
+  invitedBy?: string | null;
+}): { subject: string; html: string; text: string } {
+  const person = String(params.personName || '').trim();
+  const hiring = String(params.hiringCompanyName || '').trim() || 'your company';
+  const companyEntity = cleanAgreementText(
+    params.contractorCompanyName,
+    CONTRACTOR_COMPANY_NAME_MAX
+  );
+  const party = contractorContractingParty({
+    personName: person,
+    companyName: params.contractorCompanyName,
+    registrationNumber: params.contractorRegistrationNumber,
+  });
+  const link = String(params.agreementLink || '').trim();
+  const invitedBy = String(params.invitedBy || '').trim();
+  const subject = companyEntity
+    ? `Your sales contractor agreement for ${companyEntity}`
+    : `Your sales contractor agreement with ${hiring}`;
+  const ask = invitedBy
+    ? `${invitedBy} asked us to send your sales contractor agreement with ${hiring}.`
+    : `Please read and sign your sales contractor agreement with ${hiring}.`;
+  const partySentence = companyEntity ? `The agreement names ${party}.` : '';
+  const hello = person ? ` ${escape(person)}` : '';
+  const linkHtml = escape(link);
+  const html = `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:640px;margin:32px auto;background:#fff;border-radius:24px;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#f59e0b 0%,#ea580c 45%,#00b4d8 100%);padding:40px 36px;color:#fff;">
+      <div style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.95;">SupplierAdvisor® · Sales contractor agreement</div>
+      <h1 style="margin:12px 0 0;font-size:26px;font-weight:900;letter-spacing:-0.5px;line-height:1.2;">
+        Your agreement with ${escape(hiring)}
+      </h1>
+    </div>
+    <div style="padding:36px 36px 28px;color:#334155;font-size:16px;line-height:1.7;">
+      <p style="margin:0 0 16px;">Hello${hello},</p>
+      <p style="margin:0 0 16px;">${escape(ask)}</p>
+      ${
+        partySentence
+          ? `<p style="margin:0 0 16px;">${escape(partySentence)}</p>`
+          : ''
+      }
+      <div style="text-align:center;margin:28px 0 16px;">
+        <a href="${linkHtml}" style="background:linear-gradient(135deg,#00b4d8,#0077b6);color:#fff;padding:16px 36px;border-radius:9999px;text-decoration:none;font-weight:800;font-size:16px;display:inline-block;">
+          Open the agreement
+        </a>
+      </div>
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:14px;padding:14px 16px;margin:0 0 16px;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#0369a1;">
+          Agreement link
+        </p>
+        <p style="margin:0;font-size:12px;line-height:1.5;word-break:break-all;">
+          <a href="${linkHtml}" style="color:#0077b6;font-weight:600;">${linkHtml}</a>
+        </p>
+      </div>
+      <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:0;text-align:center;">
+        Sign in with this same email address. A signed agreement is not sent again.
+      </p>
+    </div>
+    <div style="background:#f8fafc;padding:18px 36px;font-size:11px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;">
+      SupplierAdvisor® · Independent sales contractor agreement · South Africa
+    </div>
+  </div>
+</body>
+</html>`;
+  const text = [
+    `Hello${person ? ` ${person}` : ''},`,
+    '',
+    ask,
+    ...(partySentence ? ['', partySentence] : []),
+    '',
+    'Open this link to read and sign the agreement:',
+    link,
+    '',
+    'Sign in with this same email address.',
+    '',
+    '— SupplierAdvisor®',
+  ].join('\n');
+  return { subject, html, text };
 }

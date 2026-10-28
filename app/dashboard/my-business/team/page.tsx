@@ -36,6 +36,7 @@ import {
 } from '@/lib/business/permissions';
 import { groupTeamMembersByRole } from '@/lib/business/team-groups';
 import {
+  agreementPartyLabel,
   agreementProofLabel,
   type SalesContractorProof,
 } from '@/lib/sales-contractor/company-records';
@@ -97,6 +98,9 @@ function TeamInner() {
   const [proofsLoaded, setProofsLoaded] = useState(false);
   const [proofError, setProofError] = useState<string | null>(null);
   const [proofBusy, setProofBusy] = useState<number | null>(null);
+  const [resendFor, setResendFor] = useState<number | null>(null);
+  const [resendBusy, setResendBusy] = useState<number | null>(null);
+  const [resentAtByMember, setResentAtByMember] = useState<Record<number, string>>({});
   const [form, setForm] = useState({ name: '', email: '', role: 'member' });
   const [inviteModules, setInviteModules] = useState<EnabledModulesMap>({});
 
@@ -497,6 +501,33 @@ function TeamInner() {
     }
   };
 
+  const resendContract = async (member: TeamMember) => {
+    if (!canManage) {
+      toast.error('Only owners and admins can resend a contract');
+      return;
+    }
+    setResendBusy(member.id);
+    try {
+      const data = await withAuthJson<{
+        message?: string;
+        resentAt?: string;
+        error?: string;
+      }>('/api/business/team/agreements', {
+        method: 'POST',
+        jsonBody: { companyId, memberId: member.id },
+      });
+      const when = data.resentAt || new Date().toISOString();
+      setResentAtByMember((prev) => ({ ...prev, [member.id]: when }));
+      setResendFor(null);
+      toast.success(data.message || 'Agreement sent');
+      void loadProofs();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not resend the contract');
+    } finally {
+      setResendBusy(null);
+    }
+  };
+
   const roleHelp = TEAM_ROLE_OPTIONS.find((r) => r.value === form.role);
 
   return (
@@ -683,7 +714,8 @@ function TeamInner() {
                   <p className="px-5 py-2 text-[11px] leading-relaxed text-neutral-600 bg-orange-50/50 border-b border-orange-100">
                     Signed contracts are kept on this company as agreement
                     records — signature, date, version, and agreement number.
-                    The PDF is rebuilt from that record.
+                    A company name is included when the contractor asks for the
+                    contract in a company name. The PDF is rebuilt from that record.
                   </p>
                 )}
               <ul className="divide-y divide-neutral-100">
@@ -694,6 +726,15 @@ function TeamInner() {
                       ? proofs.find((row) => row.memberId === m.id) || null
                       : null;
                   const showReinvite = canManage && canReinvite(m);
+                  const contractorEmail = String(m.email || m.invited_email || '').trim();
+                  const agreementSigned = proof?.status === 'signed';
+                  const showResend =
+                    group.role === 'sales_contractor' &&
+                    canManage &&
+                    proofsLoaded &&
+                    !agreementSigned;
+                  const resentAt =
+                    resentAtByMember[m.id] || proof?.contractResentAt || null;
                   const isOwnerRow =
                     String(m.role || '').toLowerCase() === 'owner';
                   const modulesOpen = modulesOpenId === m.id;
@@ -708,6 +749,11 @@ function TeamInner() {
                           <div className="text-xs text-neutral-500 truncate">
                             {m.email || m.invited_email || '—'}
                           </div>
+                          {proof?.contractorCompanyName ? (
+                            <div className="text-xs text-sky-800 truncate">
+                              {agreementPartyLabel(proof)}
+                            </div>
+                          ) : null}
                           {roleMeta && (
                             <div className="text-[10px] text-neutral-400 mt-0.5">
                               {roleMeta.rights}
@@ -792,6 +838,23 @@ function TeamInner() {
                               />
                             </button>
                           )}
+                          {showResend && (
+                            <button
+                              type="button"
+                              disabled={resendBusy === m.id}
+                              onClick={() =>
+                                setResendFor((current) => (current === m.id ? null : m.id))
+                              }
+                              className="inline-flex items-center gap-1 !py-1.5 !px-2.5 text-xs font-semibold rounded-xl border border-[#00b4d8] bg-white text-[#0077b6] hover:bg-sky-50 disabled:opacity-50"
+                            >
+                              {resendBusy === m.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              )}
+                              Resend contract
+                            </button>
+                          )}
                           {showReinvite && (
                             <button
                               type="button"
@@ -837,7 +900,7 @@ function TeamInner() {
                                   {proof.lifetime ? ' · Lifetime access' : ''}
                                 </p>
                                 <p className="mt-0.5 text-orange-900/85">
-                                  {proof.signatureName || proof.contractorName || 'Signature not on file'}
+                                  {agreementPartyLabel(proof)}
                                   {proof.signatureEmail ? ` · ${proof.signatureEmail}` : ''}
                                   {proof.signedAt
                                     ? ` · Signed ${portalWhen(proof.signedAt) || ''}`
@@ -868,6 +931,58 @@ function TeamInner() {
                                 is the company record.
                               </p>
                             )}
+                            {proofsLoaded && agreementSigned ? (
+                              <p className="mt-2 text-orange-900/80">
+                                Already signed — the contract is not resent.
+                              </p>
+                            ) : null}
+                            {showResend && resendFor === m.id ? (
+                              <div className="mt-2 rounded-xl border border-[#00b4d8] bg-white px-3 py-2.5 text-slate-800">
+                                <p className="font-semibold text-slate-900">
+                                  Send this agreement?
+                                </p>
+                                <p className="mt-1 text-slate-600">
+                                  This emails {contractorEmail || 'this contractor'} a
+                                  link to read and sign.
+                                  {proof?.contractorCompanyName
+                                    ? ` The agreement names ${agreementPartyLabel(proof)}.`
+                                    : ''}
+                                </p>
+                                <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={resendBusy === m.id || !contractorEmail}
+                                    onClick={() => void resendContract(m)}
+                                    className="inline-flex items-center justify-center gap-1 !py-1.5 !px-2.5 text-xs font-semibold rounded-xl bg-[#00b4d8] text-white hover:bg-[#0077b6] disabled:opacity-50"
+                                  >
+                                    {resendBusy === m.id ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                      <RefreshCw className="w-3.5 h-3.5" />
+                                    )}
+                                    Send contract
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={resendBusy === m.id}
+                                    onClick={() => setResendFor(null)}
+                                    className="inline-flex items-center justify-center !py-1.5 !px-2.5 text-xs font-semibold rounded-xl border border-neutral-200 bg-white text-slate-700"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                                {!contractorEmail ? (
+                                  <p className="mt-1.5 text-red-700">
+                                    This contractor has no email address.
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : null}
+                            {resentAt ? (
+                              <p className="mt-1.5 text-[10px] text-orange-900/70">
+                                Last resent {portalWhen(resentAt) || resentAt}.
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       )}

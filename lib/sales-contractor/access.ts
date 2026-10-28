@@ -21,6 +21,11 @@ import {
   resolveProgramSettings,
   tiersSchedulesDiffer,
 } from '@/lib/sales-program';
+import {
+  isMissingSalesAgreementColumn,
+  omitSalesAgreementOptionalColumns,
+  readContractorEntity,
+} from './party';
 
 export type SalesRepContext = MembershipOk & {
   isSalesContractor: boolean;
@@ -78,6 +83,7 @@ export async function assertSalesPortalAccess(
 
 export function mapAgreementRow(row: Record<string, unknown>): SalesContractorAgreement {
   const tiers = ensureAscendingCommissionTiers(parseStoredTiers(row.commission_tiers));
+  const entity = readContractorEntity(row);
   const sub = computeSubscriptionInfo({
     subscription_status: row.subscription_status as string | null,
     subscription_starts_at: row.subscription_starts_at as string | null,
@@ -91,6 +97,10 @@ export function mapAgreementRow(row: Record<string, unknown>): SalesContractorAg
     user_id: row.user_id ? String(row.user_id) : null,
     contractor_email: row.contractor_email ? String(row.contractor_email) : null,
     contractor_name: row.contractor_name ? String(row.contractor_name) : null,
+    contractor_company_name: entity.contractor_company_name,
+    contractor_registration_number: entity.contractor_registration_number,
+    contract_resent_at: entity.contract_resent_at,
+    contract_resend_count: entity.contract_resend_count,
     status: (String(row.status || 'pending') as SalesContractorAgreement['status']),
     contract_version: String(row.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION),
     commission_tiers: tiers,
@@ -313,6 +323,39 @@ export async function getOrCreateAgreement(opts: {
 
 export function isAgreementSigned(a: SalesContractorAgreement | null | undefined): boolean {
   return Boolean(a && a.status === 'signed' && a.signed_at);
+}
+
+/**
+ * Write an agreement row. If the optional company / resend columns are not
+ * migrated yet, retry without them. Callers keep the same values in metadata.
+ */
+export async function updateSalesAgreementRow(
+  id: number,
+  patch: Record<string, unknown>
+): Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }> {
+  const supabase = getSupabaseServer();
+  const first = await supabase
+    .from('sales_contractor_agreements')
+    .update(patch)
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (!first.error) {
+    return { data: first.data as Record<string, unknown>, error: null };
+  }
+  if (!isMissingSalesAgreementColumn(first.error.message || '')) {
+    return { data: null, error: { message: first.error.message } };
+  }
+  const second = await supabase
+    .from('sales_contractor_agreements')
+    .update(omitSalesAgreementOptionalColumns(patch))
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (second.error) {
+    return { data: null, error: { message: second.error.message } };
+  }
+  return { data: second.data as Record<string, unknown>, error: null };
 }
 
 /** Filter CRM rows to this rep when sales_rep_user_id is set; include unassigned for contractor view of "mine + unassigned" optional */
