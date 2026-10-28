@@ -25,6 +25,8 @@ import {
   CONTRACTOR_REGISTRATION_MAX,
   contractingPartyFromMeta,
   contractorContractingParty,
+  contractorExecutionLine,
+  CONTRACTOR_SIGNER_CAPACITY_MAX,
 } from './party';
 
 /** Bump when legal text changes — forces re-sign awareness in UI. */
@@ -83,6 +85,8 @@ export type AgreementDownloadMeta = {
   /** Contractor's own company. Blank keeps the agreement in the person's name. */
   contractorCompanyName?: string | null;
   contractorRegistrationNumber?: string | null;
+  /** Optional. Stored in metadata. Used only when a company is the Contractor. */
+  signerCapacity?: string | null;
 };
 
 /**
@@ -290,6 +294,7 @@ export function getSalesContractorAgreementHtml(params: {
   /** Optional. When set, this company is the Contractor and the person signs for it. */
   contractorCompanyName?: string | null;
   contractorRegistrationNumber?: string | null;
+  signerCapacity?: string | null;
 }): string {
   const { contractorName, companyName } = params;
   const program = params.program || null;
@@ -351,12 +356,6 @@ export function getSalesContractorAgreementHtml(params: {
   const exampleNameHint = 'name';
   const co = escape(companyName);
   const personLabel = contractorName || 'the Sales Contractor';
-  const partyLabel = contractorContractingParty({
-    personName: personLabel,
-    companyName: params.contractorCompanyName,
-    registrationNumber: params.contractorRegistrationNumber,
-  });
-  const cn = escape(partyLabel);
   const companyEntity = cleanAgreementText(
     params.contractorCompanyName,
     CONTRACTOR_COMPANY_NAME_MAX
@@ -364,15 +363,49 @@ export function getSalesContractorAgreementHtml(params: {
   const companyReg = companyEntity
     ? cleanAgreementText(params.contractorRegistrationNumber, CONTRACTOR_REGISTRATION_MAX)
     : '';
-  const authorityNote = companyEntity
-    ? `\n  <p>The Contractor is <strong>${escape(companyEntity)}</strong>${
-        companyReg ? ` (registration number ${escape(companyReg)})` : ''
-      }. <strong>${escape(personLabel.trim() || 'the Sales Contractor')}</strong> signs this Agreement for and on behalf of that company and warrants that they are authorised to do so.</p>`
+  const signerCapacity = companyEntity
+    ? cleanAgreementText(params.signerCapacity, CONTRACTOR_SIGNER_CAPACITY_MAX)
     : '';
-  const authorityBullet = companyEntity
-    ? `\n    <li>where a company is named as the Contractor, signs for and on behalf of <strong>${escape(companyEntity)}</strong>${
-        companyReg ? ` (registration number ${escape(companyReg)})` : ''
-      } and warrants authority to bind that company;</li>`
+  const partyLabel = contractorContractingParty({
+    personName: personLabel,
+    companyName: companyEntity,
+    registrationNumber: companyReg,
+  });
+  const cn = escape(partyLabel);
+  const execution = contractorExecutionLine({
+    personName: personLabel,
+    companyName: companyEntity,
+    registrationNumber: companyReg,
+    capacity: signerCapacity,
+  });
+  const betweenLine = companyEntity
+    ? `\n      Between <strong>${co}</strong> and <strong>${escape(companyEntity)}</strong><br/>`
+    : '';
+  const contractorLi = companyEntity
+    ? `<strong>${escape(companyEntity)}</strong>${
+        companyReg ? ` (reg no ${escape(companyReg)})` : ''
+      } (the “<strong>Contractor</strong>” / “<strong>Receiving Party</strong>” for Confidential Information), a company. The individual who signs is not the Contractor and signs only for and on behalf of that company.`
+    : `<strong>${cn}</strong> (the “<strong>Contractor</strong>” / “<strong>Receiving Party</strong>” for Confidential Information),\n      an independent contractor for the purposes of this Agreement.`;
+  const contractorDefinition = companyEntity
+    ? `\n    <li><strong>“Contractor”</strong> means <strong>${escape(companyEntity)}</strong>${
+        companyReg ? ` (reg no ${escape(companyReg)})` : ''
+      }, the contracting party under this Agreement. References to the Contractor are references to that company. The individual who signs is the authorised representative only, and is not the Contractor.</li>`
+    : '';
+  const authorityNote = '';
+  const authorityBullet = execution ? `\n    <li>${escape(execution)}.</li>` : '';
+  const acceptanceIntro = companyEntity
+    ? '16.1 By selecting “I have read and agree”, typing their full legal name, and authenticating, the authorised representative, for and on behalf of the Contractor:'
+    : '16.1 By selecting “I have read and agree”, typing their full legal name, and authenticating, the Contractor:';
+  const signatoryLine = execution
+    ? `<p class="mb-1"><strong>${escape(execution)}</strong></p>`
+    : `<p class="mb-1"><strong>Contractor (signatory):</strong> ${cn}</p>`;
+  const signNote = execution
+    ? `<p class="mt-3 mb-0 italic">The authorised representative’s typed legal name is the signature for the Contractor. Logged under ECTA.</p>`
+    : `<p class="mt-3 mb-0 italic">Signed by the Contractor typing their full legal name and confirming acceptance in the Portal; logged under ECTA.</p>`;
+  const companyBanner = companyEntity
+    ? `<p><strong>Contracting party:</strong> ${escape(companyEntity)}${
+        companyReg ? ` (reg no ${escape(companyReg)})` : ''
+      }. ${escape(execution)}</p>`
     : '';
 
   const kpiRows = salesCriteria
@@ -414,7 +447,7 @@ export function getSalesContractorAgreementHtml(params: {
       <strong>${co}</strong> · ${escape(program.program_name || 'Sales program')}
     </p>
   </div>
-  ${antiMlmBanner}
+  ${antiMlmBanner}${companyBanner}
   <div class="company-legal-body">${program.legal_body_html}</div>
   ${addendum}
   <p class="text-xs text-neutral-500">Commission schedule (company program): ${escape(tiersSummaryText(tiers))}</p>
@@ -441,7 +474,7 @@ export function getSalesContractorAgreementHtml(params: {
       <span class="text-base font-bold text-slate-700">AND NON-DISCLOSURE UNDERTAKING</span>
     </h2>
     <p class="text-xs text-slate-500 mt-3 mb-0">
-      Version <strong>${escape(contractVersion)}</strong> · Effective ${date}<br/>
+      Version <strong>${escape(contractVersion)}</strong> · Effective ${date}<br/>${betweenLine}
       <strong>This is the only agreement</strong> between the Parties on this subject matter.
     </p>
   </div>
@@ -461,8 +494,7 @@ export function getSalesContractorAgreementHtml(params: {
       a business operating in the Republic of South Africa, acting through its authorised representatives; and
     </li>
     <li>
-      <strong>${cn}</strong> (the “<strong>Contractor</strong>” / “<strong>Receiving Party</strong>” for Confidential Information),
-      an independent contractor for the purposes of this Agreement.
+      ${contractorLi}
     </li>
   </ol>
   <p>The Company and the Contractor are each a “<strong>Party</strong>” and together the “<strong>Parties</strong>”.</p>${authorityNote}
@@ -476,7 +508,7 @@ export function getSalesContractorAgreementHtml(params: {
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">1. DEFINITIONS &amp; INTERPRETATION</h3>
   <p>1.1 In this Agreement, unless the context requires otherwise:</p>
   <ul class="list-disc pl-5 space-y-1.5">
-    <li><strong>“Agreement”</strong> means this Sole Independent Sales Contractor Agreement and Non-Disclosure Undertaking, including its schedules and electronic acceptance records, as amended only in writing signed by the Company.</li>
+    <li><strong>“Agreement”</strong> means this Sole Independent Sales Contractor Agreement and Non-Disclosure Undertaking, including its schedules and electronic acceptance records, as amended only in writing signed by the Company.</li>${contractorDefinition}
     <li><strong>“Confidential Information”</strong> means all non-public information of the Company or its affiliates (whether commercial, technical, financial, operational or personal), including customer and prospect lists, leads, CRM records, pricing, margins, commission structures, product formulations and roadmaps, supplier terms, strategies, forecasts, passwords, portal data, documents marked confidential, and any information a reasonable person would understand to be confidential. It includes information disclosed before or after the Effective Date.</li>
     <li><strong>“Customer Data”</strong> means all leads, opportunities, customers, quotes, orders, invoices, documents and related records created, captured or managed in connection with the Services.</li>
     <li><strong>“Effective Date”</strong> means the date of electronic acceptance under clause 16.</li>
@@ -643,7 +675,7 @@ export function getSalesContractorAgreementHtml(params: {
   <p>15.4 The Company’s aggregate liability under this Agreement in any twelve-month period is limited to the greater of (a) commission actually paid to the Contractor in that period and (b) R10 000, except for fraud, gross negligence or wilful misconduct, or amounts that cannot lawfully be limited.</p>
 
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">16. ELECTRONIC ACCEPTANCE (ECTA)</h3>
-  <p>16.1 By selecting “I have read and agree”, typing their full legal name, and authenticating, the Contractor:</p>
+  <p>${acceptanceIntro}</p>
   <ul class="list-disc pl-5 space-y-1">
     <li>confirms they have read and understood this entire Agreement (version <strong>${escape(contractVersion)}</strong>);</li>
     <li>agrees this is the <strong>sole agreement</strong> (clause 2) and a binding <strong>NDA</strong> (clause 5);</li>
@@ -667,10 +699,10 @@ export function getSalesContractorAgreementHtml(params: {
   <div class="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 mt-4 text-xs text-slate-600">
     <p class="font-bold text-slate-800 mb-2">EXECUTION BLOCK (ELECTRONIC)</p>
     <p class="mb-1"><strong>Company:</strong> ${co}</p>
-    <p class="mb-1"><strong>Contractor (signatory):</strong> ${cn}</p>
+    ${signatoryLine}
     <p class="mb-1"><strong>Document:</strong> ${escape(program?.contract_title || SALES_CONTRACTOR_CONTRACT_TITLE)}</p>
     <p class="mb-0"><strong>Version:</strong> ${escape(contractVersion)} · <strong>Date:</strong> ${date}</p>
-    <p class="mt-3 mb-0 italic">Signed by the Contractor typing their full legal name and confirming acceptance in the Portal; logged under ECTA.</p>
+    ${signNote}
   </div>
 </div>
 `.trim();
@@ -692,8 +724,16 @@ export function salesContractorInviteEmailHtml(params: {
   /** Optional company program for commission / summary copy */
   program?: AgreementHtmlProgram | null;
   programSummary?: string | null;
+  /** Set only when the agreement is already in a company name. */
+  contractorCompanyName?: string | null;
+  contractorRegistrationNumber?: string | null;
+  signerCapacity?: string | null;
 }): string {
   const { inviteeName, companyName, invitedBy, inviteLink } = params;
+  const contractorCompany = cleanAgreementText(
+    params.contractorCompanyName,
+    CONTRACTOR_COMPANY_NAME_MAX
+  );
   const program = params.program || null;
   const tiers =
     program?.commission_tiers?.length
@@ -729,10 +769,31 @@ export function salesContractorInviteEmailHtml(params: {
       </p>
     </div>
     <div style="padding:36px 36px 28px;color:#334155;font-size:16px;line-height:1.7;">
-      <p style="margin:0 0 16px;">Hello${inviteeName ? ` ${escape(inviteeName)}` : ''},</p>
+      <p style="margin:0 0 16px;">Hello${
+        contractorCompany
+          ? ` ${escape(contractorCompany)}`
+          : inviteeName
+            ? ` ${escape(inviteeName)}`
+            : ''
+      },</p>
       <p style="margin:0 0 16px;">
-        <strong>${escape(invitedBy)}</strong> has invited you to the customer sales team at
-        <strong>${escape(companyName)}</strong>.
+        <strong>${escape(invitedBy)}</strong> has invited ${
+          contractorCompany
+            ? `<strong>${escape(contractorCompany)}</strong> to the customer sales team at`
+            : 'you to the customer sales team at'
+        }
+        <strong>${escape(companyName)}</strong>.${
+          contractorCompany
+            ? ` ${escape(
+                contractorExecutionLine({
+                  personName: inviteeName,
+                  companyName: contractorCompany,
+                  registrationNumber: params.contractorRegistrationNumber,
+                  capacity: params.signerCapacity,
+                })
+              )}. This email is sent to the person who signs.`
+            : ''
+        }
       </p>
       <div style="background:linear-gradient(180deg,#fff7ed,#f8fafc);border:1px solid #fed7aa;border-radius:16px;padding:18px 20px;margin:0 0 22px;">
         <div style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#c2410c;margin-bottom:8px;">Your portal includes</div>
@@ -782,6 +843,7 @@ export function salesContractorAgreementEmail(params: {
   contractorRegistrationNumber?: string | null;
   agreementLink: string;
   invitedBy?: string | null;
+  signerCapacity?: string | null;
 }): { subject: string; html: string; text: string } {
   const person = String(params.personName || '').trim();
   const hiring = String(params.hiringCompanyName || '').trim() || 'your company';
@@ -789,21 +851,26 @@ export function salesContractorAgreementEmail(params: {
     params.contractorCompanyName,
     CONTRACTOR_COMPANY_NAME_MAX
   );
-  const party = contractorContractingParty({
+  const execution = contractorExecutionLine({
     personName: person,
-    companyName: params.contractorCompanyName,
+    companyName: companyEntity,
     registrationNumber: params.contractorRegistrationNumber,
+    capacity: params.signerCapacity,
   });
   const link = String(params.agreementLink || '').trim();
   const invitedBy = String(params.invitedBy || '').trim();
   const subject = companyEntity
-    ? `Your sales contractor agreement for ${companyEntity}`
+    ? `Sales contractor agreement with ${companyEntity}`
     : `Your sales contractor agreement with ${hiring}`;
-  const ask = invitedBy
-    ? `${invitedBy} asked us to send your sales contractor agreement with ${hiring}.`
-    : `Please read and sign your sales contractor agreement with ${hiring}.`;
-  const partySentence = companyEntity ? `The agreement names ${party}.` : '';
-  const hello = person ? ` ${escape(person)}` : '';
+  const ask = companyEntity
+    ? invitedBy
+      ? `${invitedBy} asked us to send the sales contractor agreement with ${hiring}. The contract is with ${companyEntity}.`
+      : `Please read and sign the sales contractor agreement with ${hiring}. The contract is with ${companyEntity}.`
+    : invitedBy
+      ? `${invitedBy} asked us to send your sales contractor agreement with ${hiring}.`
+      : `Please read and sign your sales contractor agreement with ${hiring}.`;
+  const partySentence = execution;
+  const hello = companyEntity ? ` ${escape(companyEntity)}` : person ? ` ${escape(person)}` : '';
   const linkHtml = escape(link);
   const html = `<!DOCTYPE html>
 <html>
@@ -847,7 +914,7 @@ export function salesContractorAgreementEmail(params: {
 </body>
 </html>`;
   const text = [
-    `Hello${person ? ` ${person}` : ''},`,
+    `Hello${companyEntity ? ` ${companyEntity}` : person ? ` ${person}` : ''},`,
     '',
     ask,
     ...(partySentence ? ['', partySentence] : []),

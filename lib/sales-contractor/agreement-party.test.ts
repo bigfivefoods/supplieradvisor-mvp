@@ -11,8 +11,11 @@ import {
 } from './agreement';
 import { buildSalesAgreementPdf } from './agreement-pdf';
 import {
+  agreementFilenameParty,
   agreementResendDecision,
+  commissionActivityLabel,
   contractorContractingParty,
+  contractorExecutionLine,
   isMissingSalesAgreementColumn,
   omitSalesAgreementOptionalColumns,
   salesAgreementResendHref,
@@ -42,21 +45,39 @@ const named = getSalesContractorAgreementHtml({
   companyName: hiring,
   contractorCompanyName: 'X (Pty) Ltd',
 });
-const party = 'X (Pty) Ltd, represented by Jane Doe';
-assert.equal(named.split(party).length - 1 >= 2, true);
-assert.match(named, /signs this Agreement for and on behalf of that company/);
-assert.equal(plain.includes('for and on behalf'), false);
+assert.match(named, /Between <strong>Acme Foods \(Pty\) Ltd<\/strong> and <strong>X \(Pty\) Ltd<\/strong>/);
+assert.match(named, /<strong>“Contractor”<\/strong> means <strong>X \(Pty\) Ltd<\/strong>/);
+assert.match(named, /The individual who signs is not the Contractor/);
+assert.equal(named.includes('represented by'), false);
+assert.match(
+  named,
+  /For and on behalf of X \(Pty\) Ltd, signed by Jane Doe, who warrants they are duly authorised/
+);
+assert.equal(plain.includes('For and on behalf of'), false);
+assert.equal(plain.includes('“Contractor” means'), false);
 
 const registered = getSalesContractorAgreementHtml({
   contractorName: person,
   companyName: hiring,
   contractorCompanyName: 'X (Pty) Ltd',
   contractorRegistrationNumber: '2020/123456/07',
+  signerCapacity: 'Director',
 });
 assert.match(
   registered,
-  /X \(Pty\) Ltd \(registration number 2020\/123456\/07\), represented by Jane Doe/
+  /For and on behalf of X \(Pty\) Ltd, reg no 2020\/123456\/07, signed by Jane Doe, Director, who warrants they are duly authorised/
 );
+assert.equal(
+  contractorExecutionLine({
+    personName: person,
+    companyName: 'X (Pty) Ltd',
+    registrationNumber: '2020/123456/07',
+    capacity: 'Director',
+  }),
+  'For and on behalf of X (Pty) Ltd, reg no 2020/123456/07, signed by Jane Doe, Director, who warrants they are duly authorised'
+);
+assert.equal(contractorExecutionLine({ personName: person, companyName: '  ' }), '');
+assert.equal(contractorContractingParty({ personName: person, companyName: 'X (Pty) Ltd' }), 'X (Pty) Ltd');
 
 const hostile = getSalesContractorAgreementHtml({
   contractorName: person,
@@ -99,7 +120,10 @@ const signedDoc = buildSalesAgreementDownloadDocument({
     contractorCompanyName: 'X (Pty) Ltd',
   },
 });
-assert.match(signedDoc, /Signatory name<\/th><td>X \(Pty\) Ltd, represented by Jane Doe/);
+assert.match(
+  signedDoc,
+  /Signatory name<\/th><td>For and on behalf of X \(Pty\) Ltd, signed by Jane Doe, who warrants they are duly authorised/
+);
 
 const blocked = agreementResendDecision({ email: 'jane@example.com', status: 'signed' });
 assert.equal(blocked.ok, false);
@@ -165,11 +189,29 @@ const mail = salesContractorAgreementEmail({
   agreementLink: 'https://www.supplieradvisor.com/sales/agreement',
   invitedBy: 'Craig',
 });
-assert.match(mail.subject, /X \(Pty\) Ltd/);
+assert.match(mail.subject, /^Sales contractor agreement with X \(Pty\) Ltd$/);
+assert.match(mail.html, /Hello X \(Pty\) Ltd,/);
 assert.match(mail.html, /SupplierAdvisor®/);
 assert.match(mail.html, /#00b4d8/);
-assert.match(mail.text, /X \(Pty\) Ltd \(registration number 2020\/123456\/07\), represented by Jane Doe/);
+assert.match(
+  mail.text,
+  /For and on behalf of X \(Pty\) Ltd, reg no 2020\/123456\/07, signed by Jane Doe, who warrants they are duly authorised/
+);
 assert.match(mail.html, /Open the agreement/);
+assert.equal(agreementFilenameParty('X (Pty) Ltd', person), 'X (Pty) Ltd');
+assert.equal(agreementFilenameParty('  ', person), person);
+assert.equal(
+  commissionActivityLabel({ status: 'earned', customerName: 'North Store', sourceType: 'invoice' }),
+  'earned commission · North Store'
+);
+assert.equal(
+  commissionActivityLabel({
+    status: 'earned',
+    customerName: 'North Store',
+    companyName: 'X (Pty) Ltd',
+  }),
+  'Payable to X (Pty) Ltd · earned commission · North Store'
+);
 
 const plainMail = salesContractorAgreementEmail({
   personName: person,
@@ -198,7 +240,8 @@ async function main() {
     memberStatus: 'active',
     transport: async (payload) => {
       sentTo = payload.to;
-      assert.match(payload.html, /X \(Pty\) Ltd, represented by Jane Doe/);
+      assert.match(payload.html, /Hello X \(Pty\) Ltd,/);
+      assert.match(payload.text, /For and on behalf of X \(Pty\) Ltd, signed by Jane Doe/);
       assert.match(payload.html, /SupplierAdvisor®/);
       assert.match(payload.text, /\/sales\/agreement/);
       return { id: 'test-email-1' };
@@ -228,13 +271,16 @@ async function main() {
       status: 'pending',
     },
   });
-  assert.match(pdfPlainText(pdfNamed), /represented by Jane Doe/);
+  assert.match(
+    pdfPlainText(pdfNamed),
+    /For and on behalf of X \(Pty\) Ltd, signed by Jane Doe, who warrants they are duly authorised/
+  );
 
   const pdfPlain = await buildSalesAgreementPdf({
     bodyHtml: plain,
     meta,
   });
-  assert.equal(pdfPlainText(pdfPlain).includes('represented by'), false);
+  assert.equal(pdfPlainText(pdfPlain).includes('For and on behalf of'), false);
 
   console.log('agreement-party.test.ts ok');
 }

@@ -32,6 +32,7 @@ export type SalesContractorProof = {
   contractorName: string | null;
   contractorCompanyName: string | null;
   contractorRegistrationNumber: string | null;
+  signerCapacity: string | null;
   contractVersion: string | null;
   acceptedIp: string | null;
   contractResentAt: string | null;
@@ -134,6 +135,7 @@ export function proofFromMember(
       contractorName: null,
       contractorCompanyName: null,
       contractorRegistrationNumber: null,
+      signerCapacity: null,
       contractVersion: null,
       acceptedIp: null,
       contractResentAt: null,
@@ -153,6 +155,7 @@ export function proofFromMember(
     contractorName: row.contractor_name ? String(row.contractor_name) : null,
     contractorCompanyName: entity.contractor_company_name,
     contractorRegistrationNumber: entity.contractor_registration_number,
+    signerCapacity: entity.contractor_signer_capacity,
     contractVersion: row.contract_version ? String(row.contract_version) : null,
     acceptedIp: row.accepted_ip ? String(row.accepted_ip) : null,
     contractResentAt: entity.contract_resent_at,
@@ -167,6 +170,7 @@ export function agreementPartyLabel(proof: {
   contractorName?: string | null;
   contractorCompanyName?: string | null;
   contractorRegistrationNumber?: string | null;
+  signerCapacity?: string | null;
 }): string {
   const person = proof.signatureName || proof.contractorName || '';
   const party = contractorContractingParty({
@@ -174,7 +178,9 @@ export function agreementPartyLabel(proof: {
     companyName: proof.contractorCompanyName,
     registrationNumber: proof.contractorRegistrationNumber,
   });
-  return party || 'Signature not on file';
+  if (!proof.contractorCompanyName) return party || 'Signature not on file';
+  const capacity = String(proof.signerCapacity || '').trim();
+  return capacity ? `${party} · ${capacity}` : party || 'Signature not on file';
 }
 
 export function proofsForContractors(

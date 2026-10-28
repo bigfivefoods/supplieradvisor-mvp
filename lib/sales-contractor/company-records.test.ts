@@ -90,7 +90,14 @@ assert.equal(companyProof.contractResentAt, '2026-10-28T08:00:00.000Z');
 assert.equal(companyProof.contractResendCount, 2);
 assert.equal(
   agreementPartyLabel(companyProof),
-  'X (Pty) Ltd (registration number 2020/123456/07), represented by Pam Oosthuizen'
+  'X (Pty) Ltd (reg no 2020/123456/07)'
+);
+assert.equal(
+  agreementPartyLabel({
+    ...companyProof,
+    signerCapacity: 'Director',
+  }),
+  'X (Pty) Ltd (reg no 2020/123456/07) · Director'
 );
 
 const list = proofsForContractors(

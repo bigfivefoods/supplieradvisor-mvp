@@ -99,6 +99,7 @@ export function mapAgreementRow(row: Record<string, unknown>): SalesContractorAg
     contractor_name: row.contractor_name ? String(row.contractor_name) : null,
     contractor_company_name: entity.contractor_company_name,
     contractor_registration_number: entity.contractor_registration_number,
+    contractor_signer_capacity: entity.contractor_signer_capacity,
     contract_resent_at: entity.contract_resent_at,
     contract_resend_count: entity.contract_resend_count,
     status: (String(row.status || 'pending') as SalesContractorAgreement['status']),

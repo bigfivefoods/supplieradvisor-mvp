@@ -13,6 +13,8 @@ export type SalesContractorAgreement = {
   /** Set when the contract is in a company name. Blank means the person. */
   contractor_company_name?: string | null;
   contractor_registration_number?: string | null;
+  /** Optional title of the person who signs for the company. Metadata only. */
+  contractor_signer_capacity?: string | null;
   contract_resent_at?: string | null;
   contract_resend_count?: number;
   status: AgreementStatus;

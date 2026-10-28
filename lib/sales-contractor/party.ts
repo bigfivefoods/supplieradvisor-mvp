@@ -5,6 +5,8 @@
 
 export const CONTRACTOR_COMPANY_NAME_MAX = 160;
 export const CONTRACTOR_REGISTRATION_MAX = 64;
+/** Stored in agreement metadata. No new column. */
+export const CONTRACTOR_SIGNER_CAPACITY_MAX = 80;
 
 export const SALES_AGREEMENT_OPTIONAL_COLUMNS = [
   'contractor_company_name',
@@ -21,8 +23,9 @@ export function cleanAgreementText(value: unknown, max: number): string {
 }
 
 /**
- * Contracting party as it should be written.
+ * Who the contract is with.
  * With no company name, the person's name is returned unchanged.
+ * With a company name, the company is the contracting party.
  */
 export function contractorContractingParty(input: {
   personName?: string | null;
@@ -36,11 +39,30 @@ export function contractorContractingParty(input: {
     input.registrationNumber,
     CONTRACTOR_REGISTRATION_MAX
   );
-  const entity = registration
-    ? `${company} (registration number ${registration})`
-    : company;
-  const who = person.trim() || 'the Sales Contractor';
-  return `${entity}, represented by ${who}`;
+  return registration ? `${company} (reg no ${registration})` : company;
+}
+
+/**
+ * Signature block when the contract is with a company.
+ * Empty when no company name is set, so the personal signature line stays as it is.
+ */
+export function contractorExecutionLine(input: {
+  personName?: string | null;
+  companyName?: string | null;
+  registrationNumber?: string | null;
+  capacity?: string | null;
+}): string {
+  const company = cleanAgreementText(input.companyName, CONTRACTOR_COMPANY_NAME_MAX);
+  if (!company) return '';
+  const person = String(input.personName ?? '').trim() || 'the authorised representative';
+  const registration = cleanAgreementText(
+    input.registrationNumber,
+    CONTRACTOR_REGISTRATION_MAX
+  );
+  const capacity = cleanAgreementText(input.capacity, CONTRACTOR_SIGNER_CAPACITY_MAX);
+  const regPart = registration ? `, reg no ${registration}` : '';
+  const capacityPart = capacity ? `, ${capacity}` : '';
+  return `For and on behalf of ${company}${regPart}, signed by ${person}${capacityPart}, who warrants they are duly authorised`;
 }
 
 export function contractingPartyFromMeta(
@@ -49,6 +71,7 @@ export function contractingPartyFromMeta(
     signatureName?: string | null;
     contractorCompanyName?: string | null;
     contractorRegistrationNumber?: string | null;
+    signerCapacity?: string | null;
   },
   source: 'contractor' | 'signatory'
 ): string {
@@ -56,11 +79,43 @@ export function contractingPartyFromMeta(
     source === 'signatory'
       ? meta.signatureName || meta.contractorName || ''
       : meta.contractorName || '';
+  if (source === 'signatory') {
+    const execution = contractorExecutionLine({
+      personName: person,
+      companyName: meta.contractorCompanyName,
+      registrationNumber: meta.contractorRegistrationNumber,
+      capacity: meta.signerCapacity,
+    });
+    if (execution) return execution;
+  }
   return contractorContractingParty({
     personName: person,
     companyName: meta.contractorCompanyName,
     registrationNumber: meta.contractorRegistrationNumber,
   });
+}
+
+/** Filename segment: the company when the contract is with one, otherwise the person. */
+export function agreementFilenameParty(
+  companyName?: string | null,
+  personName?: string | null
+): string {
+  const company = cleanAgreementText(companyName, CONTRACTOR_COMPANY_NAME_MAX);
+  if (company) return company;
+  return String(personName ?? '');
+}
+
+/** Ledger / earnings line. Blank company keeps the existing label. */
+export function commissionActivityLabel(input: {
+  status?: string | null;
+  customerName?: string | null;
+  sourceType?: string | null;
+  companyName?: string | null;
+}): string {
+  const base = `${input.status || ''} commission · ${input.customerName || input.sourceType || ''}`.trim();
+  const company = cleanAgreementText(input.companyName, CONTRACTOR_COMPANY_NAME_MAX);
+  if (!company) return base;
+  return `Payable to ${company} · ${base}`;
 }
 
 export function metadataObject(raw: unknown): Record<string, unknown> {
@@ -89,6 +144,7 @@ export function readContractorEntity(row: {
 }): {
   contractor_company_name: string | null;
   contractor_registration_number: string | null;
+  contractor_signer_capacity: string | null;
   contract_resent_at: string | null;
   contract_resend_count: number;
 } {
@@ -99,12 +155,17 @@ export function readContractorEntity(row: {
   const registration =
     cleanAgreementText(row.contractor_registration_number, CONTRACTOR_REGISTRATION_MAX) ||
     cleanAgreementText(meta.contractor_registration_number, CONTRACTOR_REGISTRATION_MAX);
+  const capacity = cleanAgreementText(
+    meta.contractor_signer_capacity,
+    CONTRACTOR_SIGNER_CAPACITY_MAX
+  );
   const resentRaw = row.contract_resent_at ?? meta.contract_resent_at;
   const resent = resentRaw ? String(resentRaw) : '';
   const count = Number(meta.contract_resend_count);
   return {
     contractor_company_name: company || null,
     contractor_registration_number: registration || null,
+    contractor_signer_capacity: company ? capacity || null : null,
     contract_resent_at: resent || null,
     contract_resend_count: Number.isFinite(count) && count > 0 ? Math.floor(count) : 0,
   };
@@ -112,12 +173,16 @@ export function readContractorEntity(row: {
 
 export function withContractorEntityMetadata(
   raw: unknown,
-  entity: { company: string | null; registration: string | null }
+  entity: { company: string | null; registration: string | null; capacity?: string | null }
 ): Record<string, unknown> {
+  const capacity = entity.company
+    ? cleanAgreementText(entity.capacity, CONTRACTOR_SIGNER_CAPACITY_MAX) || null
+    : null;
   return {
     ...metadataObject(raw),
     contractor_company_name: entity.company,
     contractor_registration_number: entity.registration,
+    contractor_signer_capacity: capacity,
   };
 }
 

@@ -945,7 +945,7 @@ function TeamInner() {
                                   This emails {contractorEmail || 'this contractor'} a
                                   link to read and sign.
                                   {proof?.contractorCompanyName
-                                    ? ` The agreement names ${agreementPartyLabel(proof)}.`
+                                    ? ` The contract is with ${agreementPartyLabel(proof)}. ${m.name || 'The signer'} signs only as authorised representative. This email is sent to ${contractorEmail || 'the signer'}.`
                                     : ''}
                                 </p>
                                 <div className="mt-2 flex flex-col sm:flex-row gap-2">

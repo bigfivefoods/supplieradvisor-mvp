@@ -23,6 +23,7 @@ export async function deliverSalesContractorAgreementEmail(opts: {
   hiringCompanyName: string;
   contractorCompanyName?: string | null;
   contractorRegistrationNumber?: string | null;
+  signerCapacity?: string | null;
   invitedBy?: string | null;
   memberStatus?: string | null;
   joinLink?: string | null;
@@ -41,6 +42,7 @@ export async function deliverSalesContractorAgreementEmail(opts: {
     hiringCompanyName: opts.hiringCompanyName,
     contractorCompanyName: opts.contractorCompanyName,
     contractorRegistrationNumber: opts.contractorRegistrationNumber,
+    signerCapacity: opts.signerCapacity,
     agreementLink: href,
     invitedBy: opts.invitedBy,
   });

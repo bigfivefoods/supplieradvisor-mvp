@@ -59,6 +59,16 @@ export default function SalesEarningsPage() {
           Projected, earned, and paid commission for deals you work under{' '}
           {summary.companyName}.
         </p>
+        {summary.agreement?.contractor_company_name ? (
+          <p className="text-sm text-slate-700 mt-2">
+            Commission is payable to{' '}
+            <strong>{summary.agreement.contractor_company_name}</strong>
+            {summary.agreement.contractor_registration_number
+              ? ` (reg no ${summary.agreement.contractor_registration_number})`
+              : ''}
+            . The person who signs is only the authorised representative.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid sm:grid-cols-3 gap-3">
