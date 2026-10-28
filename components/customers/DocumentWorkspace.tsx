@@ -21,6 +21,7 @@ import {
   Mail,
   FileDown,
   MessageCircle,
+  Truck,
   Pencil,
   X,
   ChevronDown,
@@ -65,6 +66,7 @@ import { CompanyRequired, CustomersHeader } from '@/components/customers/Custome
 import CommissionBadge from '@/components/sales/CommissionBadge';
 import FxRateStrip from '@/components/fx/FxRateStrip';
 import LinkedOrdersPanel from '@/components/orders/LinkedOrdersPanel';
+import DeliveryNoteDialog from '@/components/customers/DeliveryNoteDialog';
 import {
   canIssueQuote,
   canStartProcessing,
@@ -141,7 +143,7 @@ const CONFIG: Record<
   invoice: {
     title: 'Invoices',
     description:
-      'Review draft invoices before sending. Send the PDF from this page, then track payment. Unpaid invoices can be revised — saving creates a new version and voids the original.',
+      'Review draft invoices before sending. Send the PDF from this page, then track payment. Create a delivery note from any invoice — quantities only, no prices — and share it on WhatsApp. Unpaid invoices can be revised — saving creates a new version and voids the original.',
     numberField: 'invoice_number',
     statuses: ['draft', 'sent', 'paid', 'partial', 'overdue', 'void'],
   },
@@ -289,6 +291,7 @@ function DocInner({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [chainOrderId, setChainOrderId] = useState<number | null>(null);
   const [payDoc, setPayDoc] = useState<DocRecord | null>(null);
+  const [dnDoc, setDnDoc] = useState<DocRecord | null>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payRef, setPayRef] = useState('');
   const [payMethod, setPayMethod] = useState('eft');
@@ -3300,6 +3303,17 @@ function DocInner({
                       <FileDown className="w-3.5 h-3.5" />
                       PDF
                     </button>
+                    {type === 'invoice' ? (
+                      <button
+                        type="button"
+                        onClick={() => setDnDoc(d)}
+                        className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-[#00b4d8]/40 text-[#0077b6]"
+                        title="Create a delivery note from this invoice — quantities only, no prices"
+                      >
+                        <Truck className="w-3.5 h-3.5" />
+                        Delivery note
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       disabled={busyId === d.id}
@@ -3593,6 +3607,16 @@ function DocInner({
         )}
       </div>
 
+      {dnDoc && type === 'invoice' ? (
+        <DeliveryNoteDialog
+          companyId={companyId}
+          privyUserId={privyUserId}
+          invoiceId={dnDoc.id}
+          invoiceNumber={String(dnDoc.invoice_number || dnDoc.id)}
+          customerName={(dnDoc.customer_name as string) || null}
+          onClose={() => setDnDoc(null)}
+        />
+      ) : null}
       {payDoc ? (
         <InvoicePaymentModal
           doc={payDoc}

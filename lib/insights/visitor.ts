@@ -235,7 +235,7 @@ const APP_TOP: Record<string, string> = {
 };
 
 /** Links that carry an id or token in the second segment. */
-const ID_ROUTES = new Set(['c', 'i', 'p', 'r', 't', 'pay', 'hire', 'apparel', 'claim-review']);
+const ID_ROUTES = new Set(['c', 'd', 'i', 'p', 'r', 't', 'pay', 'hire', 'apparel', 'claim-review']);
 const MODULE_ROUTES = new Set(['f', 'clinician', 'pwa']);
 const KNOWN_SECOND: Record<string, Set<string>> = {
   join: new Set(['fitgraph', 'tradegraph', 'member', 'work']),

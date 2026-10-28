@@ -149,6 +149,16 @@ jobs:
               exit 1
             fi
           done
+      - name: Delivery note tests
+        run: |
+          set -euo pipefail
+          for file in \
+            lib/customers/delivery-note.test.ts \
+            lib/customers/delivery-note-authz.test.ts \
+            lib/customers/delivery-note-ui.test.tsx
+          do
+            npx --yes tsx "$file"
+          done
       - name: Advisor process flow tests
         run: |
           set -e

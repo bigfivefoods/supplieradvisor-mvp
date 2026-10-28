@@ -397,6 +397,7 @@ assert.equal(publicPath('/onboarding'), '/app/onboarding');
 assert.equal(publicPath('/store/big-five-foods'), '/store/:company');
 assert.equal(publicPath('/store/big-five-foods/products/42'), '/store/:company');
 assert.equal(publicPath('/p/AbC123xyz'), '/p/:id');
+assert.equal(publicPath('/d/dn1.example.token'), '/d/:id');
 assert.equal(publicPath('/pay/abc'), '/pay/:id');
 assert.equal(publicPath('/join/fitgraph'), '/join/fitgraph');
 assert.equal(publicPath('/join/tradegraph'), '/join/tradegraph');
