@@ -44,6 +44,7 @@ import {
   parseCoaStatus,
   type CoaStatusFilter,
 } from '@/lib/accounting/coa-list';
+import { fetchAllChartOfAccounts } from '@/lib/accounting/fetch-chart-accounts';
 
 export default function ChartOfAccountsPage() {
   return (
@@ -80,6 +81,9 @@ function Inner() {
   );
   const [accounts, setAccounts] = useState<CoaAccount[]>([]);
   const [statusCounts, setStatusCounts] = useState({ active: 0, inactive: 0 });
+  const [listMeta, setListMeta] = useState<{ total: number; truncated: boolean } | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [seeding, setSeeding] = useState(false);
@@ -121,23 +125,24 @@ function Inner() {
       if (typeFilter !== 'all') params.set('type', typeFilter);
       if (q) params.set('q', q);
       params.set('status', statusFilter);
-      params.set('limit', '500');
-      const res = await fetch(`/api/accounting/chart-of-accounts?${params}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load chart');
-      const rows = (data.accounts || []) as CoaAccount[];
+      const data = await fetchAllChartOfAccounts(params, { picker: false });
+      const rows = data.accounts || [];
       setAccounts(rows);
-      const reported = data.counts as { active?: number; inactive?: number } | undefined;
+      setListMeta({
+        total: data.total,
+        truncated: data.truncated || data.hasMore,
+      });
       setStatusCounts({
-        active: Number(reported?.active ?? rows.filter((a) => a.is_active !== false).length),
+        active: Number(data.counts?.active ?? rows.filter((a) => a.is_active !== false).length),
         inactive: Number(
-          reported?.inactive ?? rows.filter((a) => a.is_active === false).length
+          data.counts?.inactive ?? rows.filter((a) => a.is_active === false).length
         ),
       });
       if (data.warning) toast.message(data.warning, { description: data.hint });
     } catch (err) {
       setAccounts([]);
       setStatusCounts({ active: 0, inactive: 0 });
+      setListMeta(null);
       toast.error(err instanceof Error ? err.message : 'Failed to load chart');
     } finally {
       setLoading(false);
@@ -504,6 +509,11 @@ function Inner() {
         the balance at period end, positive when the account is in its normal
         sign.
       </p>
+      {listMeta?.truncated ? (
+        <p className="mb-3 text-[11px] leading-relaxed text-amber-800">
+          Showing {accounts.length} of {listMeta.total} accounts. The list was cut off.
+        </p>
+      ) : null}
       <Panel>
         {loading ? (
           <div className="flex justify-center py-16">

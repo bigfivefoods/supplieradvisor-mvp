@@ -4,6 +4,7 @@
 import { ttlDel, ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 import { getOrCreateSettings } from '@/lib/accounting/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { COA_PICKER_SELECT } from '@/lib/accounting/coa-list';
 import type { AccountingSettings, CoaAccount } from '@/lib/accounting/types';
 
 const SETTINGS_TTL_MS = 60_000;
@@ -11,11 +12,13 @@ const COA_TTL_MS = 60_000;
 
 const settingsKey = (companyId: number) => `acct-settings:${companyId}`;
 const coaKey = (companyId: number) => `acct-coa:${companyId}`;
+const coaPickerKey = (companyId: number) => `acct-coa-picker:${companyId}`;
 
 export function invalidateAccountingReads(companyId: number): void {
   if (!Number.isFinite(companyId) || companyId <= 0) return;
   ttlDel(settingsKey(companyId));
   ttlDel(coaKey(companyId));
+  ttlDel(coaPickerKey(companyId));
   ttlDel(`party-gl:${companyId}`);
 }
 
@@ -43,5 +46,21 @@ export async function getCachedCoa(companyId: number): Promise<CoaAccount[]> {
   if (error) return [];
   const rows = (data || []) as CoaAccount[];
   ttlSet(coaKey(companyId), rows, COA_TTL_MS);
+  return rows;
+}
+
+/** GL picker rows: lean columns, no balance fields. Separate cache from the full chart. */
+export async function getCachedCoaPicker(companyId: number): Promise<CoaAccount[]> {
+  const hit = ttlGet<CoaAccount[]>(coaPickerKey(companyId));
+  if (hit) return hit;
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from('chart_of_accounts')
+    .select(COA_PICKER_SELECT)
+    .eq('profile_id', companyId)
+    .order('code');
+  if (error) return [];
+  const rows = (data || []) as CoaAccount[];
+  ttlSet(coaPickerKey(companyId), rows, COA_TTL_MS);
   return rows;
 }

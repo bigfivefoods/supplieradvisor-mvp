@@ -78,7 +78,9 @@ assert.match(page, /params\.set\('status', statusFilter\)/);
 assert.match(page, /params\.set\('status', next\)/);
 assert.match(page, /countBadge/);
 assert.match(page, /setStatusFilter\('inactive'\)/);
-assert.match(page, /limit['"]?\s*,\s*['"]500['"]/);
+assert.match(page, /fetchAllChartOfAccounts\(params,\s*\{\s*picker:\s*false\s*\}\)/);
+assert.match(page, /listMeta\?\.truncated/);
+assert.doesNotMatch(page, /params\.set\(\s*'limit'/);
 assert.doesNotMatch(page, /party_leaves/);
 assert.doesNotMatch(page, /balances=1/);
 
@@ -90,6 +92,8 @@ assert.match(
 );
 const coaParamsBlock = bank.split('const coaParams = new URLSearchParams')[1]?.split('const connParams')[0] || '';
 assert.doesNotMatch(coaParamsBlock, /status/);
+assert.match(bank, /picker:\s*true/);
+assert.doesNotMatch(bank, /set\('status'/);
 assert.match(
   bank,
   /\(seedData\.accounts as CoaAccount\[\]\)\.filter\(\s*\(a\) => !a\.is_header && a\.is_active !== false/

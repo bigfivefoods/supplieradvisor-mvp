@@ -50,6 +50,7 @@ import {
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts';
 import { AllocGlSelect } from '@/components/accounting/AllocGlSelect';
+import { fetchAllChartOfAccounts } from '@/lib/accounting/fetch-chart-accounts';
 
 type Pulse = {
   unallocated: number;
@@ -211,18 +212,23 @@ function Inner() {
       const connParams = new URLSearchParams({ companyId: String(companyId) });
       if (privyUserId) connParams.set('privyUserId', privyUserId);
 
-      const [bankRes, coaRes, connRes] = await Promise.all([
+      const [bankRes, coaData, connRes] = await Promise.all([
         fetch(`/api/accounting/bank?${params}`),
-        fetch(`/api/accounting/chart-of-accounts?${coaParams}`),
+        fetchAllChartOfAccounts(coaParams, { picker: true }).catch((err: unknown) => {
+          toast.message(err instanceof Error ? err.message : 'GL accounts did not load');
+          return null;
+        }),
         fetch(`/api/banking/connections?${connParams}`),
       ]);
       const bankData = await bankRes.json();
-      const coaData = await coaRes.json();
       const connData = await connRes.json();
       setAccounts(bankData.accounts || []);
       setTransactions(bankData.transactions || []);
       setPulse(bankData.pulse || null);
-      setCoa((coaData.accounts || []).filter((a: CoaAccount) => !a.is_header && a.is_active !== false));
+      if (coaData) {
+        setCoa((coaData.accounts || []).filter((a: CoaAccount) => !a.is_header && a.is_active !== false));
+        if (coaData.warning) toast.message(coaData.warning);
+      }
       setConnections(connData.connections || []);
       setBankProvider(connData.provider || null);
       if (bankData.warning) toast.message(bankData.warning, { description: bankData.hint });
@@ -1003,18 +1009,22 @@ function Inner() {
           seed: '1',
         });
         if (privyUserId) seedParams.set('privyUserId', privyUserId);
-        const seedRes = await fetch(`/api/accounting/chart-of-accounts?${seedParams}`);
-        const seedData = await seedRes.json();
-        if (seedData.accounts?.length) {
-          coaRows = (seedData.accounts as CoaAccount[]).filter(
-            (a) => !a.is_header && a.is_active !== false
-          );
-          setCoa(coaRows);
-          if (seedData.seeded) {
-            toast.message('Chart of accounts seeded', {
-              description: 'Default GL accounts created for allocation',
-            });
+        try {
+          const seedData = await fetchAllChartOfAccounts(seedParams, { picker: true });
+          if (seedData.warning) toast.message(seedData.warning);
+          if (seedData.accounts?.length) {
+            coaRows = (seedData.accounts as CoaAccount[]).filter(
+              (a) => !a.is_header && a.is_active !== false
+            );
+            setCoa(coaRows);
+            if (seedData.seeded) {
+              toast.message('Chart of accounts seeded', {
+                description: 'Default GL accounts created for allocation',
+              });
+            }
           }
+        } catch (err) {
+          toast.message(err instanceof Error ? err.message : 'Could not seed the chart');
         }
       }
 

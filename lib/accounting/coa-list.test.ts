@@ -89,10 +89,14 @@ assert.ok(filterOperatingCoa(withRetired, { status: 'all' }).some((a) => a.code 
 assert.ok(!filterOperatingCoa(withRetired, { status: 'active', q: 'rent' }).some((a) => a.code === '6200'));
 assert.ok(filterOperatingCoa(withRetired, { q: 'rent' }).some((a) => a.code === '6200'));
 
-assert.equal(parseCoaListLimit(null), 50);
+assert.equal(parseCoaListLimit(null), null);
+assert.equal(parseCoaListLimit(''), null);
+assert.equal(parseCoaListLimit('0'), null);
+assert.equal(parseCoaListLimit('nope'), null);
 assert.equal(parseCoaListLimit('500'), 500);
 assert.equal(parseCoaListLimit('9999'), COA_LIST_MAX);
 assert.ok(COA_LIST_MAX >= 500);
+assert.equal(parseCoaListLimit(null) === 50, false);
 
 function src(rel: string) {
   return readFileSync(resolve(rel), 'utf8');
@@ -103,13 +107,19 @@ const coaGet = src('app/api/accounting/chart-of-accounts/route.ts').split(
 )[0];
 assert.match(coaGet, /filterOperatingCoa/);
 assert.match(coaGet, /parseCoaListLimit/);
+assert.match(coaGet, /parseCoaPickerLimit/);
+assert.match(coaGet, /sliceCoaList/);
+assert.match(coaGet, /hasMore/);
+assert.doesNotMatch(coaGet, /COA_LIST_DEFAULT/);
 assert.doesNotMatch(coaGet, /FACE/);
 assert.doesNotMatch(coaGet, /ensurePartyGlAccounts/);
 assert.doesNotMatch(coaGet, /backfillPartyGlAccounts/);
 assert.match(coaGet, /balances'\) === '1'/);
+assert.match(coaGet, /!picker &&/);
 
 const coaPage = src('app/dashboard/accounting/chart-of-accounts/page.tsx');
-assert.match(coaPage, /limit['"]?\s*,\s*['"]500['"]/);
+assert.match(coaPage, /fetchAllChartOfAccounts\(params,\s*\{\s*picker:\s*false\s*\}\)/);
+assert.doesNotMatch(coaPage, /params\.set\(\s*'limit'/);
 assert.doesNotMatch(coaPage, /party_leaves/);
 assert.doesNotMatch(coaPage, /balances=1/);
 
