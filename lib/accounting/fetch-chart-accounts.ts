@@ -15,6 +15,8 @@ export type FetchedChartAccounts = {
   hasMore: boolean;
   /** True when paging stopped before the server said the list was complete. */
   truncated: boolean;
+  /** Active and inactive operating counts, before the status slice. */
+  counts?: { active: number; inactive: number };
   warning?: string;
   hint?: string;
   seeded?: number;
@@ -26,6 +28,7 @@ type PageBody = {
   limit?: number | null;
   offset?: number;
   hasMore?: boolean;
+  counts?: { active?: number; inactive?: number };
   warning?: string;
   hint?: string;
   seeded?: number;
@@ -47,6 +50,7 @@ export async function fetchAllChartOfAccounts(
   let warning: string | undefined;
   let hint: string | undefined;
   let seeded: number | undefined;
+  let counts: { active: number; inactive: number } | undefined;
 
   for (let page = 0; page < PAGE_GUARD; page += 1) {
     const params = new URLSearchParams(base);
@@ -85,6 +89,17 @@ export async function fetchAllChartOfAccounts(
     if (data.warning) warning = data.warning;
     if (data.hint) hint = data.hint;
     if (page === 0 && data.seeded != null) seeded = Number(data.seeded);
+    if (
+      !counts &&
+      data.counts &&
+      Number.isFinite(Number(data.counts.active)) &&
+      Number.isFinite(Number(data.counts.inactive))
+    ) {
+      counts = {
+        active: Number(data.counts.active),
+        inactive: Number(data.counts.inactive),
+      };
+    }
     hasMore = data.hasMore === true;
 
     if (!hasMore) break;
@@ -108,6 +123,7 @@ export async function fetchAllChartOfAccounts(
     offset: 0,
     hasMore: truncated,
     truncated,
+    counts,
     warning,
     hint,
     seeded,

@@ -70,6 +70,25 @@ const searched = filterOperatingCoa(fixture, { q: '1180-' });
 assert.ok(searched.some((a) => a.code === '1180-0000001'));
 assert.ok(!searched.some((a) => a.code === '4100'));
 
+const retired = {
+  code: '6200',
+  name: 'Old rent',
+  is_header: false,
+  account_type: 'expense',
+  is_active: false,
+};
+const withRetired = [...fixture, retired];
+assert.ok(!filterOperatingCoa(withRetired, {}).some((a) => a.code === '6200'));
+assert.ok(
+  filterOperatingCoa(withRetired, { status: 'inactive' }).every((a) => a.is_active === false)
+);
+assert.ok(filterOperatingCoa(withRetired, { status: 'inactive' }).some((a) => a.code === '6200'));
+assert.ok(!filterOperatingCoa(withRetired, { status: 'inactive' }).some((a) => a.code === '6100'));
+assert.ok(filterOperatingCoa(withRetired, { status: 'all' }).some((a) => a.code === '6200'));
+assert.ok(filterOperatingCoa(withRetired, { status: 'all' }).some((a) => a.code === '6100'));
+assert.ok(!filterOperatingCoa(withRetired, { status: 'active', q: 'rent' }).some((a) => a.code === '6200'));
+assert.ok(filterOperatingCoa(withRetired, { q: 'rent' }).some((a) => a.code === '6200'));
+
 assert.equal(parseCoaListLimit(null), null);
 assert.equal(parseCoaListLimit(''), null);
 assert.equal(parseCoaListLimit('0'), null);

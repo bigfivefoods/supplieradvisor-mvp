@@ -38,6 +38,29 @@ export function parseCoaListLimit(raw: string | null | undefined): number | null
   return Math.min(Math.floor(n), COA_LIST_MAX);
 }
 
+export type CoaStatusFilter = 'active' | 'inactive' | 'all';
+
+/** `null` means the caller did not ask — keep the historical operating list. */
+export function parseCoaStatus(
+  raw: string | null | undefined
+): CoaStatusFilter | null {
+  const s = String(raw || '').trim().toLowerCase();
+  if (s === 'active' || s === 'inactive' || s === 'all') return s;
+  return null;
+}
+
+export function countCoaStatus<T extends CoaListRow>(
+  accounts: T[]
+): { active: number; inactive: number } {
+  let active = 0;
+  let inactive = 0;
+  for (const account of accounts) {
+    if (account.is_active === false) inactive += 1;
+    else active += 1;
+  }
+  return { active, inactive };
+}
+
 /** Picker pages default to the max page, never the historical 50. */
 export function parseCoaPickerLimit(raw: string | null | undefined): number {
   return parseCoaListLimit(raw) ?? COA_LIST_MAX;
@@ -135,30 +158,65 @@ export function isLeftoverPartyIntegerCode(
   return false;
 }
 
+function matchesCoaQuery(account: CoaListRow, q: string): boolean {
+  if (!q) return true;
+  return (
+    String(account.code || '').toLowerCase().includes(q) ||
+    String(account.name || '').toLowerCase().includes(q) ||
+    String(account.account_type || '').toLowerCase().includes(q)
+  );
+}
+
+/** Party leaves and leftover integers stay off the operating tree unless searching. */
+function structurallyVisible(
+  account: CoaListRow,
+  opts: { partyLeaves?: boolean },
+  q: string
+): boolean {
+  if (q) return true;
+  if (isLeftoverPartyIntegerCode(account.code, account.name)) return false;
+  if (!opts.partyLeaves && isPartyLeafCode(account.code)) return false;
+  return true;
+}
+
+/**
+ * Omitted status keeps the historical list: search can still find inactive rows,
+ * and the operating chart stays active-only (bank allocation and other pickers).
+ * An explicit status applies even while searching.
+ */
+function statusAllows(
+  account: CoaListRow,
+  status: CoaStatusFilter | null,
+  q: string
+): boolean {
+  if (status === 'all') return true;
+  if (status === 'inactive') return account.is_active === false;
+  if (status === 'active') return account.is_active !== false;
+  if (q) return true;
+  return account.is_active !== false;
+}
+
+export function accountMatchesCoaStatus(
+  account: CoaListRow,
+  status: CoaStatusFilter
+): boolean {
+  return statusAllows(account, status, '');
+}
+
 export function filterOperatingCoa<T extends CoaListRow>(
   accounts: T[],
-  opts: { partyLeaves?: boolean; q?: string | null }
+  opts: {
+    partyLeaves?: boolean;
+    q?: string | null;
+    status?: CoaStatusFilter | null;
+  }
 ): T[] {
   const q = String(opts.q || '').trim().toLowerCase();
-  if (q) {
-    return accounts.filter(
-      (a) =>
-        String(a.code || '').toLowerCase().includes(q) ||
-        String(a.name || '').toLowerCase().includes(q) ||
-        String(a.account_type || '').toLowerCase().includes(q)
-    );
-  }
-  if (opts.partyLeaves) {
-    return accounts.filter((a) => {
-      if (a.is_active === false) return false;
-      if (isLeftoverPartyIntegerCode(a.code, a.name)) return false;
-      return true;
-    });
-  }
-  return accounts.filter((a) => {
-    if (a.is_active === false) return false;
-    if (isPartyLeafCode(a.code)) return false;
-    if (isLeftoverPartyIntegerCode(a.code, a.name)) return false;
-    return true;
-  });
+  const status = opts.status === undefined ? null : opts.status;
+  return accounts.filter(
+    (account) =>
+      matchesCoaQuery(account, q) &&
+      structurallyVisible(account, opts, q) &&
+      statusAllows(account, status, q)
+  );
 }

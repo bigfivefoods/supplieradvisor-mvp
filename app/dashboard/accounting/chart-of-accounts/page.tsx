@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Download,
   Loader2,
@@ -38,26 +39,48 @@ import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts
 import PeriodSlicer from '@/components/accounting/PeriodSlicer';
 import { FinanceWorkspaceNote } from '@/components/accounting/FinanceWorkspaceNote';
 import { useAccountingPeriod } from '@/lib/accounting/use-period';
+import {
+  accountMatchesCoaStatus,
+  parseCoaStatus,
+  type CoaStatusFilter,
+} from '@/lib/accounting/coa-list';
 import { fetchAllChartOfAccounts } from '@/lib/accounting/fetch-chart-accounts';
 
 export default function ChartOfAccountsPage() {
   return (
     <CompanyRequired>
-      <Inner />
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-7 h-7 animate-spin text-[#00b4d8]" />
+          </div>
+        }
+      >
+        <Inner />
+      </Suspense>
     </CompanyRequired>
   );
+}
+
+function statusFromQuery(raw: string | null): CoaStatusFilter {
+  return parseCoaStatus(raw) ?? 'active';
 }
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const statusFilter = statusFromQuery(searchParams.get('status'));
   const { fyStartMonth, period, setPeriod } = useAccountingPeriod(
     companyId,
     privyUserId,
     'full_fy'
   );
   const [accounts, setAccounts] = useState<CoaAccount[]>([]);
+  const [statusCounts, setStatusCounts] = useState({ active: 0, inactive: 0 });
   const [listMeta, setListMeta] = useState<{ total: number; truncated: boolean } | null>(
     null
   );
@@ -69,6 +92,17 @@ function Inner() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [partyFilter, setPartyFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
+
+  const setStatusFilter = useCallback(
+    (next: CoaStatusFilter) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === 'active') params.delete('status');
+      else params.set('status', next);
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     code: '',
@@ -90,21 +124,30 @@ function Inner() {
       if (privyUserId) params.set('privyUserId', privyUserId);
       if (typeFilter !== 'all') params.set('type', typeFilter);
       if (q) params.set('q', q);
+      params.set('status', statusFilter);
       const data = await fetchAllChartOfAccounts(params, { picker: false });
-      setAccounts(data.accounts || []);
+      const rows = data.accounts || [];
+      setAccounts(rows);
       setListMeta({
         total: data.total,
         truncated: data.truncated || data.hasMore,
       });
+      setStatusCounts({
+        active: Number(data.counts?.active ?? rows.filter((a) => a.is_active !== false).length),
+        inactive: Number(
+          data.counts?.inactive ?? rows.filter((a) => a.is_active === false).length
+        ),
+      });
       if (data.warning) toast.message(data.warning, { description: data.hint });
     } catch (err) {
       setAccounts([]);
+      setStatusCounts({ active: 0, inactive: 0 });
       setListMeta(null);
       toast.error(err instanceof Error ? err.message : 'Failed to load chart');
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId, typeFilter, q, period.from, period.to]);
+  }, [companyId, privyUserId, typeFilter, q, statusFilter, period.from, period.to]);
 
   async function downloadXlsx() {
     setExporting(true);
@@ -119,6 +162,7 @@ function Inner() {
       if (privyUserId) params.set('privyUserId', privyUserId);
       if (typeFilter !== 'all') params.set('type', typeFilter);
       if (q.trim()) params.set('q', q.trim());
+      params.set('status', statusFilter);
       const res = await fetch(`/api/accounting/chart-of-accounts?${params}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -138,10 +182,10 @@ function Inner() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      const narrowed = typeFilter !== 'all' || q.trim();
+      const narrowed = typeFilter !== 'all' || q.trim() || statusFilter !== 'active';
       toast.success(
         narrowed
-          ? `Chart downloaded · ${period.label} · current search and type`
+          ? `Chart downloaded · ${period.label} · current search, type, and status`
           : `Chart downloaded · ${period.label}`
       );
     } catch (err) {
@@ -151,7 +195,28 @@ function Inner() {
     }
   }
 
-  const posting = accounts.filter((account) => !account.is_header);
+  const visibleAccounts = useMemo(
+    () =>
+      accounts.filter((account) => {
+        if (!accountMatchesCoaStatus(account, statusFilter)) return false;
+        if (partyFilter === 'all') return true;
+        const kind = classifyCoaParty(account);
+        if (partyFilter === 'customers') return isCustomerCoaKind(kind);
+        if (partyFilter === 'suppliers') return isSupplierCoaKind(kind);
+        return true;
+      }),
+    [accounts, partyFilter, statusFilter]
+  );
+  const accountsById = useMemo(
+    () => new Map(accounts.map((account) => [Number(account.id), account] as const)),
+    [accounts]
+  );
+  const filtersNarrowed =
+    Boolean(q.trim()) ||
+    typeFilter !== 'all' ||
+    partyFilter !== 'all' ||
+    statusFilter !== 'active';
+  const posting = visibleAccounts.filter((account) => !account.is_header);
   const periodDebit = posting.reduce(
     (sum, account) => sum + Number(account.period_debit || 0),
     0
@@ -261,6 +326,9 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        acc.is_active === false ? 'Account reactivated' : 'Account marked inactive'
+      );
       void load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -365,32 +433,53 @@ function Inner() {
           <option value="customers">Customers (AR) only</option>
           <option value="suppliers">Suppliers (AP) only</option>
         </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as CoaStatusFilter)}
+          aria-label="Status"
+          className="rounded-2xl border border-neutral-200 px-3 py-2.5 text-sm bg-white"
+        >
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="all">All statuses</option>
+        </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 mb-4">
         <AccountingStat
           label="Accounts"
-          value={String(accounts.length)}
+          value={String(visibleAccounts.length)}
           sub={period.label}
         />
         <AccountingStat
           label="Active"
-          value={String(accounts.filter((a) => a.is_active !== false).length)}
+          value={String(statusCounts.active)}
+          onClick={() => setStatusFilter('active')}
+          pressed={statusFilter === 'active'}
+          sub={statusFilter === 'active' ? 'Showing active' : 'Show active'}
+        />
+        <AccountingStat
+          label="Inactive"
+          value={String(statusCounts.inactive)}
+          countBadge
+          onClick={() => setStatusFilter('inactive')}
+          pressed={statusFilter === 'inactive'}
+          sub={statusFilter === 'inactive' ? 'Showing inactive' : 'Show inactive'}
         />
         <AccountingStat label="Period debits" value={formatMoney(periodDebit)} />
         <AccountingStat label="Period credits" value={formatMoney(periodCredit)} />
       </div>
-      {accounts.length > 0 ? (
+      {visibleAccounts.length > 0 ? (
         <div className="grid gap-4 lg:grid-cols-2 mb-4 print:hidden">
           <ChartCard title="By type" subtitle="Account count" height={220}>
             <MixDoughnut
               segments={ACCOUNT_TYPES.map((t) => ({
                 label: t.label,
-                value: accounts.filter((a) => String(a.account_type) === t.value)
+                value: visibleAccounts.filter((a) => String(a.account_type) === t.value)
                   .length,
               })).filter((s) => s.value > 0)}
               centerLabel="CoA"
-              centerValue={String(accounts.length)}
+              centerValue={String(visibleAccounts.length)}
             />
           </ChartCard>
           <ChartCard
@@ -401,13 +490,13 @@ function Inner() {
             <MixDoughnut
               segments={ACCOUNT_TYPES.map((t) => ({
                 label: t.label,
-                value: accounts
+                value: visibleAccounts
                   .filter((a) => String(a.account_type) === t.value)
                   .reduce((s, a) => s + Math.abs(Number(a.balance || 0)), 0),
               })).filter((s) => s.value > 0)}
               centerLabel="Books"
               centerValue={formatMoney(
-                accounts.reduce((s, a) => s + Math.abs(Number(a.balance || 0)), 0)
+                visibleAccounts.reduce((s, a) => s + Math.abs(Number(a.balance || 0)), 0)
               )}
             />
           </ChartCard>
@@ -430,14 +519,16 @@ function Inner() {
           <div className="flex justify-center py-16">
             <Loader2 className="w-7 h-7 animate-spin text-[#00b4d8]" />
           </div>
-        ) : accounts.length === 0 ? (
+        ) : visibleAccounts.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <p className="text-sm text-neutral-500 mb-4">
-              {q.trim() || typeFilter !== 'all'
-                ? 'No accounts match this search or type. Clear the filter to see the full chart.'
-                : 'No accounts yet. Seed a full starter chart or add your first account.'}
+              {statusFilter === 'inactive' && !q.trim() && typeFilter === 'all'
+                ? 'No inactive accounts. Accounts you switch off show up here, each with a Reactivate button.'
+                : filtersNarrowed
+                  ? 'No accounts match this search, type, or status. Clear the filter to see the chart.'
+                  : 'No accounts yet. Seed a full starter chart or add your first account.'}
             </p>
-            {q.trim() || typeFilter !== 'all' ? null : (
+            {filtersNarrowed ? null : (
               <button
                 type="button"
                 onClick={() => void seedDefaults()}
@@ -472,24 +563,13 @@ function Inner() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-50">
-                {accounts
-                  .filter((a) => {
-                    if (partyFilter === 'all') return true;
-                    const kind = classifyCoaParty(a);
-                    if (partyFilter === 'customers') return isCustomerCoaKind(kind);
-                    if (partyFilter === 'suppliers') return isSupplierCoaKind(kind);
-                    return true;
-                  })
-                  .map((a) => {
-                  const byId = new Map(
-                    accounts.map((x) => [Number(x.id), x] as const)
-                  );
+                {visibleAccounts.map((a) => {
                   let depth = 0;
                   let pid = a.parent_id != null ? Number(a.parent_id) : 0;
                   const seen = new Set<number>();
-                  while (pid && byId.has(pid) && !seen.has(pid) && depth < 8) {
+                  while (pid && accountsById.has(pid) && !seen.has(pid) && depth < 8) {
                     seen.add(pid);
-                    const parent = byId.get(pid);
+                    const parent = accountsById.get(pid);
                     depth += 1;
                     pid = parent?.parent_id ? Number(parent.parent_id) : 0;
                   }
@@ -558,18 +638,25 @@ function Inner() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => void toggleActive(a)}
-                        className="text-neutral-400 hover:text-[#00b4d8]"
-                        title="Toggle active"
-                      >
-                        {a.is_active === false ? (
-                          <ToggleLeft className="w-5 h-5" />
-                        ) : (
+                      {a.is_active === false ? (
+                        <button
+                          type="button"
+                          onClick={() => void toggleActive(a)}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-bold tracking-wide text-slate-800 hover:border-slate-500"
+                        >
+                          <ToggleLeft className="h-4 w-4" aria-hidden />
+                          Reactivate
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void toggleActive(a)}
+                          className="text-neutral-400 hover:text-[#00b4d8]"
+                          title="Mark inactive"
+                        >
                           <ToggleRight className="w-5 h-5 text-[#00b4d8]" />
-                        )}
-                      </button>
+                        </button>
+                      )}
                     </td>
                   </tr>
                   );
