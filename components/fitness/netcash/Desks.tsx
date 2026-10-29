@@ -92,7 +92,7 @@ export function CollectionsDesk({
           ) : (
             <p className="mt-2 text-sm text-slate-500">Nobody is held for an unpaid debit order.</p>
           )}
-          <p className="mt-3 text-xs text-slate-500">Holds show on GymAdvisor® check-in when access suspension is on.</p>
+          <p className="mt-3 text-xs text-slate-500">An unpaid debit warns at GymAdvisor® check-in. Access stays open.</p>
         </section>
       </div>
       <MemberTable lines={lines} statementHref={statementHref} />
@@ -202,6 +202,7 @@ export function RunsDesk({ runs, audit }: { runs: BillingRun[]; audit: AuditEven
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">{run.periodKey}</p>
                 <h2 className="text-xl font-black text-[#0f172a]">Action date {run.actionDate}</h2>
                 <p className="mt-1 max-w-xl text-sm text-slate-600">{run.actionDateNote}</p>
+                <p className="mt-1 text-sm font-bold text-[#0f172a]">{run.approvedAt ? `Approved ${run.approvedAt.slice(0, 16).replace('T', ' ')}` : 'Needs owner approval before submit'}</p>
               </div>
               <Pill>{run.status}</Pill>
             </div>
@@ -237,7 +238,7 @@ export function SettingsDesk({ settings }: { settings: NetcashSettings }) {
         <h2 className="text-sm font-black text-[#0f172a]">Merchant account</h2>
         <p className="mt-2 font-mono text-lg font-black">{settings.merchantAccount || 'Not set'}</p>
         <p className="mt-3 text-sm text-slate-600">
-          Debit Order service key {settings.serviceKeyConfigured ? `on file ···· ${settings.serviceKeyLast4}` : 'not stored'}. The key is never sent back to this screen.
+          Debit Order service key {settings.serviceKeyConfigured ? `on file ···· ${settings.serviceKeyLast4}` : 'not stored'}. Account service key {settings.accountKeyConfigured ? `on file ···· ${settings.accountKeyLast4}` : 'not stored'}. Neither key is sent back to this screen.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <span className={btn}>Test</span>
@@ -250,8 +251,8 @@ export function SettingsDesk({ settings }: { settings: NetcashSettings }) {
           <li>Cadence {settings.cadence}, debit day {settings.debitDay}</li>
           <li>Cut-off {String(settings.cutoffHourSast).padStart(2, '0')}:{String(settings.cutoffMinute).padStart(2, '0')} SAST, {settings.leadBusinessDays} business days before</li>
           <li>VAT {settings.vatBps / 100}% {settings.pricesIncludeVat ? 'included in the member price' : 'added on top'}</li>
-          <li>Auto-submit {settings.autoSubmit ? 'on' : 'off'} · retries {settings.retryMaxAttempts}</li>
-          <li>Late fee {formatZar(settings.lateFeeCents)} · access hold {settings.autoSuspendAccess ? 'on' : 'off'}</li>
+          <li>Auto-submit {settings.autoSubmit ? 'on' : 'off'}. Every run still needs owner approval.</li>
+          <li>Retries {settings.retryMaxAttempts} · failed-debit fee {formatZar(settings.lateFeeCents)}</li>
         </ul>
       </section>
       <section className="rounded-3xl border border-slate-200 bg-white p-4">

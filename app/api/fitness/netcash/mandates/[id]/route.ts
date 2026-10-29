@@ -18,7 +18,7 @@ export async function PATCH(request: NextRequest, context: MandateCtx) {
   if (!STATUSES.has(status)) return NextResponse.json({ error: 'Status must be pending, active, suspended, or cancelled.' }, { status: 400 });
   try {
     const loaded = await loadBillable(companyId).catch(() => ({ gymName: 'GymAdvisor®', members: [] }));
-    const mandate = await changeMandateStatus(netcashDeps(loaded.gymName), {
+    const mandate = await changeMandateStatus(netcashDeps(loaded.gymName, companyId), {
       companyId,
       mandateId: id,
       status: status as MandateStatus,

@@ -65,8 +65,8 @@ export function mockAccountValidation(accountNumber: string, branchCode: string)
   return { status: 'valid', ref, message: 'Account accepted in Netcash test mode.' };
 }
 
-export function validateSettingsPatch(input: Partial<NetcashSettings> & { serviceKey?: string }): { ok: true; patch: Partial<NetcashSettings> & { serviceKey?: string } } | { ok: false; error: string } {
-  const patch: Partial<NetcashSettings> & { serviceKey?: string } = {};
+export function validateSettingsPatch(input: Partial<NetcashSettings> & { serviceKey?: string; accountKey?: string }): { ok: true; patch: Partial<NetcashSettings> & { serviceKey?: string; accountKey?: string } } | { ok: false; error: string } {
+  const patch: Partial<NetcashSettings> & { serviceKey?: string; accountKey?: string } = {};
   if (input.merchantAccount != null) {
     const merchant = String(input.merchantAccount).trim();
     if (merchant.length > 40) return { ok: false, error: 'Merchant account is too long.' };
@@ -121,6 +121,11 @@ export function validateSettingsPatch(input: Partial<NetcashSettings> & { servic
     const key = String(input.serviceKey).trim();
     if (key && (key.length < 8 || key.length > 80)) return { ok: false, error: 'Service key looks invalid.' };
     patch.serviceKey = key;
+  }
+  if (input.accountKey != null) {
+    const key = String(input.accountKey).trim();
+    if (key && (key.length < 8 || key.length > 80)) return { ok: false, error: 'Account service key looks invalid.' };
+    patch.accountKey = key;
   }
   for (const flag of ['pricesIncludeVat', 'autoSubmit', 'autoSuspendAccess', 'dunningEmail', 'allowAmountVariance'] as const) {
     if (input[flag] != null) patch[flag] = input[flag] === true;

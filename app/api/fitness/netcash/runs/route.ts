@@ -24,8 +24,13 @@ export async function POST(request: NextRequest) {
   if (!gate.ok) return gate.response;
   try {
     const loaded = await loadBillable(companyId);
-    const deps = netcashDeps(loaded.gymName);
+    const deps = netcashDeps(loaded.gymName, companyId);
     const action = String(body.action || 'preview');
+    if (action === 'approve') {
+      const { approveBilling } = await import('@/lib/fitness/netcash/service');
+      const run = await approveBilling(deps, { companyId, runId: String(body.runId || ''), actor: gate.auth.userId });
+      return NextResponse.json({ run });
+    }
     if (action === 'submit') {
       const result = await submitBilling(deps, {
         companyId,

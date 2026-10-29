@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       if (!companyAllowed(companyId).ok) continue;
       try {
         const loaded = await loadBillable(companyId);
-        const deps = netcashDeps(loaded.gymName);
+        const deps = netcashDeps(loaded.gymName, companyId);
         const preview = await runScheduled(deps, { companyId, members: loaded.members });
         if (preview.run.status === 'submitted' || preview.run.status === 'polling') {
           await pollBilling(deps, { companyId, runId: preview.run.id, actor: 'cron' });

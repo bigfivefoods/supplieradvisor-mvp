@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   if (!gate.ok) return gate.response;
   try {
     const loaded = await loadBillable(companyId).catch(() => ({ gymName: 'GymAdvisor®', members: [] }));
-    const mandate = await captureMandate(netcashDeps(loaded.gymName), {
+    const mandate = await captureMandate(netcashDeps(loaded.gymName, companyId), {
       companyId,
       memberId: String(body.memberId || ''),
       memberName: String(body.memberName || ''),

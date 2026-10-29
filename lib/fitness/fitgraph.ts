@@ -1179,13 +1179,13 @@ export function evaluateMemberAccess(
 
   if (opts?.debitHold) {
     return {
-      level: 'blocked',
+      level: 'allowed_with_warning',
       payment_ok: false,
       membership_status: membership,
       subscription_status: subStatus,
       plan_name: plan?.name || null,
-      alert: 'Debit order unpaid — GymAdvisor® access held',
-      member_message: 'Your debit order is unpaid. Please speak to reception.',
+      alert: 'Debit order unpaid — GymAdvisor® access stays open',
+      member_message: 'Checked in. Please settle the unpaid debit order with reception.',
       frozen: false,
       period_end: periodEnd,
       bank_ok: bankOk,

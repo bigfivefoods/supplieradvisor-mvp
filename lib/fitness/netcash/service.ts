@@ -26,6 +26,9 @@ export type ServiceDeps = {
   sealAccount?: (companyId: number, mandateId: string, account: string) => string | null;
   openAccount?: (companyId: number, mandate: Mandate) => string | null;
   sealFile?: (companyId: number, body: string) => string | null;
+  sealAccountKey?: (companyId: number, key: string) => string | null;
+  openServiceKey?: (companyId: number, settings: NetcashSettings) => string | null;
+  openAccountKey?: (companyId: number, settings: NetcashSettings) => string | null;
   gymName?: string;
 };
 
@@ -66,7 +69,8 @@ export async function updateSettings(
   const parsed = validateSettingsPatch(patch as Parameters<typeof validateSettingsPatch>[0]);
   if (!parsed.ok) throw new Error(parsed.error);
   const next = { ...current, ...parsed.patch, updatedAt: nowOf(deps).toISOString(), updatedBy: actor };
-  delete (next as { serviceKey?: string }).serviceKey;
+  delete (next as { serviceKey?: string; accountKey?: string }).serviceKey;
+  delete (next as { accountKey?: string }).accountKey;
   if (parsed.patch.serviceKey) {
     const seal = deps.sealServiceKey;
     if (!seal) throw new Error('The debit order encryption key is not set.');
@@ -75,6 +79,15 @@ export async function updateSettings(
     next.serviceKeyEnc = sealed;
     next.serviceKeyLast4 = parsed.patch.serviceKey.slice(-4);
     next.serviceKeyConfigured = true;
+  }
+  if (parsed.patch.accountKey) {
+    const seal = deps.sealAccountKey;
+    if (!seal) throw new Error('The debit order encryption key is not set.');
+    const sealed = seal(companyId, parsed.patch.accountKey);
+    if (!sealed) throw new Error('The debit order encryption key is not set.');
+    next.accountKeyEnc = sealed;
+    next.accountKeyLast4 = parsed.patch.accountKey.slice(-4);
+    next.accountKeyConfigured = true;
   }
   await deps.repo.saveSettings(next);
   const id = idOf(deps);
@@ -118,6 +131,7 @@ export async function captureMandate(
     branchCode: parsed.branchCode,
     accountType: parsed.accountType,
     accountHolder: input.mandate.accountHolder.trim(),
+    accountServiceKey: deps.openAccountKey?.(input.companyId, settings) || '',
   });
   const status = remote.ok ? remote.status : 'error';
   const nowIso = nowOf(deps).toISOString();
@@ -225,13 +239,15 @@ async function uploadMasterfile(deps: ServiceDeps, companyId: number, mandate: M
   const settings = await loadSettings(deps, companyId);
   const account = deps.openAccount?.(companyId, mandate) || '';
   if (!account) throw new Error('The bank account could not be opened. Check the encryption key.');
-  const serviceKey = 'test-service-key';
+  const serviceKey = openedKey(deps, companyId, settings);
   const file = buildMasterfile({
     serviceKey,
+    batchName: `Master ${mandate.netcashRef}`,
+    actionDate: mandate.startsOn || sastStamp(nowOf(deps)).date,
     mandates: [{ ...mandate, accountNumber: account }],
   });
   const client = (deps.clientFor || createNetcashClient)(settings.mode);
-  const uploaded = await client.uploadMasterfile({ sha256: file.sha256, count: file.count });
+  const uploaded = await client.uploadMasterfile({ sha256: file.sha256, count: file.count, fileBody: file.body });
   if (!uploaded.ok) throw new Error(uploaded.error);
   const sealed = deps.sealFile?.(companyId, file.body) || '';
   const nowIso = nowOf(deps).toISOString();
@@ -324,6 +340,8 @@ export async function previewBilling(
     fileSha256: '',
     submittedAt: null,
     reconciledAt: null,
+    approvedAt: null,
+    approvedBy: '',
     createdBy: input.actor,
     error: '',
     createdAt: existing?.createdAt || nowIso,
@@ -356,6 +374,9 @@ export async function submitBilling(
   if (!current) throw new Error('Billing run not found.');
   if (current.status === 'submitted' || current.status === 'reconciled' || current.status === 'cancelled') {
     return { run: current, lines: await deps.repo.listLines(input.companyId, current.id) };
+  }
+  if (!current.approvedAt || !current.approvedBy) {
+    throw new Error('Approve this billing run before it can be submitted.');
   }
   const job = await deps.repo.claimJob(
     {
@@ -426,12 +447,18 @@ export async function submitBilling(
     let batchId = '';
     let sha = '';
     if (rows.length) {
-      const file = buildDebitBatchFile({ serviceKey: 'test-service-key', actionDate: current.actionDate, rows });
+      const file = buildDebitBatchFile({
+        serviceKey: openedKey(deps, input.companyId, settings),
+        actionDate: current.actionDate,
+        batchName: `GYM ${current.periodKey}`,
+        rows,
+      });
       sha = file.sha256;
       const sealed = deps.sealFile?.(input.companyId, file.body) || '';
       const submitted = await client.submitDebitBatch({
         sha256: file.sha256,
         actionDate: current.actionDate,
+        fileBody: file.body,
         rows: rows.map((row) => ({ netcashRef: row.netcashRef, amountCents: row.amountCents, accountNumber: row.accountNumber })),
       });
       if (!submitted.ok) throw new Error(submitted.error);
@@ -513,11 +540,21 @@ export async function pollBilling(
     .filter((line) => line.collectionStatus === 'submitted' && line.mandateId)
     .map((line) => {
       const mandate = mandates.find((item) => item.id === line.mandateId);
-      return { netcashRef: mandate?.netcashRef || '', accountNumber: mandate ? accounts.get(mandate.id) || '' : '' };
+      return {
+        netcashRef: mandate?.netcashRef || '',
+        accountNumber: mandate ? accounts.get(mandate.id) || '' : '',
+        memberId: line.memberId,
+        invoiceNumber: line.invoiceNumber,
+      };
     })
     .filter((row) => row.netcashRef);
   const client = (deps.clientFor || createNetcashClient)(settings.mode);
-  const fetched = await client.fetchResults({ batchId: run.netcashBatchId, rows });
+  const fetched = await client.fetchResults({
+    batchId: run.netcashBatchId,
+    actionDate: run.actionDate,
+    accountServiceKey: deps.openAccountKey?.(input.companyId, settings) || '',
+    rows,
+  });
   if (!fetched.ok) {
     await deps.repo.finishJob(job.job.id, { status: 'failed', lastError: fetched.error });
     throw new Error(fetched.error);
@@ -612,9 +649,43 @@ export async function collectionsOverview(deps: ServiceDeps, companyId: number) 
   return summariseCollections(runs, lines);
 }
 
+export async function approveBilling(
+  deps: ServiceDeps,
+  input: { companyId: number; runId: string; actor: string }
+): Promise<BillingRun> {
+  const allowed = companyAllowed(input.companyId);
+  if (!allowed.ok) throw new Error(allowed.error);
+  const run = (await deps.repo.listRuns(input.companyId)).find((row) => row.id === input.runId);
+  if (!run) throw new Error('Billing run not found.');
+  if (run.status !== 'preview' && run.status !== 'polling' && run.status !== 'failed') {
+    throw new Error('This run can no longer be approved.');
+  }
+  const nowIso = nowOf(deps).toISOString();
+  const next = { ...run, approvedAt: nowIso, approvedBy: input.actor, updatedAt: nowIso };
+  await deps.repo.saveRun(next);
+  await audit(deps.repo, {
+    id: idOf(deps)(),
+    companyId: input.companyId,
+    actor: input.actor,
+    action: 'run.approve',
+    entity: 'run',
+    entityId: run.id,
+    ip: '',
+    detail: { actionDate: run.actionDate, expectedCents: run.expectedCents },
+    createdAt: nowIso,
+  });
+  return next;
+}
+
 export async function runScheduled(deps: ServiceDeps, input: { companyId: number; members: BillableMember[] }) {
   const settings = await loadSettings(deps, input.companyId);
   const preview = await previewBilling(deps, { companyId: input.companyId, members: input.members, actor: 'cron' });
-  if (!settings.autoSubmit || preview.run.status !== 'preview') return preview;
+  if (!settings.autoSubmit || !preview.run.approvedAt || preview.run.status !== 'preview') return preview;
   return submitBilling(deps, { companyId: input.companyId, runId: preview.run.id, actor: 'cron', members: input.members });
+}
+
+function openedKey(deps: ServiceDeps, companyId: number, settings: NetcashSettings): string {
+  const key = deps.openServiceKey?.(companyId, settings) || '';
+  if (!key) throw new Error('The Debit Order service key could not be opened.');
+  return key;
 }

@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (!client) return NextResponse.json({ error: 'This member link is not valid.' }, { status: 404 });
   try {
     const gymName = String(loaded.store.settings?.brand_name || 'GymAdvisor®');
-    const mandate = await captureMandate(netcashDeps(gymName), {
+    const mandate = await captureMandate(netcashDeps(gymName, loaded.companyId), {
       companyId: loaded.companyId,
       memberId: client.id,
       memberName: client.name,

@@ -63,6 +63,10 @@ export function serviceKeyAad(companyId: number): string {
   return `gym-netcash-service-key:${companyId}`;
 }
 
+export function accountServiceKeyAad(companyId: number): string {
+  return `gym-netcash-account-service-key:${companyId}`;
+}
+
 export function accountAad(companyId: number, mandateId: string): string {
   return `gym-netcash-account:${companyId}:${mandateId}`;
 }

@@ -24,7 +24,7 @@ import { memoryRepo } from './memory';
 import { summariseCollections } from './overview';
 import { canManageNetcash } from './permissions';
 import { reasonInfo } from './reasons';
-import { captureMandate, changeMandateStatus, pollBilling, previewBilling, submitBilling, updateSettings, type ServiceDeps } from './service';
+import { approveBilling, captureMandate, changeMandateStatus, pollBilling, previewBilling, submitBilling, updateSettings, type ServiceDeps } from './service';
 import type { BillableMember } from './types';
 import { createNetcashClient } from './client';
 import { evaluateMemberAccess, emptyFitgraphStore } from '../fitgraph';
@@ -46,6 +46,8 @@ function deps(): ServiceDeps {
     sealAccount: (companyId, mandateId, account) => sealSecret(account, KEY!, accountAad(companyId, mandateId)),
     openAccount: (companyId, mandate) => openSecret(mandate.accountNumberEnc, KEY!, accountAad(companyId, mandate.id)),
     sealFile: (companyId, body) => sealSecret(body, KEY!, `gym-netcash-file:${companyId}`),
+    openServiceKey: (companyId, settings) =>
+      settings.serviceKeyEnc ? openSecret(settings.serviceKeyEnc, KEY!, serviceKeyAad(companyId)) : null,
     mailer: async () => ({ ok: true }),
   };
 }
@@ -220,6 +222,11 @@ const preview = await previewBilling(book, { companyId: 901, members, actor: 'ow
 assert.equal(preview.run.status, 'preview');
 assert.equal(preview.run.actionDate, '2026-11-02');
 assert.equal(preview.lines.find((line) => line.memberId === 'fresh')?.collectionStatus, 'skipped');
+await assert.rejects(
+  () => submitBilling(book, { companyId: 901, runId: preview.run.id, actor: 'owner', members }),
+  /Approve this billing run/
+);
+await approveBilling(book, { companyId: 901, runId: preview.run.id, actor: 'owner' });
 const submitted = await submitBilling(book, { companyId: 901, runId: preview.run.id, actor: 'owner', members });
 assert.equal(submitted.run.status, 'submitted');
 assert.ok(submitted.run.netcashBatchId.startsWith('DO-TEST-'));
@@ -267,7 +274,7 @@ assert.match(flow, /hidden/);
 assert.match(flow, /GymAdvisor®/);
 assert.equal(flow.includes('#ffffff'), false);
 
-const migration = readFileSync('supabase/migrations/20261046_gym_netcash_debit_orders.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20261047_gym_netcash_debit_orders.sql', 'utf8');
 assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
 assert.match(migration, /gym_netcash_owner_admin/);
 assert.match(migration, /service_key_enc/);
@@ -294,16 +301,19 @@ const blocked = evaluateMemberAccess(
   { id: 'm', name: 'Member', active: true, created_at: '2026-01-01' } as never,
   { debitHold: true }
 );
-assert.equal(blocked.level, 'blocked');
-assert.match(blocked.alert || '', /GymAdvisor®/);
+assert.equal(blocked.level, 'allowed_with_warning');
+assert.match(blocked.alert || '', /access stays open/);
 
 const file = buildDebitBatchFile({
   serviceKey: 'TEST-KEY',
   actionDate: '2026-11-02',
-  rows: [{ netcashRef: 'G1', accountHolder: 'A', accountType: 'cheque', branchCode: '051001', accountNumber: '1002003014', amountCents: 89000, memberId: 'paid', invoiceNumber: 'GYM-00001' }],
+  batchName: 'GYM 2026-11',
+  rows: [{ netcashRef: 'G1', accountName: 'Amahle', accountHolder: 'A', accountType: 'cheque', branchCode: '051001', accountNumber: '1002003014', amountCents: 89000, memberId: 'paid', invoiceNumber: 'GYM-00001' }],
 });
-assert.match(file.body, /^H\tTEST-KEY\t1\t20261102/);
-assert.match(file.body, /F\t1\t89000/);
+assert.match(file.body, /^H\tTEST-KEY\t1\tTwoDay\tGYM 2026-11\t20261102\t/);
+assert.match(file.body, /K\t101\t102\t131\t132\t133\t134\t135\t136\t162\t301\t302/);
+assert.match(file.body, /T\tG1\tAmahle\t1\tA\t1\t051001\t0\t1002003014\t89000\tpaid\tGYM-00001/);
+assert.match(file.body, /F\t1\t89000\t9999/);
 assert.equal(file.sha256.length, 64);
 
 await assert.rejects(() => previewBilling(book, { companyId: 110, members: [], actor: 'owner' }), /locked/i);

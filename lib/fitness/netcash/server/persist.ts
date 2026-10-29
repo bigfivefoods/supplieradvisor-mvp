@@ -14,7 +14,7 @@ import type {
 } from '@/lib/fitness/netcash/types';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 
-const MIGRATION = '20261046_gym_netcash_debit_orders.sql';
+const MIGRATION = '20261047_gym_netcash_debit_orders.sql';
 const CHUNK = 400;
 
 function gate(companyId: number) {
@@ -37,6 +37,9 @@ function settingsFrom(row: Record<string, unknown>): NetcashSettings {
     serviceKeyEnc: row.service_key_enc ? String(row.service_key_enc) : null,
     serviceKeyLast4: String(row.service_key_last4 || ''),
     serviceKeyConfigured: Boolean(row.service_key_enc),
+    accountKeyEnc: row.account_key_enc ? String(row.account_key_enc) : null,
+    accountKeyLast4: String(row.account_key_last4 || ''),
+    accountKeyConfigured: Boolean(row.account_key_enc),
     mode: row.mode === 'live' ? 'live' : 'test',
     debitDay: Number(row.debit_day || 1),
     cadence: row.cadence === 'weekly' || row.cadence === 'fortnightly' ? row.cadence : 'monthly',
@@ -69,6 +72,8 @@ function settingsTo(settings: NetcashSettings) {
     merchant_account: settings.merchantAccount,
     service_key_enc: settings.serviceKeyEnc,
     service_key_last4: settings.serviceKeyLast4,
+    account_key_enc: settings.accountKeyEnc,
+    account_key_last4: settings.accountKeyLast4,
     mode: settings.mode,
     debit_day: settings.debitDay,
     cadence: settings.cadence,
@@ -188,6 +193,8 @@ function runFrom(row: Record<string, unknown>): BillingRun {
     fileSha256: String(row.file_sha256 || ''),
     submittedAt: row.submitted_at ? String(row.submitted_at) : null,
     reconciledAt: row.reconciled_at ? String(row.reconciled_at) : null,
+    approvedAt: row.approved_at ? String(row.approved_at) : null,
+    approvedBy: String(row.approved_by || ''),
     createdBy: String(row.created_by || ''),
     error: String(row.error || ''),
     createdAt: String(row.created_at || ''),
@@ -218,6 +225,8 @@ function runTo(run: BillingRun) {
     file_sha256: run.fileSha256,
     submitted_at: run.submittedAt,
     reconciled_at: run.reconciledAt,
+    approved_at: run.approvedAt,
+    approved_by: run.approvedBy,
     created_by: run.createdBy,
     error: run.error,
     created_at: run.createdAt,

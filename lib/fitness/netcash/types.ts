@@ -44,6 +44,9 @@ export type NetcashSettings = {
   serviceKeyEnc: string | null;
   serviceKeyLast4: string;
   serviceKeyConfigured: boolean;
+  accountKeyEnc: string | null;
+  accountKeyLast4: string;
+  accountKeyConfigured: boolean;
   mode: NetcashMode;
   debitDay: number;
   cadence: BillingCadence;
@@ -195,6 +198,8 @@ export type BillingRun = {
   fileSha256: string;
   submittedAt: string | null;
   reconciledAt: string | null;
+  approvedAt: string | null;
+  approvedBy: string;
   createdBy: string;
   error: string;
   createdAt: string;

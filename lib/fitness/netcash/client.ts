@@ -11,10 +11,10 @@ export type ValidationRequest = { accountNumber: string; branchCode: string; acc
 
 export type NetcashClient = {
   mode: 'test' | 'live' | 'blocked';
-  validateAccount(input: ValidationRequest): Promise<{ ok: true; status: 'valid' | 'invalid'; ref: string; message: string } | { ok: false; error: string }>;
-  uploadMasterfile(input: { sha256: string; count: number }): Promise<{ ok: true; batchId: string } | { ok: false; error: string }>;
-  submitDebitBatch(input: { sha256: string; actionDate: string; rows: Array<Pick<BatchRow, 'netcashRef' | 'amountCents' | 'accountNumber'>> }): Promise<{ ok: true; batchId: string } | { ok: false; error: string }>;
-  fetchResults(input: { batchId: string; rows: Array<Pick<BatchRow, 'netcashRef' | 'accountNumber'>> }): Promise<{ ok: true; results: BatchLineResult[] } | { ok: false; error: string }>;
+  validateAccount(input: ValidationRequest & { accountServiceKey?: string }): Promise<{ ok: true; status: 'valid' | 'invalid' | 'error'; ref: string; message: string } | { ok: false; error: string }>;
+  uploadMasterfile(input: { sha256: string; count: number; fileBody?: string }): Promise<{ ok: true; batchId: string } | { ok: false; error: string }>;
+  submitDebitBatch(input: { sha256: string; actionDate: string; rows: Array<Pick<BatchRow, 'netcashRef' | 'amountCents' | 'accountNumber'>>; fileBody?: string }): Promise<{ ok: true; batchId: string } | { ok: false; error: string }>;
+  fetchResults(input: { batchId: string; actionDate?: string; accountServiceKey?: string; rows: Array<Pick<BatchRow, 'netcashRef' | 'accountNumber'> & { memberId?: string; invoiceNumber?: string }> }): Promise<{ ok: true; results: BatchLineResult[] } | { ok: false; error: string }>;
 };
 
 const LIVE_ERROR = 'Live Netcash calls are disabled. Keep the gym in test mode. No money is sent.';

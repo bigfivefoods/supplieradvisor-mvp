@@ -120,13 +120,13 @@ export function RunsLive() {
   const [busy, setBusy] = useState(false);
   if (loading || book.error) return <Note loading={loading} error={book.error} />;
   const preview = (book.runs || []).find((run) => run.status === 'preview' || run.status === 'polling' || run.status === 'submitted');
-  async function act(action: 'preview' | 'submit' | 'poll') {
+  async function act(action: 'preview' | 'approve' | 'submit' | 'poll') {
     setBusy(true);
     setNote('');
     try {
       if (action === 'preview') await postJson('/api/fitness/netcash/runs', { action: 'preview' });
       else if (preview) await postJson(`/api/fitness/netcash/runs/${preview.id}`, { action });
-      setNote(action === 'preview' ? 'Preview updated.' : action === 'submit' ? 'Batch submitted in test mode.' : 'Results fetched.');
+      setNote(action === 'preview' ? 'Preview updated.' : action === 'approve' ? 'This run is approved. It can be submitted.' : action === 'submit' ? 'Batch submitted in test mode.' : 'Results fetched.');
     } catch (error) {
       setNote(error instanceof Error ? error.message : 'Request failed.');
     } finally {
@@ -137,6 +137,7 @@ export function RunsLive() {
     <div>
       <div className="mb-4 flex flex-wrap gap-2">
         <button type="button" className={btn} disabled={busy} onClick={() => void act('preview')}>Preview run</button>
+        <button type="button" className={ghost} disabled={busy || !preview} onClick={() => void act('approve')}>Approve run</button>
         <button type="button" className={ghost} disabled={busy || !preview} onClick={() => void act('submit')}>Submit batch</button>
         <button type="button" className={ghost} disabled={busy || !preview} onClick={() => void act('poll')}>Fetch results</button>
         <a className={ghost} href={`/api/fitness/netcash/export?companyId=${getSelectedCompanyId() || ''}&format=csv`}>Export CSV</a>

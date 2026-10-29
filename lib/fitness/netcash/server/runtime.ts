@@ -5,7 +5,9 @@ import {
   legacyPrivyFrom,
   requireCompanyRoles,
 } from '@/lib/auth/api-auth';
-import { accountAad, encryptionKey, openSecret, sealSecret, serviceKeyAad } from '@/lib/fitness/netcash/crypto';
+import { accountAad, accountServiceKeyAad, encryptionKey, openSecret, sealSecret, serviceKeyAad } from '@/lib/fitness/netcash/crypto';
+import { createNetcashClient } from '@/lib/fitness/netcash/client';
+import { createNiwsCaller } from '@/lib/fitness/netcash/niws-http';
 import { companyAllowed } from '@/lib/fitness/netcash/guard';
 import type { ServiceDeps } from '@/lib/fitness/netcash/service';
 import { supabaseInvoices } from '@/lib/fitness/netcash/server/books';
@@ -44,15 +46,81 @@ export async function requireNetcashAdmin(request: NextRequest, companyId: numbe
   return { ok: true as const, auth, ip: clientIp(request) };
 }
 
-export function netcashDeps(gymName?: string): ServiceDeps {
+export function netcashDeps(gymName?: string, companyId?: number): ServiceDeps {
   const key = encryptionKey();
   return {
     repo: supabaseNetcashRepo(),
     invoices: supabaseInvoices(),
     gymName,
+    clientFor(mode) {
+      if (process.env.GYM_NETCASH_ALLOW_NETWORK === '1' && companyId) {
+        const caller = createNiwsCaller({
+          mode,
+          companyId,
+          fetchImpl: async (url, init) => {
+            const response = await fetch(url, { ...init, redirect: 'manual' });
+            return { status: response.status, body: await response.text() };
+          },
+        });
+        const mock = createNetcashClient(mode);
+        return {
+          ...mock,
+          async validateAccount(input) {
+            const { validateWithNetcash } = await import('@/lib/fitness/netcash/niws-http');
+            const accountServiceKey = String((input as { accountServiceKey?: string }).accountServiceKey || '');
+            if (!accountServiceKey) return mock.validateAccount(input);
+            return validateWithNetcash(caller, { ...input, accountServiceKey });
+          },
+          async uploadMasterfile(input) {
+            if (!input.fileBody) return { ok: false, error: 'The masterfile was not built.' };
+            const { uploadNiwsFile } = await import('@/lib/fitness/netcash/niws-http');
+            const serviceKey = headerKey(input.fileBody);
+            const uploaded = await uploadNiwsFile(caller, serviceKey, input.fileBody, headerBatch(input.fileBody));
+            return uploaded.ok ? { ok: true, batchId: uploaded.fileToken } : uploaded;
+          },
+          async submitDebitBatch(input) {
+            if (!input.fileBody) return { ok: false, error: 'The debit batch was not built.' };
+            const { uploadNiwsFile } = await import('@/lib/fitness/netcash/niws-http');
+            const uploaded = await uploadNiwsFile(caller, headerKey(input.fileBody), input.fileBody, headerBatch(input.fileBody));
+            return uploaded.ok ? { ok: true, batchId: uploaded.fileToken } : uploaded;
+          },
+          async fetchResults(input) {
+            const { readStatement, resultsFromStatement } = await import('@/lib/fitness/netcash/niws-http');
+            const accountServiceKey = input.accountServiceKey || '';
+            if (!accountServiceKey) return { ok: false, error: 'Store the Netcash account service key before fetching a statement.' };
+            const statement = await readStatement(caller, accountServiceKey, input.actionDate || '');
+            if (!statement.ok) return statement;
+            return {
+              ok: true,
+              results: resultsFromStatement(
+                statement.body,
+                input.rows.map((row) => ({
+                  netcashRef: row.netcashRef,
+                  memberId: row.memberId || '',
+                  invoiceNumber: row.invoiceNumber || '',
+                }))
+              ),
+            };
+          },
+        };
+      }
+      return createNetcashClient(mode);
+    },
     sealServiceKey(companyId, value) {
       if (!key) return null;
       return sealSecret(value, key, serviceKeyAad(companyId));
+    },
+    sealAccountKey(companyId, value) {
+      if (!key) return null;
+      return sealSecret(value, key, accountServiceKeyAad(companyId));
+    },
+    openServiceKey(companyId, settings) {
+      if (!key || !settings.serviceKeyEnc) return null;
+      return openSecret(settings.serviceKeyEnc, key, serviceKeyAad(companyId));
+    },
+    openAccountKey(companyId, settings) {
+      if (!key || !settings.accountKeyEnc) return null;
+      return openSecret(settings.accountKeyEnc, key, accountServiceKeyAad(companyId));
     },
     sealAccount(companyId, mandateId, account) {
       if (!key) return null;
@@ -97,6 +165,14 @@ export async function loadBillable(companyId: number) {
       subscriptions: loaded.store.subscriptions || [],
     }),
   };
+}
+
+function headerKey(fileBody: string): string {
+  return fileBody.split('\t')[1] || '';
+}
+
+function headerBatch(fileBody: string): string {
+  return fileBody.split('\t')[4] || '';
 }
 
 export function publicError(error: unknown) {

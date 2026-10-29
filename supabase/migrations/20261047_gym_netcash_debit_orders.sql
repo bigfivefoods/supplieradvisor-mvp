@@ -17,7 +17,7 @@ REVOKE ALL ON SCHEMA app_private FROM PUBLIC;
 DO $need_auth$
 BEGIN
   IF to_regnamespace('auth') IS NULL OR to_regprocedure('auth.uid()') IS NULL THEN
-    RAISE EXCEPTION '20261046 requires auth.uid()';
+    RAISE EXCEPTION '20261047 requires auth.uid()';
   END IF;
 END
 $need_auth$;
@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS public.gym_netcash_settings (
   merchant_account text NOT NULL DEFAULT '',
   service_key_enc text,
   service_key_last4 text NOT NULL DEFAULT '',
+  account_key_enc text,
+  account_key_last4 text NOT NULL DEFAULT '',
   mode text NOT NULL DEFAULT 'test',
   debit_day integer NOT NULL DEFAULT 1,
   cadence text NOT NULL DEFAULT 'monthly',
@@ -148,6 +150,8 @@ CREATE TABLE IF NOT EXISTS public.gym_billing_runs (
   file_sha256 text NOT NULL DEFAULT '',
   submitted_at timestamptz,
   reconciled_at timestamptz,
+  approved_at timestamptz,
+  approved_by text NOT NULL DEFAULT '',
   created_by text NOT NULL DEFAULT '',
   error text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT pg_catalog.now(),

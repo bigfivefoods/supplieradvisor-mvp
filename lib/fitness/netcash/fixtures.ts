@@ -12,6 +12,9 @@ export const sampleSettings: NetcashSettings = {
   serviceKeyEnc: null,
   serviceKeyLast4: '7K2Q',
   serviceKeyConfigured: true,
+  accountKeyEnc: null,
+  accountKeyLast4: '',
+  accountKeyConfigured: false,
   mode: 'test',
   debitDay: 1,
   cadence: 'monthly',
@@ -25,7 +28,7 @@ export const sampleSettings: NetcashSettings = {
   lateFeeCents: 0,
   retryMaxAttempts: 2,
   autoSubmit: false,
-  autoSuspendAccess: true,
+  autoSuspendAccess: false,
   dunningEmail: true,
   allowAmountVariance: true,
   glBankCode: '1110',
@@ -129,7 +132,7 @@ export const sampleLines: BillingLine[] = [
     invoiceNumber: 'GYM-00043',
     netcashReasonCode: '12',
     netcashReasonText: 'Account closed',
-    accessSuspended: true,
+    accessSuspended: false,
   }),
   line({
     id: 'ln_sam',
@@ -171,6 +174,8 @@ export const sampleRuns: BillingRun[] = [
     fileSha256: 'abc123',
     submittedAt: '2026-09-29T08:00:00.000Z',
     reconciledAt: null,
+    approvedAt: '2026-09-29T07:50:00.000Z',
+    approvedBy: 'owner',
     createdBy: 'owner',
     error: '',
     createdAt: NOW,
@@ -198,6 +203,8 @@ export const sampleRuns: BillingRun[] = [
     fileSha256: '',
     submittedAt: null,
     reconciledAt: null,
+    approvedAt: null,
+    approvedBy: '',
     createdBy: 'owner',
     error: '',
     createdAt: NOW,
@@ -249,18 +256,7 @@ function mandate(memberId: string, name: string, status: Mandate['status'], last
   };
 }
 
-export const sampleHolds: AccessHold[] = [
-  {
-    id: 'hold_lindiwe',
-    companyId: SAMPLE_COMPANY_ID,
-    memberId: 'm_lindiwe',
-    memberName: 'Lindiwe Dlamini',
-    reason: 'Account closed',
-    active: true,
-    createdAt: NOW,
-    releasedAt: null,
-  },
-];
+export const sampleHolds: AccessHold[] = [];
 
 export const sampleAudit: AuditEvent[] = [
   {
