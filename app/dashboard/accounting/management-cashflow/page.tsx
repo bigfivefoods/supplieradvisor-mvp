@@ -23,6 +23,7 @@ import type {
   ManagementCashflow,
   ManagementCashTxn,
 } from '@/lib/accounting/management-cashflow';
+import { fetchAllChartOfAccounts } from '@/lib/accounting/fetch-chart-accounts';
 
 type ChartPick = {
   id: number;
@@ -70,19 +71,20 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed to build cash flow');
       setStatement(data.statement || null);
       if (data.statement?.warning) toast.message(data.statement.warning);
-      const coaParams = new URLSearchParams({
-        companyId: String(companyId),
-        balances: '0',
-        limit: '500',
-      });
-      if (privyUserId) coaParams.set('privyUserId', privyUserId);
-      const coaRes = await fetch(`/api/accounting/chart-of-accounts?${coaParams}`);
-      const coa = await coaRes.json().catch(() => ({}));
-      if (coaRes.ok) {
+      try {
+        const coaParams = new URLSearchParams({
+          companyId: String(companyId),
+        });
+        if (privyUserId) coaParams.set('privyUserId', privyUserId);
+        const coa = await fetchAllChartOfAccounts(coaParams, { picker: true });
         setChart(
-          ((coa as { accounts?: ChartPick[] }).accounts || []).filter(
-            (account) => !account.is_header
-          )
+          (coa.accounts || []).filter((account) => !account.is_header)
+        );
+        if (coa.warning) toast.message(coa.warning);
+      } catch (coaErr) {
+        setChart([]);
+        toast.message(
+          coaErr instanceof Error ? coaErr.message : 'GL accounts did not load'
         );
       }
     } catch (err) {

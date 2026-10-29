@@ -254,6 +254,11 @@ jobs:
           set -euo pipefail
           npx --yes tsx lib/sales-contractor/company-records.test.ts
           npx --yes tsx lib/sales-contractor/agreement-party.test.ts
+      - name: Chart of accounts picker tests
+        run: |
+          set -euo pipefail
+          npx --yes tsx lib/accounting/coa-list.test.ts
+          npx --yes tsx lib/accounting/coa-picker.test.ts
 
   trade-portal-db:
     name: trade portal Postgres

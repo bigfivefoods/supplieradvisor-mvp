@@ -5,8 +5,19 @@
  */
 
 export const PARTY_LEAF_RE = /^(1180|2180|4400)-/;
+/**
+ * Historical silent cap (Brief 15 / PR #55). Do not apply this when `limit`
+ * is omitted — pickers that forgot `?limit` were losing accounts such as 6900.
+ */
 export const COA_LIST_DEFAULT = 50;
+/** Largest page a single response will return when the client asks for a page. */
 export const COA_LIST_MAX = 500;
+/**
+ * Lean columns for GL pickers. No description, entity, sort, or balance fields.
+ * `subtype` stays so AR/AP grouping in the allocation dropdown still works.
+ */
+export const COA_PICKER_SELECT =
+  'id, code, name, account_type, subtype, parent_id, is_active, is_header, is_system, normal_balance, tax_code';
 
 export type CoaListRow = {
   code?: string | null;
@@ -16,10 +27,94 @@ export type CoaListRow = {
   is_active?: boolean | null;
 };
 
-export function parseCoaListLimit(raw: string | null | undefined): number {
+/**
+ * Explicit `?limit=` page size, capped at COA_LIST_MAX.
+ * Omitted, blank, or non-positive means "do not slice" — never the old default of 50.
+ */
+export function parseCoaListLimit(raw: string | null | undefined): number | null {
+  if (raw == null || String(raw).trim() === '') return null;
   const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return COA_LIST_DEFAULT;
+  if (!Number.isFinite(n) || n <= 0) return null;
   return Math.min(Math.floor(n), COA_LIST_MAX);
+}
+
+/** Picker pages default to the max page, never the historical 50. */
+export function parseCoaPickerLimit(raw: string | null | undefined): number {
+  return parseCoaListLimit(raw) ?? COA_LIST_MAX;
+}
+
+export function parseCoaListOffset(raw: string | null | undefined): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.floor(n);
+}
+
+export type CoaListPage<T> = {
+  rows: T[];
+  total: number;
+  limit: number | null;
+  offset: number;
+  hasMore: boolean;
+};
+
+/** Slice a filtered chart. `limit: null` returns the remainder and sets hasMore false. */
+export function sliceCoaList<T>(
+  rows: readonly T[],
+  opts: { limit: number | null; offset?: number }
+): CoaListPage<T> {
+  const total = rows.length;
+  const offset = Math.max(0, Math.floor(opts.offset || 0));
+  if (opts.limit == null) {
+    return {
+      rows: offset > 0 ? rows.slice(offset) : rows.slice(),
+      total,
+      limit: null,
+      offset,
+      hasMore: false,
+    };
+  }
+  const limit = Math.max(0, Math.floor(opts.limit));
+  const page = rows.slice(offset, offset + limit);
+  return {
+    rows: page,
+    total,
+    limit,
+    offset,
+    hasMore: offset + page.length < total,
+  };
+}
+
+const COA_PICKER_PAGE_GUARD = 40;
+
+/**
+ * Walk every page until hasMore is false. Page size may be the old default
+ * of 50 or COA_LIST_MAX — the tail account is still included.
+ */
+export function collectCoaPages<T>(
+  rows: readonly T[],
+  pageSize: number
+): { rows: T[]; pages: number; total: number; truncated: boolean } {
+  const out: T[] = [];
+  let offset = 0;
+  let pages = 0;
+  let total = rows.length;
+  let truncated = false;
+  while (pages < COA_PICKER_PAGE_GUARD) {
+    const page = sliceCoaList(rows, { limit: pageSize, offset });
+    total = page.total;
+    pages += 1;
+    out.push(...page.rows);
+    if (!page.hasMore) {
+      return { rows: out, pages, total, truncated: false };
+    }
+    if (page.rows.length === 0) {
+      truncated = true;
+      break;
+    }
+    offset += page.rows.length;
+  }
+  if (offset < total) truncated = true;
+  return { rows: out, pages, total, truncated };
 }
 
 export function isPartyLeafCode(code?: string | null): boolean {

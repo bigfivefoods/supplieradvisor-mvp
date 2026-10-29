@@ -38,6 +38,7 @@ import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts
 import PeriodSlicer from '@/components/accounting/PeriodSlicer';
 import { FinanceWorkspaceNote } from '@/components/accounting/FinanceWorkspaceNote';
 import { useAccountingPeriod } from '@/lib/accounting/use-period';
+import { fetchAllChartOfAccounts } from '@/lib/accounting/fetch-chart-accounts';
 
 export default function ChartOfAccountsPage() {
   return (
@@ -57,6 +58,9 @@ function Inner() {
     'full_fy'
   );
   const [accounts, setAccounts] = useState<CoaAccount[]>([]);
+  const [listMeta, setListMeta] = useState<{ total: number; truncated: boolean } | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [seeding, setSeeding] = useState(false);
@@ -86,14 +90,16 @@ function Inner() {
       if (privyUserId) params.set('privyUserId', privyUserId);
       if (typeFilter !== 'all') params.set('type', typeFilter);
       if (q) params.set('q', q);
-      params.set('limit', '500');
-      const res = await fetch(`/api/accounting/chart-of-accounts?${params}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load chart');
+      const data = await fetchAllChartOfAccounts(params, { picker: false });
       setAccounts(data.accounts || []);
+      setListMeta({
+        total: data.total,
+        truncated: data.truncated || data.hasMore,
+      });
       if (data.warning) toast.message(data.warning, { description: data.hint });
     } catch (err) {
       setAccounts([]);
+      setListMeta(null);
       toast.error(err instanceof Error ? err.message : 'Failed to load chart');
     } finally {
       setLoading(false);
@@ -414,6 +420,11 @@ function Inner() {
         the balance at period end, positive when the account is in its normal
         sign.
       </p>
+      {listMeta?.truncated ? (
+        <p className="mb-3 text-[11px] leading-relaxed text-amber-800">
+          Showing {accounts.length} of {listMeta.total} accounts. The list was cut off.
+        </p>
+      ) : null}
       <Panel>
         {loading ? (
           <div className="flex justify-center py-16">

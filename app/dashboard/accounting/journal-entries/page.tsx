@@ -48,6 +48,7 @@ import {
   type JournalReviewFlag,
 } from '@/lib/accounting/journal-review';
 import { journalIsReversed } from '@/lib/accounting/journal-status';
+import { fetchAllChartOfAccounts } from '@/lib/accounting/fetch-chart-accounts';
 
 type LineForm = {
   account_id: string;
@@ -127,22 +128,25 @@ function Inner() {
       if (statusFilter !== 'all') params.set('status', statusFilter);
       params.set('from', period.from);
       params.set('to', period.to);
-      const [jeRes, coaRes] = await Promise.all([
+      const coaParams = new URLSearchParams({ companyId: String(companyId) });
+      if (privyUserId) coaParams.set('privyUserId', privyUserId);
+      const [jeRes, coaData] = await Promise.all([
         fetch(`/api/accounting/journals?${params}`),
-        fetch(
-          `/api/accounting/chart-of-accounts?companyId=${companyId}&balances=0${
-            privyUserId ? `&privyUserId=${encodeURIComponent(privyUserId)}` : ''
-          }`
-        ),
+        fetchAllChartOfAccounts(coaParams, { picker: true }).catch((err: unknown) => {
+          toast.message(err instanceof Error ? err.message : 'GL accounts did not load');
+          return null;
+        }),
       ]);
       const jeData = await jeRes.json();
-      const coaData = await coaRes.json();
       setEntries(jeData.entries || []);
-      setAccounts(
-        (coaData.accounts || []).filter(
-          (a: CoaAccount) => !a.is_header && a.is_active !== false
-        )
-      );
+      if (coaData) {
+        setAccounts(
+          (coaData.accounts || []).filter(
+            (a: CoaAccount) => !a.is_header && a.is_active !== false
+          )
+        );
+        if (coaData.warning) toast.message(coaData.warning);
+      }
       if (jeData.warning) toast.message(jeData.warning);
     } catch {
       setEntries([]);

@@ -16,12 +16,16 @@ import {
 } from '@/lib/accounting/coa-xlsx';
 import {
   getCachedCoa,
+  getCachedCoaPicker,
   invalidateAccountingReads,
 } from '@/lib/accounting/read-cache';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import {
   filterOperatingCoa,
   parseCoaListLimit,
+  parseCoaListOffset,
+  parseCoaPickerLimit,
+  sliceCoaList,
 } from '@/lib/accounting/coa-list';
 
 export const runtime = 'nodejs';
@@ -86,6 +90,8 @@ async function chartOfAccountsGet(request: NextRequest) {
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
 
+    const picker = request.nextUrl.searchParams.get('picker') === '1';
+
     let seeded = 0;
     let seedWarning: string | undefined;
     if (seed) {
@@ -94,7 +100,9 @@ async function chartOfAccountsGet(request: NextRequest) {
       seedWarning = r.warning;
       if (seeded) invalidateAccountingReads(companyId);
     }
-    let accounts = await getCachedCoa(companyId);
+    let accounts = picker
+      ? await getCachedCoaPicker(companyId)
+      : await getCachedCoa(companyId);
     if (type && type !== 'all') {
       accounts = accounts.filter((a) => a.account_type === type);
     }
@@ -107,25 +115,37 @@ async function chartOfAccountsGet(request: NextRequest) {
     });
 
     const exporting = format === 'xlsx';
-    if (!exporting) {
-      const limit = parseCoaListLimit(request.nextUrl.searchParams.get('limit'));
-      const offset = Math.max(
-        0,
-        Number(request.nextUrl.searchParams.get('offset') || 0) || 0
-      );
-      accounts = accounts.slice(offset, offset + limit);
-    }
+    const limit = exporting
+      ? null
+      : picker
+        ? parseCoaPickerLimit(request.nextUrl.searchParams.get('limit'))
+        : parseCoaListLimit(request.nextUrl.searchParams.get('limit'));
+    const offset = exporting
+      ? 0
+      : parseCoaListOffset(request.nextUrl.searchParams.get('offset'));
+    const page = sliceCoaList(accounts, { limit, offset });
+    accounts = page.rows;
+    const listMeta = {
+      total: page.total,
+      limit: page.limit,
+      offset: page.offset,
+      hasMore: page.hasMore,
+    };
 
-    // Journal totals stay opt-in for pickers. The chart page and .xlsx send a period.
+    // Pickers never compute balances. The chart page and .xlsx send a period.
     const wantBalances =
-      exporting ||
-      request.nextUrl.searchParams.get('balances') === '1' ||
-      Boolean(from && to);
+      !picker &&
+      (exporting ||
+        request.nextUrl.searchParams.get('balances') === '1' ||
+        Boolean(from && to));
 
     if (!wantBalances) {
       return NextResponse.json({
         success: true,
-        accounts: accounts.map((account) => ({ ...account, balance: 0 })),
+        accounts: picker
+          ? accounts
+          : accounts.map((account) => ({ ...account, balance: 0 })),
+        ...listMeta,
         seeded,
         warning: seedWarning,
       });
@@ -187,6 +207,7 @@ async function chartOfAccountsGet(request: NextRequest) {
     return NextResponse.json({
       success: true,
       accounts: view,
+      ...listMeta,
       seeded,
       warning: seedWarning || totalsWarning,
       period: from && to ? { from, to, label: request.nextUrl.searchParams.get('label') } : null,
