@@ -554,10 +554,25 @@ export type FitClient = {
   end_date?: string | null;
   /**
    * Private / PT client of an assigned coach (vs general gym member).
-   * Shown on the members list with the coach name.
+   * The live book treats this as true only when a coach is actually assigned
+   * (`coach_ids` or legacy `private_client` + `coach_id`). A stored true with
+   * no coach is a data-quality mismatch, not a private client.
    */
   private_client?: boolean;
   coach_id?: string | null;
+  /** Private coaches. `coach_id` stays the first id for older screens. */
+  coach_ids?: string[] | null;
+  /**
+   * Classes this person is on, in addition to whatever their plan unlocks.
+   * Omitted means “derive from the plan”. An empty array means none explicit.
+   */
+  class_type_ids?: string[] | null;
+  /** Per-class start and end. Missing dates mean open-ended. */
+  class_assignments?: Array<{
+    class_type_id: string;
+    start_date?: string | null;
+    end_date?: string | null;
+  }> | null;
   /** Agreed class rate (ZAR / month). Null = use the class list price. */
   agreed_rate_zar?: number | null;
   /** Agreed private / PT rate with the assigned coach (ZAR / month). */
@@ -665,6 +680,8 @@ export type FitSubscription = {
   started_at: string;
   current_period_end?: string | null;
   cancel_at?: string | null;
+  /** Last day this person is on this class (YYYY-MM-DD). Null means open-ended. */
+  ends_on?: string | null;
   /** Credits remaining this period (null = unlimited) */
   class_credits_remaining?: number | null;
   auto_renew?: boolean;
@@ -1687,6 +1704,22 @@ export interface FitgraphStore {
   journey_events?: FitJourneyEvent[];
   member_stories?: FitMemberStory[];
   consent_shares?: FitConsentShare[];
+  /** Append-only record of member merges. The JSON book is the source of truth. */
+  member_merge_audit?: Array<{
+    id: string;
+    at: string;
+    actor_user_id?: string | null;
+    keeper_id: string;
+    donor_ids: string[];
+    reasons: string[];
+    moved: {
+      subscriptions: number;
+      bookings: number;
+      class_type_ids: string[];
+      coach_ids: string[];
+      gym_sales: number;
+    };
+  }>;
   settings?: FitPublicSettings;
   updated_at?: string;
 }

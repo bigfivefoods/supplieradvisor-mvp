@@ -191,9 +191,14 @@ export function computeCoachPerformance(
       ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10
       : null;
 
-  const privateClients = store.clients.filter(
-    (c) => c.active !== false && c.private_client && c.coach_id === coachId
-  );
+  const privateClients = store.clients.filter((c) => {
+    if (c.active === false) return false;
+    const coaches = [
+      ...(c.coach_ids || []),
+      ...(c.private_client === true && c.coach_id ? [c.coach_id] : []),
+    ];
+    return coaches.includes(coachId);
+  });
 
   const rel = {
     strong: 0,
@@ -279,12 +284,19 @@ export function privateClientsForCoach(
   coachId: string
 ): FitClient[] {
   return store.clients
-    .filter(
-      (c) =>
-        c.active !== false &&
-        c.private_client === true &&
-        c.coach_id === coachId
-    )
+    .filter((c) => {
+      if (
+        c.active === false ||
+        (c.private_client !== true && !(c.coach_ids || []).length)
+      ) {
+        return false;
+      }
+      const coaches = [
+        ...(c.coach_ids || []),
+        ...(c.private_client === true && c.coach_id ? [c.coach_id] : []),
+      ];
+      return coaches.includes(coachId);
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

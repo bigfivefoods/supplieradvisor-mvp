@@ -391,7 +391,7 @@ if ('error' in perClass) throw new Error(perClass.error);
 const bevSaved = store.clients.find((c) => c.id === 'cli_bev')!;
 assert.equal(bevSaved.name, 'Beverly');
 assert.equal(bevSaved.email, 'bev@test.com');
-assert.equal(bevSaved.phone, '0821110000');
+assert.equal(bevSaved.phone, '+27821110000');
 assert.match(String(bevSaved.notes), /Sibling rate/);
 assert.equal(bevSaved.private_rate_zar, 900);
 assert.equal(bevSaved.agreed_rate_zar, 1200);

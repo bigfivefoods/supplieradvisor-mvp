@@ -62,7 +62,6 @@ import {
 } from '@/lib/fitness/fitgraph';
 import { parseQualifications } from '@/lib/services/person-qualifications';
 import { upsertMovement, upsertProgramme } from '@/lib/fitness/movements';
-import { buildDemoShopProgramme } from '@/lib/fitness/demo-shop-programme';
 import {
   enrollClientOnProgramme,
   upsertProgrammeLog,
@@ -335,6 +334,74 @@ async function fitgraphGet(request: NextRequest) {
       checkIns: request.nextUrl.searchParams.get('check_ins'),
     });
 
+    const directory = request.nextUrl.searchParams.get('directory');
+    if (
+      directory === 'members' ||
+      directory === 'quality' ||
+      directory === 'duplicates'
+    ) {
+      const today = isoDateInZone(store.settings?.timezone || GYM_DEFAULT_TZ);
+      const {
+        queryMemberDirectory,
+        memberQualityIssues,
+        buildMemberCleanupReport,
+      } = await import('@/lib/fitness/member-directory');
+      if (directory === 'members') {
+        const page = Number(request.nextUrl.searchParams.get('page'));
+        const pageSize = Number(request.nextUrl.searchParams.get('pageSize'));
+        const role = String(request.nextUrl.searchParams.get('role') || 'all');
+        const status = String(request.nextUrl.searchParams.get('status') || 'active');
+        const result = queryMemberDirectory(store, {
+          role:
+            role === 'private' ||
+            role === 'class' ||
+            role === 'both' ||
+            role === 'neither'
+              ? role
+              : 'all',
+          status:
+            status === 'inactive' || status === 'all' ? status : 'active',
+          classId: request.nextUrl.searchParams.get('classId') || '',
+          coachId: request.nextUrl.searchParams.get('coachId') || '',
+          q: request.nextUrl.searchParams.get('q') || '',
+          page: Number.isFinite(page) ? page : 1,
+          pageSize: Number.isFinite(pageSize) ? pageSize : 25,
+          today,
+        });
+        return NextResponse.json(
+          { success: true, directory: result },
+          { headers: { 'Cache-Control': 'private, no-store' } }
+        );
+      }
+      if (directory === 'quality') {
+        const issues = memberQualityIssues(store, today);
+        const pageSize = 25;
+        const page = Math.max(
+          1,
+          Number(request.nextUrl.searchParams.get('page')) || 1
+        );
+        return NextResponse.json({
+          success: true,
+          directory: {
+            issues: issues.slice((page - 1) * pageSize, page * pageSize),
+            total: issues.length,
+            page,
+            pageSize,
+            pages: Math.max(1, Math.ceil(issues.length / pageSize)),
+          },
+        });
+      }
+      const report = buildMemberCleanupReport(store, today);
+      return NextResponse.json({
+        success: true,
+        directory: {
+          merges: report.merges,
+          manual_reviews: report.manual_reviews,
+          counts: report.counts,
+        },
+      });
+    }
+
     const exportKind = request.nextUrl.searchParams.get('export');
     if (exportKind === 'clients' || exportKind === 'clients_template') {
       const templateOnly = exportKind === 'clients_template';
@@ -446,20 +513,15 @@ async function postFitgraph(request: NextRequest) {
     rememberFitgraphBaseline(store);
 
     if (action === 'seed_demo') {
-      const demo = seedDemo(now, companyId);
-      const withCatalog = await persistVukaCatalogIfNeeded(
-        companyId,
-        demo,
-        async () => undefined,
-        { seed: await vukaMemberSeedFor(companyId, demo) }
-      );
+      const withCatalog = store;
       await saveStore(companyId, meta, withCatalog);
       return NextResponse.json({
         success: true,
-        store: withCatalog,
-        summary: summariseFitgraph(withCatalog),
-        analysis: analysis(withCatalog),
-        message: 'Demo gym loaded',
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        message:
+          'GymAdvisor® uses this company’s live book. Demo members are not loaded.',
       });
     }
 
@@ -587,7 +649,68 @@ async function postFitgraph(request: NextRequest) {
           { status: 400 }
         );
       }
-      const result = applyFitClientImport(store, parsed.rows, now);
+      const { findPossibleDuplicates, validateMemberFields } = await import(
+        '@/lib/fitness/member-directory'
+      );
+      if (body.acknowledge_duplicates !== true) {
+        const dupes: Array<{
+          row: number;
+          client_id: string;
+          name: string;
+          code: string;
+          reasons: string[];
+          manual_review: boolean;
+        }> = [];
+        for (const row of parsed.rows) {
+          const codeKey = String(row.code || '').trim().toLowerCase();
+          const emailKey = String(row.email || '').trim().toLowerCase();
+          const self = (store.clients || []).find((c) => {
+            if (codeKey && String(c.code || '').toLowerCase() === codeKey) return true;
+            if (emailKey && String(c.email || '').toLowerCase() === emailKey) return true;
+            return false;
+          });
+          const hits = findPossibleDuplicates(store, {
+            id: self?.id,
+            name: row.name,
+            email: row.email,
+            phone: row.phone,
+          });
+          for (const hit of hits) dupes.push({ row: row.row, ...hit });
+        }
+        if (dupes.length) {
+          return NextResponse.json(
+            {
+              error: 'possible_duplicate',
+              message: 'Possible duplicate members in this import',
+              duplicates: dupes,
+            },
+            { status: 409 }
+          );
+        }
+      }
+      for (const row of parsed.rows) {
+        const checked = validateMemberFields({
+          name: row.name,
+          email: row.email,
+          phone: row.phone,
+          emergency_contact: row.emergency_contact,
+          membership_status: row.membership_status,
+        }, { requireName: true });
+        if (!checked.ok) {
+          parsed.errors.push(
+            `Row ${row.row}: ${checked.issues.map((i) => i.message).join('; ')}`
+          );
+        } else {
+          if (checked.value.email !== undefined) row.email = checked.value.email || undefined;
+          if (checked.value.phone !== undefined) row.phone = checked.value.phone || undefined;
+          if (checked.value.name) row.name = checked.value.name;
+        }
+      }
+      const cleanRows = parsed.rows.filter(
+        (row) =>
+          !parsed.errors.some((e) => e.startsWith(`Row ${row.row}:`))
+      );
+      const result = applyFitClientImport(store, cleanRows, now);
       const { attachCrmToAdvisorPerson } = await import(
         '@/lib/b2c/member-account-ar'
       );
@@ -1515,6 +1638,31 @@ async function postFitgraph(request: NextRequest) {
           ? body.private_client === true
           : undefined,
         coachId: body.coach_id ? String(body.coach_id) : null,
+        coachIds: Array.isArray(body.coach_ids)
+          ? (body.coach_ids as unknown[]).map((id) => String(id || ''))
+          : undefined,
+        classTypeIds: Array.isArray(body.class_type_ids)
+          ? (body.class_type_ids as unknown[]).map((id) => String(id || ''))
+          : undefined,
+        classAssignments: Array.isArray(body.class_assignments)
+          ? (body.class_assignments as Array<Record<string, unknown>>).map(
+              (row) => ({
+                class_type_id: String(row.class_type_id || ''),
+                start_date:
+                  row.start_date != null ? String(row.start_date) : null,
+                end_date: row.end_date != null ? String(row.end_date) : null,
+              })
+            )
+          : undefined,
+        planWindows:
+          body.plan_windows &&
+          typeof body.plan_windows === 'object' &&
+          !Array.isArray(body.plan_windows)
+            ? (body.plan_windows as Record<
+                string,
+                { start?: string | null; end?: string | null }
+              >)
+            : undefined,
         person,
         inactive,
         now,
@@ -1564,6 +1712,72 @@ async function postFitgraph(request: NextRequest) {
                 result.booked === 1 ? '' : 'es'
               } on the calendar`
             : 'Allocated',
+      });
+    }
+
+    if (action === 'merge_members') {
+      const { mergeKeptFitClients } = await import(
+        '@/lib/fitness/merge-fit-clients'
+      );
+      const merged = mergeKeptFitClients(store, {
+        keeper_id: String(body.keeper_id || ''),
+        donor_ids: Array.isArray(body.donor_ids)
+          ? (body.donor_ids as unknown[]).map((id) => String(id || ''))
+          : [],
+        reasons: Array.isArray(body.reasons)
+          ? (body.reasons as unknown[]).map((id) => String(id || ''))
+          : [],
+        actor_user_id: gate.ok ? gate.userId : null,
+        now,
+      });
+      if ('error' in merged) {
+        return NextResponse.json({ error: merged.error }, { status: 400 });
+      }
+      let invoicesMoved = 0;
+      try {
+        const supabase = getSupabaseServer();
+        for (const move of merged.invoice_customer_ids) {
+          const { count } = await supabase
+            .from('customer_invoices')
+            .update({ customer_id: move.to })
+            .eq('profile_id', companyId)
+            .eq('customer_id', move.from);
+          invoicesMoved += Number(count) || 0;
+        }
+      } catch {
+        /* Invoice rows stay put if the ledger is unavailable. The book merge is kept. */
+      }
+      await savePatchForKeys(
+        companyId,
+        meta,
+        store,
+        'clients',
+        'subscriptions',
+        'bookings',
+        'check_ins',
+        'pt_packs',
+        'class_feedback',
+        'gym_sales',
+        'watch_sessions',
+        'goals',
+        'journey_events',
+        'member_stories',
+        'consent_shares',
+        'programme_enrollments',
+        'programme_logs',
+        'threads',
+        'member_merge_audit',
+        'removed_ids'
+      );
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        keeper_id: merged.keeper_id,
+        donor_ids: merged.donor_ids,
+        invoices_moved: invoicesMoved,
+        message: 'Duplicates merged into the kept member',
       });
     }
 
@@ -3258,6 +3472,89 @@ async function postFitgraph(request: NextRequest) {
       entity === 'clients' &&
       (!existingClientId ||
         !store.clients.some((c) => c.id === existingClientId));
+    if (entity === 'clients') {
+      const { validateMemberFields, findPossibleDuplicates } = await import(
+        '@/lib/fitness/member-directory'
+      );
+      const checked = validateMemberFields(
+        {
+          name: rec.name != null ? String(rec.name) : undefined,
+          email: rec.email != null ? String(rec.email) : undefined,
+          phone: rec.phone != null ? String(rec.phone) : undefined,
+          id_number: rec.id_number != null ? String(rec.id_number) : undefined,
+          date_of_birth:
+            rec.date_of_birth != null ? String(rec.date_of_birth) : undefined,
+          next_of_kin:
+            rec.next_of_kin != null ? String(rec.next_of_kin) : undefined,
+          next_of_kin_phone:
+            rec.next_of_kin_phone != null
+              ? String(rec.next_of_kin_phone)
+              : undefined,
+          next_of_kin_relationship:
+            rec.next_of_kin_relationship != null
+              ? String(rec.next_of_kin_relationship)
+              : undefined,
+          emergency_contact:
+            rec.emergency_contact != null
+              ? String(rec.emergency_contact)
+              : undefined,
+          membership_status:
+            rec.membership_status != null
+              ? String(rec.membership_status)
+              : undefined,
+        },
+        { requireName: clientWasNew || rec.name !== undefined }
+      );
+      if (!checked.ok) {
+        return NextResponse.json(
+          {
+            error: checked.issues[0]?.message || 'Check the member details',
+            issues: checked.issues,
+          },
+          { status: 400 }
+        );
+      }
+      if (checked.value.name) rec.name = checked.value.name;
+      if (checked.value.email !== undefined) rec.email = checked.value.email;
+      if (checked.value.phone !== undefined) rec.phone = checked.value.phone;
+      if (checked.value.id_number !== undefined) {
+        rec.id_number = checked.value.id_number;
+      }
+      if (checked.value.date_of_birth !== undefined) {
+        rec.date_of_birth = checked.value.date_of_birth;
+      }
+      if (checked.value.next_of_kin_phone !== undefined) {
+        rec.next_of_kin_phone = checked.value.next_of_kin_phone;
+      }
+      const identityTouched =
+        clientWasNew ||
+        rec.email !== undefined ||
+        rec.phone !== undefined ||
+        rec.date_of_birth !== undefined ||
+        rec.id_number !== undefined ||
+        rec.name !== undefined;
+      if (identityTouched && body.acknowledge_duplicates !== true) {
+        const hits = findPossibleDuplicates(store, {
+          id: existingClientId || undefined,
+          name: rec.name != null ? String(rec.name) : undefined,
+          email: rec.email != null ? String(rec.email) : undefined,
+          phone: rec.phone != null ? String(rec.phone) : undefined,
+          date_of_birth:
+            rec.date_of_birth != null ? String(rec.date_of_birth) : undefined,
+          id_number: rec.id_number != null ? String(rec.id_number) : undefined,
+        });
+        if (hits.length) {
+          return NextResponse.json(
+            {
+              error: 'possible_duplicate',
+              message: 'Possible duplicate member',
+              duplicates: hits,
+            },
+            { status: 409 }
+          );
+        }
+      }
+    }
     upsert(store, entity, rec, now);
 
     let walletInvite: {
@@ -4491,417 +4788,3 @@ function upsert(
   }
 }
 
-function seedDemo(now: string, companyId?: number): FitgraphStore {
-  const today = now.slice(0, 10);
-  const d = (offset: number) => {
-    const x = new Date(today + 'T12:00:00');
-    x.setDate(x.getDate() + offset);
-    return x.toISOString().slice(0, 10);
-  };
-  const c1 = newId('coh');
-  const c2 = newId('coh');
-  const p1 = newId('pln');
-  const p2 = newId('pln');
-  const t1 = newId('cls');
-  const t2 = newId('cls');
-  const t3 = newId('cls');
-  const m1 = newId('cli');
-  const m2 = newId('cli');
-  const m3 = newId('cli');
-  const s1 = newId('ses');
-  const s2 = newId('ses');
-  const s3 = newId('ses');
-  const s4 = newId('ses');
-  const cid = companyId != null && Number.isFinite(companyId) ? companyId : 0;
-  const publicToken =
-    cid > 0
-      ? `fg_${cid}_${Math.random().toString(36).slice(2, 12)}`
-      : `fg_demo_${Math.random().toString(36).slice(2, 12)}`;
-
-  return {
-    settings: {
-      enabled: true,
-      public_token: publicToken,
-      brand_name: 'VUKA Fitness',
-      allow_public_booking: true,
-      show_coaches: true,
-      show_pricing: true,
-      timezone: 'Africa/Johannesburg',
-      contact_email: 'hello@vukafitness.example',
-      contact_phone: '+27 11 000 0000',
-      embed_primary_color: '#E8E830',
-    },
-    coaches: [
-      {
-        id: c1,
-        code: 'TH',
-        name: 'Thandi Mokoena',
-        email: 'thandi@vukafitness.example',
-        phone: '+27 82 000 1111',
-        specialties: ['HIIT', 'Strength'],
-        public_bio: 'HIIT & strength coach — morning energy classes.',
-        portal_token:
-          cid > 0
-            ? issueCoachPortalToken(cid)
-            : `coach_thandi_${Math.random().toString(36).slice(2, 8)}`,
-        can_manage_classes: true,
-        color: '#059669',
-        start_date: d(-90),
-        end_date: null,
-        rate_zar: 350,
-        rate_basis: 'per_class',
-        history: [],
-        active: true,
-        created_at: now,
-      },
-      {
-        id: c2,
-        code: 'JP',
-        name: 'Johan Pretorius',
-        email: 'johan@vukafitness.example',
-        specialties: ['Personal training', 'Functional'],
-        public_bio: 'PT & functional movement.',
-        portal_token:
-          cid > 0
-            ? issueCoachPortalToken(cid)
-            : `coach_johan_${Math.random().toString(36).slice(2, 8)}`,
-        can_manage_classes: true,
-        color: '#0284c7',
-        start_date: d(-60),
-        end_date: null,
-        rate_zar: 450,
-        rate_basis: 'hourly',
-        rate_note: 'PT sessions',
-        history: [
-          {
-            id: 'eng_demo_jp1',
-            start_date: d(-400),
-            end_date: d(-200),
-            note: 'Previous contract',
-            ended_reason: 'contract_end',
-            rate_zar: 380,
-            rate_basis: 'hourly',
-          },
-        ],
-        active: true,
-        created_at: now,
-      },
-    ],
-    membership_plans: [
-      {
-        id: p1,
-        code: 'UNLIM',
-        name: 'Unlimited monthly',
-        price_zar: 899,
-        billing: 'monthly',
-        class_credits: null,
-        public: true,
-        description: 'Unlimited group classes.',
-        active: true,
-        created_at: now,
-      },
-      {
-        id: p2,
-        code: '8PACK',
-        name: '8-class pack',
-        price_zar: 640,
-        billing: 'pack',
-        class_credits: 8,
-        public: true,
-        active: true,
-        created_at: now,
-      },
-    ],
-    subscriptions: [
-      {
-        id: newId('sub'),
-        client_id: m1,
-        plan_id: p1,
-        status: 'active',
-        started_at: d(-30),
-        current_period_end: d(30),
-        class_credits_remaining: null,
-        auto_renew: true,
-        created_at: now,
-        updated_at: now,
-      },
-      {
-        id: newId('sub'),
-        client_id: m2,
-        plan_id: p2,
-        status: 'active',
-        started_at: d(-14),
-        current_period_end: d(60),
-        class_credits_remaining: 5,
-        auto_renew: false,
-        created_at: now,
-        updated_at: now,
-      },
-    ],
-    class_types: [
-      {
-        id: t1,
-        code: 'HIIT45',
-        name: 'HIIT 45',
-        category: 'HIIT',
-        default_duration_min: 45,
-        capacity: 16,
-        active: true,
-        created_at: now,
-      },
-      {
-        id: t2,
-        code: 'STR',
-        name: 'Strength foundations',
-        category: 'Strength',
-        default_duration_min: 50,
-        capacity: 12,
-        active: true,
-        created_at: now,
-      },
-      {
-        id: t3,
-        code: 'YOGA',
-        name: 'Morning yoga',
-        category: 'Yoga',
-        default_duration_min: 60,
-        capacity: 20,
-        active: true,
-        created_at: now,
-      },
-    ],
-    clients: [
-      {
-        id: m1,
-        code: 'M001',
-        name: 'Aisha Nkosi',
-        email: 'aisha@example.com',
-        phone: '+27 83 111 2222',
-        membership_plan_id: p1,
-        membership_status: 'active',
-        start_date: d(-30),
-        coach_id: c2,
-        health: {
-          injured: true,
-          injury_areas: ['Shoulder'],
-          injury_side: 'left',
-          injury_status: 'recovering',
-          injury_onset: d(-21),
-          injury_notes: 'Rotator cuff irritation — mild after overhead work.',
-          training_modifications:
-            'Avoid kipping and heavy overhead press; band external rotations OK.',
-          goals: 'Pain-free overhead press by next month.',
-          pain_score: 3,
-          medical_clearance: true,
-          updated_at: now,
-          updated_by: 'desk',
-        },
-        active: true,
-        created_at: now,
-        updated_at: now,
-      },
-      {
-        id: m2,
-        code: 'M002',
-        name: 'Lebo Dlamini',
-        email: 'lebo@example.com',
-        membership_plan_id: p2,
-        membership_status: 'active',
-        start_date: d(-14),
-        active: true,
-        created_at: now,
-        updated_at: now,
-      },
-      {
-        id: m3,
-        code: 'M003',
-        name: 'Sam van Wyk',
-        membership_plan_id: p1,
-        membership_status: 'trial',
-        start_date: d(-3),
-        coach_id: c1,
-        health: {
-          injured: true,
-          injury_areas: ['Knee'],
-          injury_side: 'right',
-          injury_status: 'acute',
-          injury_onset: d(-5),
-          injury_notes: 'Twinge on lunges — possible patellofemoral irritation.',
-          training_modifications:
-            'No deep lunges or box jumps; bike and glute bridges preferred.',
-          goals: 'Return to HIIT without knee flare-ups.',
-          pain_score: 4,
-          updated_at: now,
-          updated_by: 'desk',
-        },
-        active: true,
-        created_at: now,
-        updated_at: now,
-      },
-    ],
-    sessions: [
-      {
-        id: s1,
-        class_type_id: t1,
-        coach_id: c1,
-        date: today,
-        start_time: '06:00',
-        duration_min: 45,
-        capacity: 16,
-        location: 'Studio A',
-        status: 'scheduled',
-        public: true,
-        share_code: 's_hiit_am',
-        public_notes: 'Bring a mat · all levels',
-        created_at: now,
-      },
-      {
-        id: s2,
-        class_type_id: t2,
-        coach_id: c2,
-        date: today,
-        start_time: '17:30',
-        duration_min: 50,
-        capacity: 12,
-        location: 'Weights floor',
-        status: 'scheduled',
-        public: true,
-        share_code: 's_str_pm',
-        created_at: now,
-      },
-      {
-        id: s3,
-        class_type_id: t3,
-        coach_id: c1,
-        date: d(1),
-        start_time: '07:00',
-        duration_min: 60,
-        capacity: 20,
-        location: 'Studio B',
-        status: 'scheduled',
-        public: true,
-        share_code: 's_yoga_am',
-        created_at: now,
-      },
-      {
-        id: s4,
-        class_type_id: t1,
-        coach_id: c1,
-        date: d(2),
-        start_time: '06:00',
-        duration_min: 45,
-        capacity: 16,
-        location: 'Studio A',
-        status: 'scheduled',
-        public: true,
-        share_code: 's_hiit_wed',
-        created_at: now,
-      },
-    ],
-    bookings: [
-      {
-        id: newId('bkg'),
-        session_id: s1,
-        client_id: m1,
-        status: 'booked',
-        booked_at: now,
-      },
-      {
-        id: newId('bkg'),
-        session_id: s1,
-        client_id: m2,
-        status: 'booked',
-        booked_at: now,
-      },
-      {
-        id: newId('bkg'),
-        session_id: s2,
-        client_id: m1,
-        status: 'booked',
-        booked_at: now,
-      },
-    ],
-    check_ins: [
-      {
-        id: newId('cki'),
-        client_id: m1,
-        date: today,
-        time: '05:55',
-        method: 'front_desk',
-        session_id: s1,
-        created_at: now,
-      },
-    ],
-    pt_packs: [
-      {
-        id: newId('ptp'),
-        client_id: m3,
-        coach_id: c2,
-        sessions_total: 10,
-        sessions_used: 2,
-        purchased_at: d(-10),
-        price_zar: 3500,
-        created_at: now,
-      },
-    ],
-    threads: [
-      {
-        id: newId('thr'),
-        channel: 'coach_member',
-        subject: 'Knee care plan · Sam van Wyk',
-        participants: [
-          { role: 'desk', ref_id: 'desk', name: 'Front desk' },
-          { role: 'coach', ref_id: c1, name: 'Thandi Mokoena' },
-          { role: 'member', ref_id: m3, name: 'Sam van Wyk' },
-        ],
-        messages: [
-          {
-            id: newId('msg'),
-            body: 'Sam flagged a right-knee twinge on lunges — please keep sessions low-impact this week and note any pain.',
-            author_role: 'desk',
-            author_ref_id: 'desk',
-            author_name: 'Front desk',
-            created_at: now,
-            read_by: ['desk:desk'],
-          },
-          {
-            id: newId('msg'),
-            body: 'Got it — bike + glute bridges only. I’ll check in after Thursday HIIT.',
-            author_role: 'coach',
-            author_ref_id: c1,
-            author_name: 'Thandi Mokoena',
-            created_at: now,
-            read_by: [`coach:${c1}`],
-          },
-        ],
-        created_at: now,
-        updated_at: now,
-      },
-      {
-        id: newId('thr'),
-        channel: 'colleague',
-        subject: 'Cover request · Friday AM',
-        participants: [
-          { role: 'desk', ref_id: 'desk', name: 'Front desk' },
-          { role: 'coach', ref_id: c1, name: 'Thandi Mokoena' },
-          { role: 'coach', ref_id: c2, name: 'Coach peer' },
-        ],
-        messages: [
-          {
-            id: newId('msg'),
-            body: 'Can anyone cover the 06:00 HIIT Friday? I’m on leave.',
-            author_role: 'coach',
-            author_ref_id: c1,
-            author_name: 'Thandi Mokoena',
-            created_at: now,
-            read_by: [`coach:${c1}`],
-          },
-        ],
-        created_at: now,
-        updated_at: now,
-      },
-    ],
-    programmes: [buildDemoShopProgramme(now, c1)],
-    updated_at: now,
-  };
-}

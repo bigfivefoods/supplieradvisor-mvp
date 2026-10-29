@@ -9,6 +9,7 @@ import type {
   FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 import { rememberRemovedFitgraphIds } from '@/lib/fitness/fitgraph-merge';
+import { privateCoachIds } from '@/lib/fitness/member-directory';
 
 const WEAK_NAME_TOKENS = new Set([
   'van',
@@ -342,7 +343,11 @@ function mergeClientRecord(
     donor.invite_expires_at
   );
   next.crm_customer_id = keeper.crm_customer_id ?? donor.crm_customer_id;
-  next.coach_id = keeper.coach_id || donor.coach_id || null;
+  const coaches = [
+    ...new Set([...privateCoachIds(keeper), ...privateCoachIds(donor)]),
+  ];
+  next.coach_ids = coaches;
+  next.coach_id = coaches[0] || null;
   next.membership_plan_id =
     keeper.membership_plan_id || donor.membership_plan_id || null;
   next.agreed_rate_zar =
@@ -353,8 +358,41 @@ function mergeClientRecord(
     keeper.private_rate_zar != null
       ? keeper.private_rate_zar
       : donor.private_rate_zar;
-  next.private_client =
-    keeper.private_client === true || donor.private_client === true;
+  next.private_client = coaches.length > 0;
+  if (keeper.class_type_ids || donor.class_type_ids) {
+    next.class_type_ids = [
+      ...new Set([
+        ...(keeper.class_type_ids || []),
+        ...(donor.class_type_ids || []),
+      ]),
+    ];
+  }
+  const assignments = [
+    ...(keeper.class_assignments || []),
+    ...(donor.class_assignments || []),
+  ];
+  if (assignments.length) {
+    const byType = new Map<string, (typeof assignments)[number]>();
+    for (const row of assignments) {
+      const prev = byType.get(row.class_type_id);
+      if (!prev) {
+        byType.set(row.class_type_id, { ...row });
+        continue;
+      }
+      const start = [prev.start_date, row.start_date]
+        .map((d) => String(d || '').slice(0, 10))
+        .filter(Boolean)
+        .sort()[0];
+      const end = [prev.end_date, row.end_date]
+        .map((d) => String(d || '').slice(0, 10))
+        .filter(Boolean)
+        .sort()
+        .slice(-1)[0];
+      prev.start_date = start || null;
+      prev.end_date = end || null;
+    }
+    next.class_assignments = [...byType.values()];
+  }
   next.contract_kind = keeper.contract_kind || donor.contract_kind;
   next.share_schedule = keeper.share_schedule || donor.share_schedule;
   next.share_feedback = keeper.share_feedback || donor.share_feedback;
@@ -712,4 +750,99 @@ export function absorbKnownClientAliases(
     }
   }
   return { store, changed };
+}
+
+export type KeptMemberMerge = {
+  keeper_id: string;
+  donor_ids: string[];
+  reasons?: string[];
+  actor_user_id?: string | null;
+  now?: string;
+};
+
+/** Move classes, coaches, bookings and history onto the kept JSON record. */
+export function mergeKeptFitClients(
+  store: FitgraphStore,
+  opts: KeptMemberMerge
+):
+  | { error: string }
+  | {
+      keeper_id: string;
+      donor_ids: string[];
+      moved: {
+        subscriptions: number;
+        bookings: number;
+        class_type_ids: string[];
+        coach_ids: string[];
+        gym_sales: number;
+      };
+      invoice_customer_ids: Array<{ from: number; to: number }>;
+    } {
+  const now = opts.now || new Date().toISOString();
+  const keeper = (store.clients || []).find((c) => c.id === opts.keeper_id);
+  if (!keeper) return { error: 'Choose the member to keep' };
+  const donors = (opts.donor_ids || [])
+    .map((id) => (store.clients || []).find((c) => c.id === id))
+    .filter((c): c is FitClient => Boolean(c && c.id !== keeper.id));
+  if (!donors.length) return { error: 'Choose a duplicate to merge' };
+  const preferred = new Set([normalizePersonName(keeper.name)]);
+  let next = { ...keeper };
+  const drop = new Set<string>();
+  let subscriptions = 0;
+  let bookings = 0;
+  let gymSales = 0;
+  const invoice_customer_ids: Array<{ from: number; to: number }> = [];
+  for (const donor of donors) {
+    subscriptions += (store.subscriptions || []).filter(
+      (s) => s.client_id === donor.id
+    ).length;
+    bookings += (store.bookings || []).filter((b) => b.client_id === donor.id)
+      .length;
+    gymSales += (store.gym_sales || []).filter((s) => s.client_id === donor.id)
+      .length;
+    if (
+      donor.crm_customer_id &&
+      keeper.crm_customer_id &&
+      donor.crm_customer_id !== keeper.crm_customer_id
+    ) {
+      invoice_customer_ids.push({
+        from: donor.crm_customer_id,
+        to: keeper.crm_customer_id,
+      });
+    }
+    next = mergeClientRecord(next, donor, preferred);
+    remapClientId(store, donor.id, keeper.id);
+    drop.add(donor.id);
+  }
+  next.updated_at = now;
+  next.membership_status =
+    next.membership_status === 'merged' ? 'active' : next.membership_status;
+  const idx = store.clients.findIndex((c) => c.id === keeper.id);
+  if (idx >= 0) store.clients[idx] = next;
+  rememberRemovedFitgraphIds(store, 'clients', drop);
+  store.clients = store.clients.filter((c) => !drop.has(c.id));
+  dedupeAfterMerge(store);
+  const moved = {
+    subscriptions,
+    bookings,
+    class_type_ids: [...(next.class_type_ids || [])],
+    coach_ids: [...(next.coach_ids || [])],
+    gym_sales: gymSales,
+  };
+  if (!store.member_merge_audit) store.member_merge_audit = [];
+  store.member_merge_audit.push({
+    id: `merge_${now}`,
+    at: now,
+    actor_user_id: opts.actor_user_id || null,
+    keeper_id: keeper.id,
+    donor_ids: donors.map((d) => d.id),
+    reasons: opts.reasons || [],
+    moved,
+  });
+  return {
+    keeper_id: keeper.id,
+    donor_ids: donors.map((d) => d.id),
+    moved,
+    invoice_customer_ids,
+  };
 }

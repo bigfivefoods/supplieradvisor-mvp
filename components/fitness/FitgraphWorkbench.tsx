@@ -15,6 +15,7 @@ import {
 } from '@/components/fitness/FitgraphShell';
 import type { FitgraphStore } from '@/lib/fitness/fitgraph';
 import { sortFitgraphDeskLists } from '@/lib/fitness/fitgraph-list-order';
+import { PossibleDuplicateError } from '@/lib/fitness/member-directory';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 
 export type FitgraphPostResult = {
@@ -158,6 +159,12 @@ export function useFitgraph(opts?: { library?: boolean; history?: boolean }) {
       }
 
       if (!res.ok) {
+        if (data.error === 'possible_duplicate') {
+          const hits = Array.isArray(data.duplicates) ? data.duplicates : [];
+          throw new PossibleDuplicateError(
+            hits as PossibleDuplicateError['duplicates']
+          );
+        }
         throw new Error(data.error || 'Save failed');
       }
 
@@ -173,6 +180,7 @@ export function useFitgraph(opts?: { library?: boolean; history?: boolean }) {
       applyData(data);
       return data;
     } catch (e: unknown) {
+      if (e instanceof PossibleDuplicateError) throw e;
       if (!opts?.quiet) {
         toast.error(e instanceof Error ? e.message : 'Save failed');
       }

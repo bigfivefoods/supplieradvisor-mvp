@@ -305,11 +305,14 @@ export function clientsVisibleToCoach(
       clientIdsOnRoster.add(b.client_id);
     }
   }
-  return store.clients.filter(
-    (c) =>
-      c.active !== false &&
-      (c.coach_id === coachId || clientIdsOnRoster.has(c.id))
-  );
+  return store.clients.filter((c) => {
+    if (c.active === false) return false;
+    const coaches = [
+      ...(c.coach_ids || []),
+      ...(c.private_client === true && c.coach_id ? [c.coach_id] : []),
+    ];
+    return coaches.includes(coachId) || clientIdsOnRoster.has(c.id);
+  });
 }
 
 /** Resolve role from portal token or company admin context */
