@@ -100,24 +100,55 @@ export function AccountingStat({
   value,
   warn,
   sub,
+  onClick,
+  pressed,
+  countBadge,
 }: {
   label: string;
   value: string;
   warn?: boolean;
   sub?: string;
+  onClick?: () => void;
+  pressed?: boolean;
+  /** Draw the value as a count badge. */
+  countBadge?: boolean;
 }) {
-  return (
-    <div
-      className={`rounded-2xl border px-4 py-3 ${
-        warn ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'
-      }`}
-    >
+  const className = `rounded-2xl border px-4 py-3 text-left ${
+    warn
+      ? 'border-amber-300 bg-amber-50'
+      : pressed
+        ? 'border-slate-900 bg-slate-50'
+        : 'border-slate-200 bg-white'
+  }${onClick ? ' w-full cursor-pointer hover:border-slate-400' : ''}`;
+  const body = (
+    <>
       <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
         {label}
       </p>
-      <p className="mt-1 text-sm font-black tabular-nums text-slate-900">{value}</p>
+      {countBadge ? (
+        <p className="mt-1">
+          <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-slate-900 px-2 py-0.5 text-xs font-black tabular-nums text-white">
+            {value}
+          </span>
+        </p>
+      ) : (
+        <p className="mt-1 text-sm font-black tabular-nums text-slate-900">{value}</p>
+      )}
       {sub ? <p className="mt-0.5 text-[11px] text-slate-500">{sub}</p> : null}
-    </div>
+    </>
+  );
+  if (!onClick) {
+    return <div className={className}>{body}</div>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={pressed === true}
+      className={className}
+    >
+      {body}
+    </button>
   );
 }
 

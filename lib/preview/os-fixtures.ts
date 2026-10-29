@@ -2,6 +2,7 @@
  * In-memory samples for the command center, purchase orders, inventory,
  * ratings, and SHEQ. Nothing here is written to a database.
  */
+import { coaPreviewJson } from '@/lib/accounting/coa-preview';
 import { crmPreviewJson } from '@/lib/customers/crm-preview';
 import { srmPreviewBook, srmPreviewJson } from '@/lib/suppliers/srm-preview';
 
@@ -471,6 +472,8 @@ function osPreviewJson(path: string, params: URLSearchParams): unknown | null {
   if (path.startsWith('/api/business/settings')) {
     return { success: true, settings: {} };
   }
+  const chart = coaPreviewJson(path, params);
+  if (chart) return chart;
   if (path.startsWith('/api/suppliers/purchase-orders')) {
     const book = srmPreviewBook();
     return {

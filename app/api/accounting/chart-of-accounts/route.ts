@@ -20,8 +20,10 @@ import {
 } from '@/lib/accounting/read-cache';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import {
+  countCoaStatus,
   filterOperatingCoa,
   parseCoaListLimit,
+  parseCoaStatus,
 } from '@/lib/accounting/coa-list';
 
 export const runtime = 'nodejs';
@@ -43,7 +45,9 @@ async function companyDisplayName(companyId: number): Promise<string> {
   }
 }
 
-/** GET ?companyId=&from=&to=&type=&q=&format=xlsx — list CoA, or download the period slice */
+/** GET ?companyId=&from=&to=&type=&q=&status=&format=xlsx — list CoA, or download the period slice.
+ *  status is active (default when omitted), inactive, or all. Omitted stays active-only
+ *  so bank allocation and other pickers keep offering live posting accounts. */
 export async function GET(request: NextRequest) {
   return withRequestTiming('/api/accounting/chart-of-accounts', request, () => chartOfAccountsGet(request));
 }
@@ -101,9 +105,18 @@ async function chartOfAccountsGet(request: NextRequest) {
 
     const includePartyLeaves =
       request.nextUrl.searchParams.get('party_leaves') === '1';
+    const status = parseCoaStatus(request.nextUrl.searchParams.get('status'));
+    const counts = countCoaStatus(
+      filterOperatingCoa(accounts, {
+        partyLeaves: includePartyLeaves,
+        q,
+        status: 'all',
+      })
+    );
     accounts = filterOperatingCoa(accounts, {
       partyLeaves: includePartyLeaves,
       q,
+      status,
     });
 
     const exporting = format === 'xlsx';
@@ -126,6 +139,7 @@ async function chartOfAccountsGet(request: NextRequest) {
       return NextResponse.json({
         success: true,
         accounts: accounts.map((account) => ({ ...account, balance: 0 })),
+        counts,
         seeded,
         warning: seedWarning,
       });
@@ -187,6 +201,7 @@ async function chartOfAccountsGet(request: NextRequest) {
     return NextResponse.json({
       success: true,
       accounts: view,
+      counts,
       seeded,
       warning: seedWarning || totalsWarning,
       period: from && to ? { from, to, label: request.nextUrl.searchParams.get('label') } : null,
