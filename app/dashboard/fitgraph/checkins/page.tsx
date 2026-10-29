@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, QrCode, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,7 +17,22 @@ import {
 import { compareFitgraphSessions } from '@/lib/fitness/fitgraph-list-order';
 
 export default function CheckinsPage() {
-  const { store, loading, saving, post, summary } = useFitgraph();
+  const { companyId, store, loading, saving, post, summary } = useFitgraph();
+  const [debitHolds, setDebitHolds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!companyId) return;
+    let cancelled = false;
+    fetch(`/api/fitness/netcash/holds?companyId=${companyId}`, { credentials: 'include' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { holds?: Array<{ memberId?: string }> } | null) => {
+        if (cancelled || !data?.holds) return;
+        setDebitHolds(new Set(data.holds.map((hold) => String(hold.memberId || '')).filter(Boolean)));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
   const [form, setForm] = useState({
     client_id: '',
     date: new Date().toISOString().slice(0, 10),
@@ -51,7 +66,7 @@ export default function CheckinsPage() {
       return;
     }
     const client = store?.clients.find((c) => c.id === form.client_id);
-    const access = client && store ? evaluateMemberAccess(store, client) : null;
+    const access = client && store ? evaluateMemberAccess(store, client, { debitHold: debitHolds.has(client.id) }) : null;
     await post({
       entity: 'check_ins',
       action: 'upsert',
@@ -187,7 +202,7 @@ export default function CheckinsPage() {
             >
               <option value="">Client…</option>
               {store.clients.map((c) => {
-                const access = evaluateMemberAccess(store, c);
+                const access = evaluateMemberAccess(store, c, { debitHold: debitHolds.has(c.id) });
                 return (
                   <option key={c.id} value={c.id}>
                     {c.code} · {c.name}

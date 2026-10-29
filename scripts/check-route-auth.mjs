@@ -9,6 +9,7 @@ const gatePatterns = [
   'requireCompanyAccess',
   'requireCompanyPermission',
   'requireCompanyRoles',
+  'requireNetcashAdmin',
   'requireVerifiedUser',
   'assertCronSecret',
   'requirePlatformConsoleAccess',
