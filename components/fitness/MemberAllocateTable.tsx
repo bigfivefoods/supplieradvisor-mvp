@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
@@ -22,6 +22,12 @@ import {
   MemberDeskEditFields,
   type MemberDeskIdentity,
 } from '@/components/fitness/MemberDeskEditFields';
+import {
+  effectiveClassTypeIds,
+  type MemberDirectoryCounts,
+  type MemberDirectoryResult,
+  type MemberRole,
+} from '@/lib/fitness/member-directory';
 
 type PostFn = (body: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -35,6 +41,7 @@ const STATUSES: FitSubscription['status'][] = [
 ];
 
 type Filter = 'all' | 'members' | 'private' | 'both' | 'open';
+type RoleFilter = MemberRole | 'all';
 type StatusFilter = 'active' | 'inactive';
 
 /** Assigned class chip — same yellow fill in light and dark. */
@@ -91,6 +98,9 @@ type Draft = {
   planIds: string[];
   charges: Record<string, string>;
   coachId: string;
+  coachIds: string[];
+  classTypeIds: string[];
+  classDates: Record<string, { start: string; end: string }>;
   privateRate: string;
   status: FitSubscription['status'];
 } & MemberDeskIdentity;
@@ -161,6 +171,8 @@ export function MemberAllocateTable({
   onCopyPortal,
   onIssuePortal,
   onDelete,
+  companyId,
+  onCounts,
 }: {
   store: FitgraphStore;
   post: PostFn;
@@ -174,6 +186,8 @@ export function MemberAllocateTable({
   onCopyPortal?: (token: string) => void;
   onIssuePortal?: (clientId: string) => void;
   onDelete?: (c: FitClient) => void;
+  companyId?: number;
+  onCounts?: (counts: MemberDirectoryCounts) => void;
 }) {
   const [q, setQ] = useState('');
   const [classFilter, setClassFilter] = useState('');
@@ -181,6 +195,14 @@ export function MemberAllocateTable({
   const [filter, setFilter] = useState<Filter>(
     defaultOnlyOpen ? 'open' : 'all'
   );
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>(
+    defaultOnlyOpen ? 'neither' : 'all'
+  );
+  const [coachFilter, setCoachFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [qLive, setQLive] = useState('');
+  const [remote, setRemote] = useState<MemberDirectoryResult | null>(null);
+  const [dirLoading, setDirLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [sortByClass, setSortByClass] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -215,7 +237,61 @@ export function MemberAllocateTable({
     [store]
   );
 
+  useEffect(() => {
+    const t = setTimeout(() => setQLive(q.trim()), 250);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [roleFilter, statusFilter, classFilter, coachFilter, qLive]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    let cancel = false;
+    setDirLoading(true);
+    const params = new URLSearchParams({
+      companyId: String(companyId),
+      directory: 'members',
+      role: roleFilter,
+      status: statusFilter,
+      classId: classFilter,
+      coachId: coachFilter,
+      q: qLive,
+      page: String(page),
+      pageSize: '25',
+    });
+    fetch(`/api/fitness/fitgraph?${params}`, { credentials: 'same-origin' })
+      .then(async (res) => {
+        const data = (await res.json()) as { directory?: MemberDirectoryResult };
+        if (!cancel && res.ok && data.directory) setRemote(data.directory);
+      })
+      .catch(() => {
+        if (!cancel) setRemote(null);
+      })
+      .finally(() => {
+        if (!cancel) setDirLoading(false);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [
+    companyId,
+    roleFilter,
+    statusFilter,
+    classFilter,
+    coachFilter,
+    qLive,
+    page,
+    store.updated_at,
+  ]);
+
+  useEffect(() => {
+    if (remote?.counts) onCounts?.(remote.counts);
+  }, [remote, onCounts]);
+
   const people = useMemo(() => {
+    if (companyId) return remote?.clients || [];
     const needle = q.trim().toLowerCase();
     const removed = new Set(store.removed_ids?.clients || []);
     return store.clients
@@ -253,6 +329,7 @@ export function MemberAllocateTable({
   };
 
   const visible = useMemo(() => {
+    if (companyId) return remote?.clients || [];
     const rows = people.filter((c) => {
       const member = isOnClass(c);
       const priv = c.private_client === true;
@@ -283,7 +360,7 @@ export function MemberAllocateTable({
         : 0;
       return aOn - bOn || a.name.localeCompare(b.name);
     });
-  }, [people, activeSubs, filter, classFilter, sortByClass, classes]);
+  }, [people, activeSubs, filter, classFilter, sortByClass, classes, companyId, remote]);
 
   const defaultDraft = (c: FitClient): Draft => {
     const mine = (store.subscriptions || []).filter((s) => s.client_id === c.id);
@@ -383,6 +460,26 @@ export function MemberAllocateTable({
       planIds,
       charges,
       coachId: c.coach_id || planCoach || '',
+      coachIds: [
+        ...new Set(
+          [
+            ...(c.coach_ids || []),
+            ...(c.private_client === true && c.coach_id ? [c.coach_id] : []),
+          ].filter(Boolean)
+        ),
+      ],
+      classTypeIds: Array.isArray(c.class_type_ids)
+        ? [...c.class_type_ids]
+        : effectiveClassTypeIds(c, store, new Date().toISOString().slice(0, 10)),
+      classDates: Object.fromEntries(
+        (c.class_assignments || []).map((row) => [
+          row.class_type_id,
+          {
+            start: String(row.start_date || '').slice(0, 10),
+            end: String(row.end_date || '').slice(0, 10),
+          },
+        ])
+      ),
       privateRate:
         c.private_rate_zar != null ? String(c.private_rate_zar) : '',
       status: live[0]?.status || 'active',
@@ -494,6 +591,10 @@ export function MemberAllocateTable({
       d.member !== base.member ||
       d.privateClient !== base.privateClient ||
       d.coachId !== base.coachId ||
+      d.coachIds.slice().sort().join(',') !==
+        base.coachIds.slice().sort().join(',') ||
+      d.classTypeIds.slice().sort().join(',') !==
+        base.classTypeIds.slice().sort().join(',') ||
       d.privateRate !== base.privateRate ||
       d.status !== base.status ||
       ids !== baseIds
@@ -516,11 +617,15 @@ export function MemberAllocateTable({
     };
     if (!classSubscribe) {
       fillCharge();
+      const on = d.planIds.includes(p.id);
+      const planIds = on
+        ? d.planIds.filter((id) => id !== p.id)
+        : [...d.planIds, p.id];
       const next: Partial<Draft> = {
-        planId: p.id,
-        planIds: [p.id],
+        planId: planIds[0] || '',
+        planIds,
         personActive: true,
-        member: true,
+        member: planIds.length > 0,
         status: 'active',
         charges,
       };
@@ -615,7 +720,7 @@ export function MemberAllocateTable({
       toast.error(classSubscribe ? 'Select a class' : 'Select a plan');
       return;
     }
-    if (d.privateClient && !d.coachId) {
+    if (d.privateClient && !d.coachId && !d.coachIds.length) {
       toast.error('Select the coach for this private client');
       return;
     }
@@ -650,7 +755,26 @@ export function MemberAllocateTable({
         plan_ids: planIds,
         charges_by_plan_id: chargesByPlanId,
         charged_zar: d.member ? chargedTotal : privateRateZar,
-        coach_id: d.coachId || null,
+        coach_id: d.coachIds[0] || d.coachId || null,
+        coach_ids: d.coachIds.length ? d.coachIds : d.coachId ? [d.coachId] : [],
+        class_type_ids: d.classTypeIds,
+        class_assignments: d.classTypeIds.map((id) => ({
+          class_type_id: id,
+          start_date: d.classDates[id]?.start || null,
+          end_date: d.classDates[id]?.end || null,
+        })),
+        plan_windows: Object.fromEntries(
+          planIds.map((id) => [
+            id,
+            {
+              start:
+                (store.subscriptions || []).find(
+                  (s) => s.client_id === c.id && s.plan_id === id
+                )?.started_at || null,
+              end: d.classDates[`plan:${id}`]?.end || null,
+            },
+          ])
+        ),
         private_rate_zar: privateRateZar,
         status:
           d.status === 'cancelled' || d.status === 'expired'
@@ -715,15 +839,23 @@ export function MemberAllocateTable({
     active: store.clients.filter((c) => isPersonActive(c)).length,
     inactive: store.clients.filter((c) => !isPersonActive(c)).length,
   };
-  const counts = {
-    all: people.length,
-    members: people.filter((c) => isOnClass(c)).length,
-    private: people.filter((c) => c.private_client === true).length,
-    both: people.filter((c) => isOnClass(c) && c.private_client === true)
-      .length,
-    open: people.filter((c) => !isOnClass(c) && c.private_client !== true)
-      .length,
-  };
+  const counts = remote?.facets
+    ? {
+        all: remote.facets.all,
+        members: remote.facets.class,
+        private: remote.facets.private,
+        both: remote.facets.both,
+        open: remote.facets.neither,
+      }
+    : {
+        all: people.length,
+        members: people.filter((c) => isOnClass(c)).length,
+        private: people.filter((c) => c.private_client === true).length,
+        both: people.filter((c) => isOnClass(c) && c.private_client === true)
+          .length,
+        open: people.filter((c) => !isOnClass(c) && c.private_client !== true)
+          .length,
+      };
 
   const classNeedle = classQ.trim().toLowerCase();
   const filteredClasses = classNeedle
@@ -749,11 +881,13 @@ export function MemberAllocateTable({
         <input
           className={`${gymPwaFieldClass} min-w-[14rem] flex-1`}
           placeholder="Search people…"
+          aria-label="Search members"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
         <select
           className="min-w-[12rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+          aria-label="Filter by class"
           value={classFilter}
           onChange={(e) => setClassFilter(e.target.value)}
         >
@@ -765,10 +899,25 @@ export function MemberAllocateTable({
             </option>
           ))}
         </select>
+        <select
+          className="min-w-[12rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+          aria-label="Filter by coach"
+          value={coachFilter}
+          onChange={(e) => setCoachFilter(e.target.value)}
+        >
+          <option value="">All coaches</option>
+          {(remote?.coachOptions || coaches.map((c) => ({ id: c.id, name: c.name }))).map(
+            (c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            )
+          )}
+        </select>
         {(
           [
-            ['active', `Active ${statusCounts.active}`],
-            ['inactive', `Inactive ${statusCounts.inactive}`],
+            ['active', `Active ${remote?.facets.active ?? statusCounts.active}`],
+            ['inactive', `Inactive ${remote?.facets.inactive ?? statusCounts.inactive}`],
           ] as Array<[StatusFilter, string]>
         ).map(([k, label]) => (
           <button
@@ -789,20 +938,24 @@ export function MemberAllocateTable({
         ))}
         {(
           [
-            ['all', `All ${counts.all}`],
-            ['members', `Members ${counts.members}`],
-            ['private', `Private ${counts.private}`],
-            ['both', `Both ${counts.both}`],
-            ['open', `Unallocated ${counts.open}`],
-          ] as Array<[Filter, string]>
-        ).map(([k, label]) => (
+            ['all', 'all', `All ${counts.all}`],
+            ['class', 'members', `Class member ${counts.members}`],
+            ['private', 'private', `Private client ${counts.private}`],
+            ['both', 'both', `Both ${counts.both}`],
+            ['neither', 'open', `Neither ${counts.open}`],
+          ] as Array<[RoleFilter, Filter, string]>
+        ).map(([role, legacy, label]) => (
           <button
-            key={k}
+            key={role}
             type="button"
-            onClick={() => setFilter(k)}
+            aria-pressed={roleFilter === role}
+            onClick={() => {
+              setRoleFilter(role);
+              setFilter(legacy);
+            }}
             className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
-              filter === k
-                ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
+              roleFilter === role
+                ? 'border-[#00b4d8] bg-[#00b4d8] text-slate-950'
                 : 'border-slate-200 bg-white text-slate-600 dark:border-white/15 dark:bg-white/5 dark:text-yellow-100'
             }`}
           >
@@ -845,9 +998,13 @@ export function MemberAllocateTable({
         </p>
       ) : null}
 
-      {visible.length === 0 ? (
+      {dirLoading && !remote ? (
         <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-          No people in this view.
+          Loading members…
+        </p>
+      ) : visible.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+          No members match this filter.
         </p>
       ) : (
         <div className="space-y-2">
@@ -893,6 +1050,18 @@ export function MemberAllocateTable({
                   <div className="min-w-[11rem] flex-1">
                     <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-900 dark:text-yellow-50">
                       <span>{d.name || c.name}</span>
+                      <MemberRoleBadge
+                        role={
+                          remote?.rows.find((r) => r.id === c.id)?.role ||
+                          (d.privateClient && d.member
+                            ? 'both'
+                            : d.privateClient
+                              ? 'private'
+                              : d.member
+                                ? 'class'
+                                : 'neither')
+                        }
+                      />
                       {!d.personActive ? (
                         <span className="rounded-full border border-yellow-500 bg-yellow-300 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-yellow-950">
                           Inactive
@@ -1279,6 +1448,85 @@ export function MemberAllocateTable({
                                 );
                               })
                             )}
+                            {(store.class_types || []).filter((t) => t.active !== false)
+                              .length ? (
+                              <div className="space-y-2 border-t border-slate-200 pt-2">
+                                <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                  Class types
+                                </div>
+                                {(store.class_types || [])
+                                  .filter((t) => t.active !== false)
+                                  .map((t) => {
+                                    const on = d.classTypeIds.includes(t.id);
+                                    const dates = d.classDates[t.id] || {
+                                      start: '',
+                                      end: '',
+                                    };
+                                    return (
+                                      <div
+                                        key={t.id}
+                                        className="flex flex-wrap items-center gap-2"
+                                      >
+                                        <label className="flex min-w-[10rem] flex-1 items-center gap-2 text-sm">
+                                          <input
+                                            type="checkbox"
+                                            checked={on}
+                                            onChange={() => {
+                                              const classTypeIds = on
+                                                ? d.classTypeIds.filter(
+                                                    (id) => id !== t.id
+                                                  )
+                                                : [...d.classTypeIds, t.id];
+                                              setDraft(c.id, { classTypeIds });
+                                            }}
+                                          />
+                                          {t.name}
+                                        </label>
+                                        <label className="text-[10px] font-bold uppercase text-slate-500">
+                                          Start
+                                          <input
+                                            type="date"
+                                            className="mt-1 block rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                            disabled={!on}
+                                            value={on ? dates.start : ''}
+                                            onChange={(e) =>
+                                              setDraft(c.id, {
+                                                classDates: {
+                                                  ...d.classDates,
+                                                  [t.id]: {
+                                                    ...dates,
+                                                    start: e.target.value,
+                                                  },
+                                                },
+                                              })
+                                            }
+                                          />
+                                        </label>
+                                        <label className="text-[10px] font-bold uppercase text-slate-500">
+                                          End
+                                          <input
+                                            type="date"
+                                            className="mt-1 block rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                            disabled={!on}
+                                            value={on ? dates.end : ''}
+                                            onChange={(e) =>
+                                              setDraft(c.id, {
+                                                classDates: {
+                                                  ...d.classDates,
+                                                  [t.id]: {
+                                                    ...dates,
+                                                    end: e.target.value,
+                                                  },
+                                                },
+                                              })
+                                            }
+                                          />
+                                        </label>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            ) : null}
                             <div className="flex flex-wrap items-center justify-end gap-4 px-1 pt-1 text-sm">
                               <div className="tabular-nums">
                                 <span className="text-[10px] font-black uppercase text-slate-500">
@@ -1310,9 +1558,12 @@ export function MemberAllocateTable({
                                   const plan = classes.find(
                                     (p) => p.id === planId
                                   );
+                                  const planIds = planId
+                                    ? [...new Set([...d.planIds, planId])]
+                                    : d.planIds;
                                   const next: Partial<Draft> = {
-                                    planId,
-                                    planIds: planId ? [planId] : [],
+                                    planId: planIds[0] || '',
+                                    planIds,
                                   };
                                   if (
                                     plan &&
@@ -1340,6 +1591,34 @@ export function MemberAllocateTable({
                                   </option>
                                 ))}
                               </select>
+                              {d.planIds.length ? (
+                                <span className="mt-2 flex flex-wrap gap-1">
+                                  {d.planIds.map((id) => {
+                                    const plan = classes.find((p) => p.id === id);
+                                    if (!plan) return null;
+                                    return (
+                                      <button
+                                        key={id}
+                                        type="button"
+                                        className="rounded-full border border-[#00b4d8] bg-[#00b4d8]/15 px-2 py-1 text-[11px] font-bold"
+                                        onClick={() => {
+                                          const planIds = d.planIds.filter((x) => x !== id);
+                                          const next: Partial<Draft> = {
+                                            planIds,
+                                            planId: planIds[0] || '',
+                                            member: planIds.length > 0,
+                                          };
+                                          const merged: Draft = { ...d, ...next };
+                                          setDraft(c.id, next);
+                                          void save(c, merged);
+                                        }}
+                                      >
+                                        {plan.name} · remove
+                                      </button>
+                                    );
+                                  })}
+                                </span>
+                              ) : null}
                             </label>
                             <div>
                               <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">
@@ -1376,6 +1655,73 @@ export function MemberAllocateTable({
                             </label>
                           </div>
                         )}
+                        {!classSubscribe && (store.class_types || []).some((t) => t.active !== false) ? (
+                          <div className="space-y-2 border-t border-slate-200 pt-2">
+                            <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                              Class types
+                            </div>
+                            <p className="text-[11px] text-slate-500">
+                              Add or remove classes. Dates are optional. The plan still fills any class it unlocks.
+                            </p>
+                            {(store.class_types || [])
+                              .filter((t) => t.active !== false)
+                              .map((t) => {
+                                const on = d.classTypeIds.includes(t.id);
+                                const dates = d.classDates[t.id] || { start: '', end: '' };
+                                return (
+                                  <div key={t.id} className="flex flex-wrap items-end gap-2">
+                                    <label className="flex min-w-[10rem] flex-1 items-center gap-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={on}
+                                        onChange={() => {
+                                          const classTypeIds = on
+                                            ? d.classTypeIds.filter((id) => id !== t.id)
+                                            : [...d.classTypeIds, t.id];
+                                          setDraft(c.id, { classTypeIds });
+                                        }}
+                                      />
+                                      {t.name}
+                                    </label>
+                                    <label className="text-[10px] font-bold uppercase text-slate-500">
+                                      Start
+                                      <input
+                                        type="date"
+                                        disabled={!on}
+                                        className="mt-1 block rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                        value={on ? dates.start : ''}
+                                        onChange={(e) =>
+                                          setDraft(c.id, {
+                                            classDates: {
+                                              ...d.classDates,
+                                              [t.id]: { ...dates, start: e.target.value },
+                                            },
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                    <label className="text-[10px] font-bold uppercase text-slate-500">
+                                      End
+                                      <input
+                                        type="date"
+                                        disabled={!on}
+                                        className="mt-1 block rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                        value={on ? dates.end : ''}
+                                        onChange={(e) =>
+                                          setDraft(c.id, {
+                                            classDates: {
+                                              ...d.classDates,
+                                              [t.id]: { ...dates, end: e.target.value },
+                                            },
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
 
@@ -1387,9 +1733,14 @@ export function MemberAllocateTable({
                           className={`${gymPwaFieldClass} mt-1`}
                           value={d.coachId}
                           disabled={!d.privateClient && !d.member}
-                          onChange={(e) =>
-                            setDraft(c.id, { coachId: e.target.value })
-                          }
+                          onChange={(e) => {
+                            const id = e.target.value;
+                            const rest = d.coachIds.filter((x) => x !== id);
+                            setDraft(c.id, {
+                              coachId: id,
+                              coachIds: id ? [id, ...rest] : rest,
+                            });
+                          }}
                         >
                           <option value="">
                             {d.privateClient ? 'Select coach…' : 'Coach…'}
@@ -1404,6 +1755,37 @@ export function MemberAllocateTable({
                           <span className="mt-1 block text-[11px] text-slate-500">
                             Private coach: {coachName}
                           </span>
+                        ) : null}
+                        {d.privateClient ? (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {coaches.map((coach) => {
+                              const on = d.coachIds.includes(coach.id);
+                              return (
+                                <button
+                                  key={coach.id}
+                                  type="button"
+                                  aria-pressed={on}
+                                  className={`rounded-full border px-2 py-1 text-[11px] font-bold ${
+                                    on
+                                      ? 'border-[#00b4d8] bg-[#00b4d8] text-slate-950'
+                                      : 'border-slate-200 bg-white text-slate-600'
+                                  }`}
+                                  onClick={() => {
+                                    const next = on
+                                      ? d.coachIds.filter((id) => id !== coach.id)
+                                      : [...d.coachIds, coach.id];
+                                    setDraft(c.id, {
+                                      coachIds: next,
+                                      coachId: next[0] || '',
+                                      privateClient: true,
+                                    });
+                                  }}
+                                >
+                                  {coach.name}
+                                </button>
+                              );
+                            })}
+                          </div>
                         ) : null}
                       </label>
                       <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
@@ -1536,6 +1918,44 @@ export function MemberAllocateTable({
           })}
         </div>
       )}
+      {remote && remote.pages > 1 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold disabled:opacity-40"
+            disabled={page <= 1 || dirLoading}
+            onClick={() => setPage((n) => Math.max(1, n - 1))}
+          >
+            Previous
+          </button>
+          <p className="text-xs font-semibold text-slate-600">
+            Page {remote.page} of {remote.pages} · {remote.matching} matching
+          </p>
+          <button
+            type="button"
+            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold disabled:opacity-40"
+            disabled={page >= remote.pages || dirLoading}
+            onClick={() => setPage((n) => n + 1)}
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function MemberRoleBadge({ role }: { role: MemberRole | 'neither' }) {
+  if (role === 'neither') return null;
+  const label =
+    role === 'private'
+      ? 'Private client'
+      : role === 'class'
+        ? 'Class member'
+        : 'Both';
+  return (
+    <span className="rounded-full bg-[#00b4d8] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-950">
+      {label}
+    </span>
   );
 }

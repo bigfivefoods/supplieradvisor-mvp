@@ -43,6 +43,14 @@ import {
   AdvisorIncomingShares,
   AdvisorProfileShare,
 } from '@/components/advisors/AdvisorProfileShare';
+import { GymMemberMerge } from '@/components/fitness/GymMemberMerge';
+import { GymMemberQuality } from '@/components/fitness/GymMemberQuality';
+import {
+  PossibleDuplicateError,
+  validateMemberFields,
+  type DuplicateHit,
+  type MemberDirectoryCounts,
+} from '@/lib/fitness/member-directory';
 
 
 const gymCrmBackfillCompanyOnce = new Set<number>();
@@ -130,8 +138,7 @@ const blankForm = (): ClientForm => ({
 });
 
 export default function ClientsPage() {
-  const { companyId, store, loading, saving, post, load, summary } =
-    useFitgraph();
+  const { companyId, store, loading, saving, post, load } = useFitgraph();
   const router = useRouter();
   const search = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -140,6 +147,13 @@ export default function ClientsPage() {
   const [form, setForm] = useState<ClientForm>(blankForm);
   const [editing, setEditing] = useState(false);
   const [injuryOpen, setInjuryOpen] = useState(false);
+  const [bookCounts, setBookCounts] = useState<MemberDirectoryCounts | null>(
+    null
+  );
+  const [dupes, setDupes] = useState<DuplicateHit[] | null>(null);
+  const [importBody, setImportBody] = useState<Record<string, unknown> | null>(
+    null
+  );
   const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
   const returnClass = search.get('returnClass');
   const addClasses = useMemo(() => {
@@ -318,9 +332,23 @@ export default function ClientsPage() {
     };
   }, [loading, post, companyId, load]);
 
-  const save = async () => {
-    if (!form.name.trim()) {
-      toast.error('Name required');
+  const save = async (acknowledge = false) => {
+    const checked = validateMemberFields(
+      {
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        id_number: form.id_number,
+        date_of_birth: form.date_of_birth,
+        next_of_kin: form.next_of_kin,
+        next_of_kin_phone: form.next_of_kin_phone,
+        next_of_kin_relationship: form.next_of_kin_relationship,
+        emergency_contact: form.emergency_contact,
+      },
+      { requireName: true }
+    );
+    if (!checked.ok) {
+      toast.error(checked.issues[0]?.message || 'Check the member details');
       return;
     }
     const health = formToHealthPayload(form.health);
@@ -348,18 +376,19 @@ export default function ClientsPage() {
       await post({
         entity: 'clients',
         action: 'upsert',
+        acknowledge_duplicates: acknowledge,
         record: omitClientRosterFields({
           id,
           code: form.code,
-          name: form.name,
-          email: form.email,
-          phone: form.phone,
-          id_number: form.id_number || '',
+          name: checked.value.name || form.name,
+          email: checked.value.email || '',
+          phone: checked.value.phone || '',
+          id_number: checked.value.id_number || '',
           photo_url: form.photo_url || '',
           start_date: form.start_date,
-          date_of_birth: form.date_of_birth || null,
+          date_of_birth: checked.value.date_of_birth || null,
           next_of_kin: form.next_of_kin,
-          next_of_kin_phone: form.next_of_kin_phone,
+          next_of_kin_phone: checked.value.next_of_kin_phone || '',
           next_of_kin_relationship: form.next_of_kin_relationship,
           emergency_contact:
             form.emergency_contact ||
@@ -401,17 +430,21 @@ export default function ClientsPage() {
           charges_by_plan_id: chargesByPlanId,
           charged_zar: form.member ? chargedTotal : privateRate,
           coach_id: form.privateClient ? form.coachId : null,
+          coach_ids: form.privateClient && form.coachId ? [form.coachId] : [],
           private_rate_zar: privateRate,
           status: 'active',
           name: form.name.trim(),
-          email: form.email.trim(),
-          phone: form.phone.trim(),
+          email: checked.value.email || '',
+          phone: checked.value.phone || '',
+          acknowledge_duplicates: acknowledge,
           notes: form.notes,
         });
       }
-    } catch {
+    } catch (e: unknown) {
+      if (e instanceof PossibleDuplicateError) setDupes(e.duplicates);
       return;
     }
+    setDupes(null);
     toast.success(form.id ? 'Client profile updated' : 'Client saved');
     setForm(blankForm());
     setEditing(false);
@@ -509,6 +542,7 @@ export default function ClientsPage() {
 
   const onFile = async (file: File) => {
     setImporting(true);
+    let body: Record<string, unknown> | null = null;
     try {
       const name = file.name.toLowerCase();
       const isXlsx =
@@ -516,8 +550,6 @@ export default function ClientsPage() {
         name.endsWith('.xls') ||
         file.type.includes('spreadsheet') ||
         file.type.includes('excel');
-
-      let body: Record<string, unknown>;
       if (isXlsx) {
         const xlsxBase64 = await fileToBase64(file);
         body = {
@@ -534,7 +566,10 @@ export default function ClientsPage() {
         };
       }
 
-      const data = await post(body);
+      const data = await post({
+        ...(body || {}),
+        acknowledge_duplicates: false,
+      });
       const created = Number(data?.created) || 0;
       const updated = Number(data?.updated) || 0;
       toast.success(
@@ -559,27 +594,15 @@ export default function ClientsPage() {
       }
       await load();
     } catch (e: unknown) {
-      if (!(e instanceof Error)) toast.error('Import failed');
+      if (e instanceof PossibleDuplicateError) {
+        setDupes(e.duplicates);
+        if (body) setImportBody(body);
+      } else if (!(e instanceof Error)) toast.error('Import failed');
     } finally {
       setImporting(false);
       if (fileRef.current) fileRef.current.value = '';
     }
   };
-
-  const people = (store?.clients || []).filter((c) => c.active !== false);
-  const activeSubs = (store?.subscriptions || []).filter(
-    (s) => s.status === 'active' || s.status === 'trialing'
-  );
-  const onClassIds = new Set(activeSubs.map((s) => s.client_id));
-  const memberCount = people.filter(
-    (c) => onClassIds.has(c.id) || Boolean(c.membership_plan_id)
-  ).length;
-  const privateCount = people.filter((c) => c.private_client === true).length;
-  const bothCount = people.filter(
-    (c) =>
-      c.private_client === true &&
-      (onClassIds.has(c.id) || Boolean(c.membership_plan_id))
-  ).length;
 
   return (
     <FitgraphWorkbench
@@ -596,11 +619,17 @@ export default function ClientsPage() {
             items={[
               {
                 label: 'People',
-                value: Number(summary?.clientCount) || store.clients.length,
+                value: bookCounts ? bookCounts.people : '…',
               },
-              { label: 'Members', value: memberCount },
-              { label: 'Private', value: privateCount },
-              { label: 'Both', value: bothCount },
+              {
+                label: 'Class member',
+                value: bookCounts ? bookCounts.class : '…',
+              },
+              {
+                label: 'Private client',
+                value: bookCounts ? bookCounts.private : '…',
+              },
+              { label: 'Both', value: bookCounts ? bookCounts.both : '…' },
             ]}
           />
 
@@ -612,8 +641,57 @@ export default function ClientsPage() {
             </p>
           ) : null}
 
+          {dupes?.length ? (
+            <div
+              className="rounded-2xl border border-[#00b4d8] bg-sky-50 px-4 py-3 text-sm text-slate-800"
+              role="alert"
+            >
+              <p className="font-black text-slate-950">Possible duplicate</p>
+              <ul className="mt-1 space-y-1">
+                {dupes.map((hit) => (
+                  <li key={hit.client_id}>
+                    {hit.name} ({hit.code}) · {hit.reasons.join(', ')}
+                    {hit.manual_review
+                      ? ' · shared contact, review before saving'
+                      : ''}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl bg-[#00b4d8] px-3 py-2 text-xs font-black text-slate-950"
+                  onClick={() => {
+                    if (importBody) {
+                      void post({ ...importBody, acknowledge_duplicates: true })
+                        .then(() => {
+                          setDupes(null);
+                          setImportBody(null);
+                          toast.success('Import saved');
+                        })
+                        .catch(() => undefined);
+                      return;
+                    }
+                    void save(true);
+                  }}
+                >
+                  {importBody ? 'Import anyway' : 'Save anyway'}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold"
+                  onClick={() => setDupes(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <MemberAllocateTable
             store={store}
+            companyId={companyId}
+            onCounts={setBookCounts}
             post={post}
             saving={saving}
             classSubscribe={classSubscribe}
@@ -679,6 +757,9 @@ export default function ClientsPage() {
               </div>
             }
           />
+
+          <GymMemberQuality companyId={companyId} />
+          <GymMemberMerge companyId={companyId} post={post} />
 
           <div id="gym-client-form">
           <FormCard

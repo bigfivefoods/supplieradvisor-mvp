@@ -13,6 +13,12 @@ import {
 import { goalsForClient } from '@/lib/fitness/fitgraph-relationship';
 import type { FitClient, FitgraphStore } from '@/lib/fitness/fitgraph';
 import {
+  effectiveClassTypeIds,
+  isPrivateClient,
+  memberRole,
+  privateCoachIds,
+} from '@/lib/fitness/member-directory';
+import {
   ageFromDob,
   memberBirthday,
   memberJoinTimeline,
@@ -118,8 +124,65 @@ export function GymMemberProfileDesk({
   const statements = useMemo(() => monthlyStatements(charges), [charges]);
   const fromPwa = Boolean(client.platform_user_id || client.passport);
 
+  const role = memberRole(client, store);
+  const coaches = privateCoachIds(client)
+    .map((id) => store.coaches.find((c) => c.id === id)?.name || 'Coach')
+    .filter(Boolean);
+  const classNames = [
+    ...new Set([
+      ...(client.membership_plan_id
+        ? [
+            store.membership_plans.find((p) => p.id === client.membership_plan_id)
+              ?.name,
+          ]
+        : []),
+      ...effectiveClassTypeIds(client, store, new Date().toISOString().slice(0, 10)).map(
+        (id) => store.class_types.find((t) => t.id === id)?.name
+      ),
+    ]),
+  ].filter((n): n is string => Boolean(n));
+  const roleLabel =
+    role === 'both'
+      ? 'Both'
+      : role === 'private'
+        ? 'Private client'
+        : role === 'class'
+          ? 'Class member'
+          : 'Neither';
+
   return (
     <div className="space-y-3">
+      <section className="rounded-2xl border border-[#00b4d8]/50 bg-sky-50/70 px-3 py-3">
+        <p className="text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
+          Coaches and classes
+        </p>
+        <p className="mt-1 text-sm font-black text-slate-900">
+          <span className="mr-2 rounded-full bg-[#00b4d8] px-2 py-0.5 text-[10px] uppercase text-slate-950">
+            {roleLabel}
+          </span>
+          {isPrivateClient(client) ? 'Assigned to a coach' : 'No private coach'}
+        </p>
+        <p className="mt-2 text-sm">
+          <span className="font-bold">Coaches: </span>
+          {coaches.length ? coaches.join(', ') : 'None'}
+        </p>
+        <p className="text-sm">
+          <span className="font-bold">Classes: </span>
+          {classNames.length ? classNames.join(', ') : 'None'}
+        </p>
+        {(client.class_assignments || []).length ? (
+          <ul className="mt-1 text-xs text-slate-600">
+            {(client.class_assignments || []).map((row) => (
+              <li key={row.class_type_id}>
+                {store.class_types.find((t) => t.id === row.class_type_id)?.name ||
+                  'Class'}
+                {row.start_date ? ` · from ${row.start_date}` : ''}
+                {row.end_date ? ` · until ${row.end_date}` : ''}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
       <AdvisorExpandablePanel
         title="SA Member profile"
         description={

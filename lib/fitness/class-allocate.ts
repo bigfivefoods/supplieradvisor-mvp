@@ -31,6 +31,7 @@ import {
   subscribersForSession,
   timetableSlotsForPlan,
 } from '@/lib/fitness/vuka-class-catalog';
+import { validateMemberFields } from '@/lib/fitness/member-directory';
 import {
   findSessionSeat,
   pickPreferredBooking,
@@ -900,6 +901,17 @@ export function allocateMemberToClass(
     member?: boolean;
     privateClient?: boolean;
     coachId?: string | null;
+    /** Private coaches. The first id is also stored on coach_id. */
+    coachIds?: string[] | null;
+    /** Explicit classes. Omitted leaves plan-derived classes alone. */
+    classTypeIds?: string[] | null;
+    classAssignments?: Array<{
+      class_type_id: string;
+      start_date?: string | null;
+      end_date?: string | null;
+    }> | null;
+    /** Per-plan start / end dates (YYYY-MM-DD). */
+    planWindows?: Record<string, { start?: string | null; end?: string | null }>;
     now?: string;
     bookUpcoming?: boolean;
     /** When set, the member is on exactly these classes (others are cancelled). */
@@ -948,8 +960,20 @@ export function allocateMemberToClass(
     return { error: 'Member not found' };
   }
 
-  const applyPerson = () => {
-    if (!opts.person) return;
+  const applyPerson = (): string | null => {
+    if (!opts.person) return null;
+    const checked = validateMemberFields({
+      name: opts.person.name,
+      email: opts.person.email,
+      phone: opts.person.phone,
+      id_number: opts.person.id_number,
+      date_of_birth: opts.person.date_of_birth,
+      next_of_kin: opts.person.next_of_kin,
+      next_of_kin_phone: opts.person.next_of_kin_phone,
+      next_of_kin_relationship: opts.person.next_of_kin_relationship,
+      emergency_contact: opts.person.emergency_contact,
+    });
+    if (!checked.ok) return checked.issues[0]?.message || 'Check the member details';
     const p = opts.person;
     const trimOrEmpty = (raw: unknown) => String(raw ?? '').trim();
     const setText = (
@@ -979,23 +1003,30 @@ export function allocateMemberToClass(
     if (p.code !== undefined && trimOrEmpty(p.code)) {
       client.code = trimOrEmpty(p.code);
     }
-    setText('email', p.email);
-    setText('phone', p.phone);
+    if (checked.value.email !== undefined) {
+      client.email = checked.value.email || undefined;
+    }
+    if (checked.value.phone !== undefined) {
+      client.phone = checked.value.phone || undefined;
+    }
+    if (checked.value.id_number !== undefined) {
+      client.id_number = checked.value.id_number || undefined;
+    }
+    if (checked.value.date_of_birth !== undefined) {
+      client.date_of_birth = checked.value.date_of_birth;
+    }
+    if (checked.value.next_of_kin_phone !== undefined) {
+      client.next_of_kin_phone = checked.value.next_of_kin_phone || undefined;
+    }
     setText('notes', p.notes);
-    setText('id_number', p.id_number);
     setText('occupation', p.occupation);
     setText('address', p.address);
     setText('next_of_kin', p.next_of_kin);
-    setText('next_of_kin_phone', p.next_of_kin_phone);
     setText('next_of_kin_relationship', p.next_of_kin_relationship);
     setText('emergency_contact', p.emergency_contact);
     setText('heard_about', p.heard_about);
     setText('employer_student_number', p.employer_student_number);
     setText('gp_contact', p.gp_contact);
-    if (p.date_of_birth !== undefined) {
-      const d = trimOrEmpty(p.date_of_birth).slice(0, 10);
-      client.date_of_birth = d || null;
-    }
     if (p.start_date !== undefined) {
       const d = trimOrEmpty(p.start_date).slice(0, 10);
       client.start_date = d || null;
@@ -1058,7 +1089,10 @@ export function allocateMemberToClass(
         };
       }
     }
+    return null;
   };
+  const personProblem = applyPerson();
+  if (personProblem) return { error: personProblem };
 
   const parkOnDesk = () => {
     applyPerson();
@@ -1111,15 +1145,22 @@ export function allocateMemberToClass(
   const isMember = flagsExplicit
     ? opts.member === true
     : opts.kind !== 'private' || Boolean(opts.planId);
-  const requestedCoachId = opts.coachId ? String(opts.coachId) : null;
-  const requestedCoach = requestedCoachId
-    ? store.coaches.find((c) => c.id === requestedCoachId)
-    : undefined;
-  const coachOk = Boolean(requestedCoach && requestedCoach.active !== false);
-  if (isPrivate && !coachOk) {
+  const requestedCoachIds = [
+    ...new Set(
+      [
+        ...(Array.isArray(opts.coachIds) ? opts.coachIds : []),
+        ...(opts.coachId ? [String(opts.coachId)] : []),
+      ]
+        .map((id) => String(id || '').trim())
+        .filter((id) =>
+          store.coaches.some((c) => c.id === id && c.active !== false)
+        )
+    ),
+  ];
+  if (isPrivate && !requestedCoachIds.length) {
     return { error: 'Select the coach for this private client' };
   }
-  const coachId = coachOk ? requestedCoachId : null;
+  const coachId = requestedCoachIds[0] || null;
   const explicitPlanIds = Array.isArray(opts.planIds);
   if (!isMember && !isPrivate) {
     if (!explicitPlanIds) {
@@ -1214,10 +1255,33 @@ export function allocateMemberToClass(
     client.membership_status = 'active';
   }
 
-  client.private_client = isPrivate;
-  client.coach_id = isPrivate
-    ? coachId
-    : coachId || plan?.default_coach_id || client.coach_id || null;
+  if (isPrivate) {
+    client.private_client = true;
+    client.coach_ids = requestedCoachIds;
+    client.coach_id = requestedCoachIds[0] || null;
+  } else if (flagsExplicit && opts.privateClient === false) {
+    client.private_client = false;
+    client.coach_ids = [];
+    client.coach_id = null;
+  } else {
+    client.private_client = false;
+    client.coach_id =
+      coachId || plan?.default_coach_id || client.coach_id || null;
+  }
+  if (Array.isArray(opts.classTypeIds)) {
+    client.class_type_ids = [
+      ...new Set(opts.classTypeIds.map((id) => String(id || '').trim()).filter(Boolean)),
+    ];
+  }
+  if (Array.isArray(opts.classAssignments)) {
+    client.class_assignments = opts.classAssignments
+      .map((row) => ({
+        class_type_id: String(row.class_type_id || '').trim(),
+        start_date: row.start_date ? String(row.start_date).slice(0, 10) : null,
+        end_date: row.end_date ? String(row.end_date).slice(0, 10) : null,
+      }))
+      .filter((row) => row.class_type_id);
+  }
   const privateRate =
     opts.privateRateZar != null && Number.isFinite(Number(opts.privateRateZar))
       ? Number(opts.privateRateZar)
@@ -1275,6 +1339,13 @@ export function allocateMemberToClass(
     sub.auto_renew = sub.auto_renew !== false;
     sub.updated_at = now;
     if (!sub.started_at) sub.started_at = today;
+    const primaryWindow = opts.planWindows?.[plan.id];
+    if (primaryWindow?.start) sub.started_at = String(primaryWindow.start).slice(0, 10);
+    if (primaryWindow) {
+      sub.ends_on = primaryWindow.end
+        ? String(primaryWindow.end).slice(0, 10)
+        : null;
+    }
     if (status === 'cancelled' || status === 'expired') {
       sub.cancel_at = today;
     }
@@ -1291,6 +1362,15 @@ export function allocateMemberToClass(
       updated_at: now,
     };
     store.subscriptions.push(sub);
+    const createdWindow = opts.planWindows?.[plan.id];
+    if (createdWindow?.start) {
+      sub.started_at = String(createdWindow.start).slice(0, 10);
+    }
+    if (createdWindow) {
+      sub.ends_on = createdWindow.end
+        ? String(createdWindow.end).slice(0, 10)
+        : null;
+    }
   }
 
   let cancelled = 0;
@@ -1341,6 +1421,15 @@ export function allocateMemberToClass(
       extra.charged_zar = extraCharge;
       extra.updated_at = now;
       if (!extra.started_at) extra.started_at = today;
+      const extraWindow = opts.planWindows?.[extraPlan.id];
+      if (extraWindow?.start) {
+        extra.started_at = String(extraWindow.start).slice(0, 10);
+      }
+      if (extraWindow) {
+        extra.ends_on = extraWindow.end
+          ? String(extraWindow.end).slice(0, 10)
+          : null;
+      }
     } else {
       extra = {
         id: newId('sub'),

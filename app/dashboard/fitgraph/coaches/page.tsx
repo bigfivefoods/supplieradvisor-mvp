@@ -57,6 +57,7 @@ import {
 } from '@/components/services/AdvisorIdentityPanel';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { GymColorSwatch } from '@/components/fitness/GymColorSwatch';
+import { membersForCoach } from '@/lib/fitness/member-directory';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -160,6 +161,7 @@ export default function CoachesPage() {
   );
   const [editSpecialtyTo, setEditSpecialtyTo] = useState('');
   const [onlyIncomplete, setOnlyIncomplete] = useState(false);
+  const [rosterOpen, setRosterOpen] = useState<Record<string, boolean>>({});
 
   const specialtyOptions = useMemo(
     () => (store ? getCoachSpecialtyOptions(store) : []),
@@ -737,6 +739,38 @@ export default function CoachesPage() {
                   </button>
                   {isOpen && (
                   <div className="mt-3 min-w-0">
+                      <AdvisorExpandablePanel
+                        title="Roster"
+                        description="Private clients and class members for this coach, from the live book."
+                        open={rosterOpen[c.id] === true}
+                        onToggle={() =>
+                          setRosterOpen((prev) => ({
+                            ...prev,
+                            [c.id]: !prev[c.id],
+                          }))
+                        }
+                        accentClass="border-[#00b4d8]/40"
+                      >
+                        {(() => {
+                          const roster = membersForCoach(store, c.id);
+                          return (
+                            <div className="space-y-2 text-sm">
+                              <p>
+                                <span className="font-bold">Private clients: </span>
+                                {roster.privateClients.length
+                                  ? roster.privateClients.map((r) => r.name).join(', ')
+                                  : 'None'}
+                              </p>
+                              <p>
+                                <span className="font-bold">Class members: </span>
+                                {roster.classMembers.length
+                                  ? roster.classMembers.map((r) => r.name).join(', ')
+                                  : 'None'}
+                              </p>
+                            </div>
+                          );
+                        })()}
+                      </AdvisorExpandablePanel>
                       <div className="mb-3 flex flex-wrap items-center gap-2">
                       <button
                         type="button"
