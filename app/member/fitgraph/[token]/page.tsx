@@ -72,6 +72,7 @@ import {
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
 import { GymProfileFolds } from '@/components/fitness/GymProfileFolds';
+import { MemberStatements } from '@/components/fitness/netcash/MemberStatements';
 import { GymClassChallengeBoard } from '@/components/fitness/GymClassChallengeBoard';
 import {
   GymClassLeaderboards,
@@ -2379,6 +2380,7 @@ export default function MemberFitgraphPortalPage() {
               onRateClass={(bookingId, v) => void rateClass(bookingId, v)}
               admin={
           <div className="space-y-3">
+            <MemberStatements token={token} />
             <ProfilePhotoField
               value={photoUrl}
               kind="client_photo"

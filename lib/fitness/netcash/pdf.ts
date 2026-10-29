@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { formatZar } from '@/lib/fitness/netcash/money';
+import type { MonthStatement } from '@/lib/fitness/netcash/member-statement';
 import type { BillingLine, BillingRun, Mandate } from '@/lib/fitness/netcash/types';
 
 const INK = '#0f172a';
@@ -91,6 +92,46 @@ export async function renderStatementPdf(input: {
   if (!input.lines.length) doc.text('No debit order invoices yet.');
   doc.moveDown();
   doc.fontSize(8).fillColor('#64748b').text('SupplierAdvisor® · GymAdvisor®');
+  doc.end();
+  return done;
+}
+
+export async function renderMonthStatementPdf(input: {
+  gymName: string;
+  memberName: string;
+  statement: MonthStatement;
+}): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'A4', margin: 48 });
+  const done = bufferFrom(doc);
+  const s = input.statement;
+  doc.rect(0, 0, doc.page.width, 72).fill(CYAN);
+  doc.fillColor(INK).fontSize(18).text('GymAdvisor® statement', 48, 28);
+  doc.fillColor(INK).fontSize(11).text(`${input.gymName} · ${input.memberName}`, 48, 92);
+  doc.moveDown();
+  doc.fontSize(14).font('Helvetica-Bold').text(s.label);
+  doc.moveDown(0.4);
+  doc.fontSize(10).font('Helvetica');
+  for (const [label, cents] of [
+    ['Opening balance', s.openingCents],
+    ['Invoices', s.invoicedCents],
+    ['Collected', s.collectedCents],
+    ['Unpaid', s.unpaidCents],
+    ['Credits', s.creditCents],
+    ['Closing balance', s.closingCents],
+  ] as const) {
+    doc.font('Helvetica-Bold').text(`${label}: `, { continued: true });
+    doc.font('Helvetica').text(formatZar(cents));
+  }
+  doc.moveDown();
+  for (const entry of s.entries) {
+    doc.font('Helvetica-Bold').text(`${entry.invoiceNumber || 'Draft'} · ${formatZar(entry.totalCents)} · ${entry.status}`);
+    doc.font('Helvetica').text(entry.description);
+    if (entry.reason) doc.text(entry.reason);
+    if (entry.creditNoteNumber) doc.text(`Credit note ${entry.creditNoteNumber}`);
+    doc.moveDown(0.3);
+  }
+  doc.moveDown();
+  doc.fontSize(8).fillColor('#64748b').text('SupplierAdvisor® · GymAdvisor® · Your statement only.');
   doc.end();
   return done;
 }

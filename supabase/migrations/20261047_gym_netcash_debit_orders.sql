@@ -416,3 +416,63 @@ BEGIN
   END IF;
 END
 $grants$;
+
+-- A signed-in member JWT may read only their own mandate and collection
+-- rows. Gym owners and admins still read the whole company. Portal
+-- tokens are checked in the API before the service role reads one member.
+-- Runs stay owner/admin only so a member cannot read the gym's batch totals.
+
+CREATE OR REPLACE FUNCTION app_private.gym_netcash_member_self(p_company_id bigint, p_member_id text)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  claims text;
+  member_claim text;
+  company_claim text;
+BEGIN
+  IF app_private.gym_netcash_owner_admin(p_company_id) THEN
+    RETURN true;
+  END IF;
+  claims := current_setting('request.jwt.claims', true);
+  IF claims IS NULL OR btrim(claims) = '' OR p_member_id IS NULL OR btrim(p_member_id) = '' THEN
+    RETURN false;
+  END IF;
+  BEGIN
+    member_claim := claims::json->>'gym_member_id';
+    company_claim := claims::json->>'gym_company_id';
+  EXCEPTION WHEN others THEN
+    RETURN false;
+  END;
+  RETURN coalesce(member_claim, '') = p_member_id
+    AND coalesce(company_claim, '') = p_company_id::text;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION app_private.gym_netcash_member_self(bigint, text) FROM PUBLIC;
+DO $member_grant$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON FUNCTION app_private.gym_netcash_member_self(bigint, text) FROM anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    GRANT EXECUTE ON FUNCTION app_private.gym_netcash_member_self(bigint, text) TO authenticated;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION app_private.gym_netcash_member_self(bigint, text) TO service_role;
+  END IF;
+END
+$member_grant$;
+
+DROP POLICY IF EXISTS gym_billing_lines_admin_read ON public.gym_billing_lines;
+CREATE POLICY gym_billing_lines_admin_read ON public.gym_billing_lines
+  FOR SELECT TO authenticated
+  USING (app_private.gym_netcash_member_self(company_id, member_id));
+
+DROP POLICY IF EXISTS gym_debit_mandates_admin_read ON public.gym_debit_mandates;
+CREATE POLICY gym_debit_mandates_admin_read ON public.gym_debit_mandates
+  FOR SELECT TO authenticated
+  USING (app_private.gym_netcash_member_self(company_id, member_id));

@@ -75,6 +75,10 @@ export function memoryRepo(): NetcashRepo & { batches: BatchRow[] } {
       gate(companyId);
       return lines.filter((row) => row.companyId === companyId && (runId ? row.runId === runId : true));
     },
+    async listMemberLines(companyId, memberId) {
+      gate(companyId);
+      return lines.filter((row) => row.companyId === companyId && row.memberId === memberId);
+    },
     async saveLines(next) {
       for (const line of next) {
         gate(line.companyId);

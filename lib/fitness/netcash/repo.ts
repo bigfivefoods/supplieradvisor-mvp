@@ -20,6 +20,7 @@ export type NetcashRepo = {
   listRuns(companyId: number): Promise<BillingRun[]>;
   saveRun(run: BillingRun): Promise<BillingRun>;
   listLines(companyId: number, runId?: string): Promise<BillingLine[]>;
+  listMemberLines(companyId: number, memberId: string): Promise<BillingLine[]>;
   saveLines(lines: BillingLine[]): Promise<void>;
   replaceRunLines(companyId: number, runId: string, lines: BillingLine[]): Promise<void>;
   findRunByKey(companyId: number, idempotencyKey: string): Promise<BillingRun | null>;

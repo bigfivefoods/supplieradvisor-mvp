@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import GymDebitFlow from '../../../components/fitness/netcash/GymDebitFlow';
 import { MODULE_NAV } from '../../chrome/module-nav';
 import { buildDebitBatchFile } from './batch';
+import { buildMemberStatements } from './member-statement';
 import { priceMember } from './billing';
 import { buildPreviewLines } from './billing';
 import { addBusinessDays, easterSunday, holidayName, isBusinessDay, planActionDate, weekday } from './calendar';
@@ -171,6 +172,32 @@ const many = buildPreviewLines({
 });
 assert.equal(many.length, 3000);
 assert.ok(Date.now() - started < 1500, `preview took ${Date.now() - started}ms`);
+
+const own = buildMemberStatements('m_amahle', sampleLines, sampleRuns);
+const other = buildMemberStatements('m_lindiwe', sampleLines, sampleRuns);
+assert.equal(own.some((month) => month.entries.some((entry) => entry.invoiceNumber === 'GYM-00043')), false);
+assert.equal(other.some((month) => month.entries.some((entry) => entry.invoiceNumber === 'GYM-00041')), false);
+assert.equal(own[0]?.month >= (own[1]?.month || ''), true);
+const september = { ...sampleLines[0], id: 'sep', runId: 'run_sep', collectionStatus: 'unpaid' as const, invoiceNumber: 'GYM-00030', totalCents: 89000 };
+const septemberRun = { ...sampleRuns[0], id: 'run_sep', periodKey: '2026-09' };
+const rolled = buildMemberStatements('m_amahle', [september, sampleLines[0]], [septemberRun, sampleRuns[0]]);
+assert.deepEqual(rolled.map((month) => month.month), ['2026-10', '2026-09']);
+assert.equal(rolled[1].closingCents, 89000);
+assert.equal(rolled[0].openingCents, 89000);
+assert.equal(rolled[0].collectedCents, 89000);
+assert.equal(rolled[0].closingCents, 89000);
+assert.equal(rolled.some((month) => month.entries.some((entry) => entry.invoiceNumber === 'GYM-00043')), false);
+const route = readFileSync('app/api/public/fitgraph/statements/route.ts', 'utf8');
+assert.match(route, /memberStatementsForToken/);
+assert.equal(route.includes('searchParams.get(\'memberId\')'), false);
+const access = readFileSync('lib/fitness/netcash/server/member-access.ts', 'utf8');
+assert.match(access, /listMemberLines/);
+assert.match(access, /line.memberId === client.id/);
+assert.match(access, /companyAllowed\(companyFromToken\)/);
+assert.ok(access.indexOf('companyAllowed(companyFromToken)') < access.indexOf('await loadAdvisorStoreForPublicToken'));
+const migrated = readFileSync('supabase/migrations/20261047_gym_netcash_debit_orders.sql', 'utf8');
+assert.match(migrated, /gym_netcash_member_self/);
+assert.match(migrated, /gym_billing_lines_admin_read/);
 
 async function main() {
 const live = await createNetcashClient('live').submitDebitBatch({ sha256: 'x', actionDate: '2026-11-02', rows: [] });

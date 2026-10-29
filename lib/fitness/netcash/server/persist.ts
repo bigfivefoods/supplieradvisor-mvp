@@ -371,6 +371,20 @@ export function supabaseNetcashRepo(): NetcashRepo {
       if (error) fail(error, 'save run');
       return run;
     },
+    async listMemberLines(companyId, memberId) {
+      gate(companyId);
+      const member = String(memberId || '').trim();
+      if (!member) return [];
+      const { data, error } = await db
+        .from('gym_billing_lines')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('member_id', member)
+        .order('created_at', { ascending: false })
+        .limit(2000);
+      if (error) fail(error, 'member lines');
+      return (data || []).map((row) => lineFrom(row as Record<string, unknown>));
+    },
     async listLines(companyId, runId) {
       gate(companyId);
       let query = db.from('gym_billing_lines').select('*').eq('company_id', companyId);
