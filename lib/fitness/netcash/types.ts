@@ -44,6 +44,9 @@ export type NetcashSettings = {
   serviceKeyEnc: string | null;
   serviceKeyLast4: string;
   serviceKeyConfigured: boolean;
+  /** When the Debit Order service key was last saved, replaced, or removed. */
+  serviceKeyUpdatedAt: string;
+  serviceKeyUpdatedBy: string;
   accountKeyEnc: string | null;
   accountKeyLast4: string;
   accountKeyConfigured: boolean;
@@ -249,9 +252,8 @@ export type BatchLineResult = {
   reasonCode: string;
 };
 
-export type PublicSettings = Omit<NetcashSettings, 'serviceKeyEnc'> & {
-  serviceKeyEnc?: never;
-};
+/** Browser shape. Ciphertext columns are never included. */
+export type PublicSettings = Omit<NetcashSettings, 'serviceKeyEnc' | 'accountKeyEnc'>;
 
 export type PublicMandate = Omit<Mandate, 'accountNumberEnc'> & {
   accountNumberMasked: string;

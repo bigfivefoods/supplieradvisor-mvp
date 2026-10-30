@@ -46,6 +46,16 @@ jobs:
           do
             npx --yes tsx "$file"
           done
+      - name: GymAdvisor Netcash credential tests
+        run: |
+          set -euo pipefail
+          for file in \
+            lib/fitness/netcash/credentials.test.ts \
+            lib/fitness/netcash/netcash.test.ts \
+            lib/fitness/netcash/niws-contract.test.ts
+          do
+            npx --yes tsx "$file"
+          done
       - name: ConstructionAdvisor tests
         run: |
           set -euo pipefail

@@ -104,6 +104,47 @@ export function resultsFromStatement(body: string, rows: Array<{ netcashRef: str
   return statementToResults(parseStatement(body), rows);
 }
 
+export const DEBIT_ORDER_PROBE_PASS = 'Connection passed. Netcash accepted the Debit Order service key in test mode.';
+
+/** Maps a transport error onto a fixed sentence. The service key is never copied in. */
+export function publicProbeError(error: string): string {
+  const text = String(error || '');
+  if (/network calls are off/i.test(text)) return 'Connection failed. Netcash network calls are off, so nothing was sent.';
+  if (/live Netcash calls stay off/i.test(text)) return 'Connection failed. Live Netcash calls stay off.';
+  if (/locked/i.test(text)) return 'Connection failed. This gym is locked until debit-order go-live is approved.';
+  if (/rejected the service key|not valid for this Netcash service/i.test(text)) {
+    return 'Connection failed. Netcash rejected the service key.';
+  }
+  if (/Only the published Netcash|did not accept the request/i.test(text)) {
+    return 'Connection failed. Netcash did not accept the request.';
+  }
+  return 'Connection failed. Netcash did not confirm the service key.';
+}
+
+/** Test connection always uses Netcash test mode. Live mode is not selectable here. */
+export function createTestModeNiwsCaller(input: {
+  fetchImpl: NiwsFetch;
+  companyId: number;
+  flags?: typeof FLAGS;
+}): NiwsCaller {
+  return createNiwsCaller({ ...input, mode: 'test' });
+}
+
+/**
+ * Read-only NIWS call. RequestDebitBatchUnauthorised checks the Debit Order
+ * service key and does not authorise a batch or move money.
+ */
+export async function probeDebitOrderServiceKey(
+  caller: NiwsCaller,
+  serviceKey: string,
+  actionDate: string
+): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  const date = String(actionDate || '').replace(/\D/g, '').slice(0, 8);
+  const listed = await caller.call('RequestDebitBatchUnauthorised', { ServiceKey: serviceKey, Date: date }, 'nif');
+  if (listed.ok) return { ok: true, message: DEBIT_ORDER_PROBE_PASS };
+  return { ok: false, error: publicProbeError(listed.error) };
+}
+
 export async function validateWithNetcash(
   caller: NiwsCaller,
   input: { accountServiceKey: string; accountNumber: string; branchCode: string; accountType: string }

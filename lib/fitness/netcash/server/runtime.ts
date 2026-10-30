@@ -6,9 +6,11 @@ import {
   requireCompanyRoles,
 } from '@/lib/auth/api-auth';
 import { accountAad, accountServiceKeyAad, encryptionKey, openSecret, sealSecret, serviceKeyAad } from '@/lib/fitness/netcash/crypto';
+import { sastStamp } from '@/lib/fitness/netcash/calendar';
 import { createNetcashClient } from '@/lib/fitness/netcash/client';
-import { createNiwsCaller } from '@/lib/fitness/netcash/niws-http';
+import { createNiwsCaller, createTestModeNiwsCaller, probeDebitOrderServiceKey } from '@/lib/fitness/netcash/niws-http';
 import { companyAllowed } from '@/lib/fitness/netcash/guard';
+import { NETCASH_ADMIN_ROLES } from '@/lib/fitness/netcash/permissions';
 import type { ServiceDeps } from '@/lib/fitness/netcash/service';
 import { supabaseInvoices } from '@/lib/fitness/netcash/server/books';
 import { supabaseNetcashRepo } from '@/lib/fitness/netcash/server/persist';
@@ -25,7 +27,7 @@ export async function requireNetcashAdmin(request: NextRequest, companyId: numbe
   if (!Number.isFinite(companyId) || companyId <= 0) {
     return { ok: false as const, response: NextResponse.json({ error: 'A company is required.', code: 'BAD_COMPANY' }, { status: 400 }) };
   }
-  const auth = await requireCompanyRoles(request, companyId, ['owner', 'admin'], {
+  const auth = await requireCompanyRoles(request, companyId, [...NETCASH_ADMIN_ROLES], {
     legacyPrivyUserId: legacyPrivyFrom(request),
   });
   if (!auth.ok) return { ok: false as const, response: auth.response };
@@ -134,6 +136,20 @@ export function netcashDeps(gymName?: string, companyId?: number): ServiceDeps {
       if (!key) return null;
       return sealSecret(body, key, `gym-netcash-file:${companyId}`);
     },
+    async probeDebitOrderKey(id, serviceKey) {
+      const caller = createTestModeNiwsCaller({
+        companyId: id,
+        fetchImpl: async (url, init) => {
+          try {
+            const response = await fetch(url, { ...init, redirect: 'manual' });
+            return { status: response.status, body: await response.text() };
+          } catch {
+            throw new Error('Netcash did not accept the request.');
+          }
+        },
+      });
+      return probeDebitOrderServiceKey(caller, serviceKey, sastStamp(new Date()).date);
+    },
     async mailer(input) {
       try {
         const resend = getResend();
@@ -173,6 +189,14 @@ function headerKey(fileBody: string): string {
 
 function headerBatch(fileBody: string): string {
   return fileBody.split('\t')[4] || '';
+}
+
+export function netcashActor(auth: { name?: string | null; email?: string | null; userId: string }): string {
+  const name = String(auth.name || '').replace(/\s+/g, ' ').trim();
+  if (name) return name.slice(0, 80);
+  const email = String(auth.email || '').trim();
+  if (email && !email.includes(' ')) return email.slice(0, 80);
+  return String(auth.userId || '').slice(0, 80);
 }
 
 export function publicError(error: unknown) {

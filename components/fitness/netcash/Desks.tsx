@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { savedKeyLabel } from '@/lib/fitness/netcash/mask';
 import { formatZar } from '@/lib/fitness/netcash/money';
 import type { AccessHold, AuditEvent, BillingLine, BillingRun, Mandate, NetcashSettings } from '@/lib/fitness/netcash/types';
 import type { CollectionsOverview } from '@/lib/fitness/netcash/overview';
@@ -238,7 +239,7 @@ export function SettingsDesk({ settings }: { settings: NetcashSettings }) {
         <h2 className="text-sm font-black text-[#0f172a]">Merchant account</h2>
         <p className="mt-2 font-mono text-lg font-black">{settings.merchantAccount || 'Not set'}</p>
         <p className="mt-3 text-sm text-slate-600">
-          Debit Order service key {settings.serviceKeyConfigured ? `on file ···· ${settings.serviceKeyLast4}` : 'not stored'}. Account service key {settings.accountKeyConfigured ? `on file ···· ${settings.accountKeyLast4}` : 'not stored'}. Neither key is sent back to this screen.
+          {settings.serviceKeyConfigured ? savedKeyLabel(settings.serviceKeyLast4) : 'No Debit Order service key is stored for this gym.'} The key is not sent back to this screen.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <span className={btn}>Test</span>

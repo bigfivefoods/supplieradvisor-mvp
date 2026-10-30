@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 
 const STEPS = [
-  { n: '01', title: 'Netcash settings', body: 'The owner stores the merchant account and Debit Order service key. Test mode is the default. The key stays sealed on the server.', href: '/dashboard/fitgraph/netcash' },
+  { n: '01', title: 'Netcash settings', body: 'An owner or admin stores the merchant account and Debit Order service key. After save, GymAdvisor® shows only the last four characters. Test connection uses Netcash test mode.', href: '/dashboard/fitgraph/netcash' },
   { n: '02', title: 'Member mandate', body: 'The member enters the bank, branch, account type, holder, debit day, and amount, then signs. Account validation runs before the mandate can go active.', href: '/dashboard/fitgraph/debit-orders' },
   { n: '03', title: 'Masterfile', body: 'Activating a signed mandate uploads that member to the Netcash masterfile. Pending, active, suspended, and cancelled are the only states.', href: '/dashboard/fitgraph/debit-orders' },
   { n: '04', title: 'VAT invoice', body: 'Each active member gets a numbered invoice: plan, add-ons, pro-rata first month, and discounts. It is emailed and can be shared on WhatsApp before the debit date.', href: '/dashboard/fitgraph/billing-runs' },

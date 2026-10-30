@@ -65,8 +65,8 @@ export function mockAccountValidation(accountNumber: string, branchCode: string)
   return { status: 'valid', ref, message: 'Account accepted in Netcash test mode.' };
 }
 
-export function validateSettingsPatch(input: Partial<NetcashSettings> & { serviceKey?: string; accountKey?: string }): { ok: true; patch: Partial<NetcashSettings> & { serviceKey?: string; accountKey?: string } } | { ok: false; error: string } {
-  const patch: Partial<NetcashSettings> & { serviceKey?: string; accountKey?: string } = {};
+export function validateSettingsPatch(input: Partial<NetcashSettings> & { serviceKey?: string; accountKey?: string; removeServiceKey?: boolean }): { ok: true; patch: Partial<NetcashSettings> & { serviceKey?: string; accountKey?: string; removeServiceKey?: boolean } } | { ok: false; error: string } {
+  const patch: Partial<NetcashSettings> & { serviceKey?: string; accountKey?: string; removeServiceKey?: boolean } = {};
   if (input.merchantAccount != null) {
     const merchant = String(input.merchantAccount).trim();
     if (merchant.length > 40) return { ok: false, error: 'Merchant account is too long.' };
@@ -117,10 +117,14 @@ export function validateSettingsPatch(input: Partial<NetcashSettings> & { servic
     if (prefix.length < 2 || prefix.length > 8) return { ok: false, error: 'Invoice prefix must be 2 to 8 letters or digits.' };
     patch.invoicePrefix = prefix;
   }
+  if (input.removeServiceKey === true) patch.removeServiceKey = true;
   if (input.serviceKey != null) {
     const key = String(input.serviceKey).trim();
     if (key && (key.length < 8 || key.length > 80)) return { ok: false, error: 'Service key looks invalid.' };
-    patch.serviceKey = key;
+    if (key) patch.serviceKey = key;
+  }
+  if (patch.removeServiceKey && patch.serviceKey) {
+    return { ok: false, error: 'Remove the key or replace it, not both.' };
   }
   if (input.accountKey != null) {
     const key = String(input.accountKey).trim();

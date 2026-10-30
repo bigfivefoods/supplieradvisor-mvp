@@ -12,6 +12,8 @@ export const sampleSettings: NetcashSettings = {
   serviceKeyEnc: null,
   serviceKeyLast4: '7K2Q',
   serviceKeyConfigured: true,
+  serviceKeyUpdatedAt: NOW,
+  serviceKeyUpdatedBy: 'owner',
   accountKeyEnc: null,
   accountKeyLast4: '',
   accountKeyConfigured: false,

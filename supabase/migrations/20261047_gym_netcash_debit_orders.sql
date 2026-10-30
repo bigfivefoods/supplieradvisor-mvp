@@ -6,7 +6,9 @@
 -- Tables are company-scoped. The API uses the service role and checks
 -- owner/admin. Row level security still limits signed-in owner/admin
 -- reads to their own company. Service keys and bank account numbers are
--- not granted to anon or authenticated.
+-- not granted to anon or authenticated. Ciphertext columns
+-- (service_key_enc, account_key_enc) are readable by service_role only.
+-- Members have no policy on gym_netcash_settings.
 
 SET LOCAL lock_timeout = '4s';
 SET LOCAL statement_timeout = '60s';
@@ -47,6 +49,8 @@ CREATE TABLE IF NOT EXISTS public.gym_netcash_settings (
   merchant_account text NOT NULL DEFAULT '',
   service_key_enc text,
   service_key_last4 text NOT NULL DEFAULT '',
+  service_key_updated_at timestamptz,
+  service_key_updated_by text NOT NULL DEFAULT '',
   account_key_enc text,
   account_key_last4 text NOT NULL DEFAULT '',
   mode text NOT NULL DEFAULT 'test',
@@ -82,6 +86,32 @@ CREATE TABLE IF NOT EXISTS public.gym_netcash_settings (
   CONSTRAINT gym_netcash_settings_fee CHECK (late_fee_cents BETWEEN 0 AND 100000),
   CONSTRAINT gym_netcash_settings_retry CHECK (retry_max_attempts BETWEEN 1 AND 5)
 );
+
+ALTER TABLE public.gym_netcash_settings
+  ADD COLUMN IF NOT EXISTS service_key_updated_at timestamptz;
+ALTER TABLE public.gym_netcash_settings
+  ADD COLUMN IF NOT EXISTS service_key_updated_by text NOT NULL DEFAULT '';
+
+ALTER TABLE public.gym_netcash_settings DROP CONSTRAINT IF EXISTS gym_netcash_settings_service_key_sealed;
+ALTER TABLE public.gym_netcash_settings
+  ADD CONSTRAINT gym_netcash_settings_service_key_sealed
+  CHECK (
+    service_key_enc IS NULL
+    OR service_key_enc ~ '^gnc1[.][A-Za-z0-9_-]+[.][A-Za-z0-9_-]+[.][A-Za-z0-9_-]+$'
+  );
+
+ALTER TABLE public.gym_netcash_settings DROP CONSTRAINT IF EXISTS gym_netcash_settings_account_key_sealed;
+ALTER TABLE public.gym_netcash_settings
+  ADD CONSTRAINT gym_netcash_settings_account_key_sealed
+  CHECK (
+    account_key_enc IS NULL
+    OR account_key_enc ~ '^gnc1[.][A-Za-z0-9_-]+[.][A-Za-z0-9_-]+[.][A-Za-z0-9_-]+$'
+  );
+
+COMMENT ON COLUMN public.gym_netcash_settings.service_key_enc IS
+  'AES-256-GCM ciphertext (gnc1). Service role only. Never granted to anon, authenticated, or members.';
+COMMENT ON COLUMN public.gym_netcash_settings.account_key_enc IS
+  'AES-256-GCM ciphertext (gnc1). Service role only. Never granted to anon, authenticated, or members.';
 
 CREATE TABLE IF NOT EXISTS public.gym_debit_mandates (
   id text PRIMARY KEY,
@@ -376,8 +406,10 @@ BEGIN
 END
 $rls$;
 
+-- Ciphertext is not in this list. service_role receives it via GRANT ALL below.
 GRANT SELECT (
-  company_id, merchant_account, service_key_last4, mode, debit_day, cadence,
+  company_id, merchant_account, service_key_last4, service_key_updated_at, service_key_updated_by,
+  mode, debit_day, cadence,
   lead_business_days, cutoff_hour_sast, cutoff_minute, prices_include_vat, vat_bps,
   invoice_prefix, credit_prefix, late_fee_cents, retry_max_attempts, auto_submit,
   auto_suspend_access, dunning_email, allow_amount_variance, gl_bank_code, gl_ar_code,

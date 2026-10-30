@@ -152,19 +152,15 @@ export function SettingsLive() {
   const { book, loading } = useBook('/api/fitness/netcash/settings');
   const [note, setNote] = useState('');
   const [mode, setMode] = useState<'test' | 'live'>('test');
-  const [merchant, setMerchant] = useState('');
-  const [serviceKey, setServiceKey] = useState('');
   const [debitDay, setDebitDay] = useState('1');
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     if (!book.settings || loaded) return;
     setMode(book.settings.mode);
-    setMerchant(book.settings.merchantAccount);
     setDebitDay(String(book.settings.debitDay));
     setLoaded(true);
   }, [book.settings, loaded]);
   if (loading || book.error || !book.settings) return <Note loading={loading} error={book.error} />;
-  const settings = book.settings;
   return (
     <form
       className="max-w-xl space-y-3"
@@ -177,25 +173,16 @@ export function SettingsLive() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             companyId,
-            merchantAccount: merchant,
             mode,
             debitDay: Number(debitDay),
-            ...(serviceKey ? { serviceKey } : {}),
           }),
         }).then(async (response) => {
           const data = (await response.json().catch(() => ({}))) as { error?: string };
-          setServiceKey('');
-          setNote(response.ok ? 'Saved. The service key is not shown again.' : data.error || 'Could not save.');
+          setNote(response.ok ? 'Schedule saved.' : data.error || 'Could not save.');
         });
       }}
     >
       <ModeBanner mode={mode} />
-      <label className="block text-sm font-bold">Merchant account
-        <input className="mt-1 w-full min-h-11 rounded-2xl border border-slate-200 px-3" value={merchant} onChange={(event) => setMerchant(event.target.value)} />
-      </label>
-      <label className="block text-sm font-bold">Debit Order service key
-        <input className="mt-1 w-full min-h-11 rounded-2xl border border-slate-200 px-3" type="password" autoComplete="off" value={serviceKey} placeholder={settings.serviceKeyConfigured ? `On file ···· ${settings.serviceKeyLast4}` : 'Paste the service key'} onChange={(event) => setServiceKey(event.target.value)} />
-      </label>
       <label className="block text-sm font-bold">Debit day
         <input className="mt-1 w-full min-h-11 rounded-2xl border border-slate-200 px-3" inputMode="numeric" value={debitDay} onChange={(event) => setDebitDay(event.target.value)} />
       </label>
@@ -203,7 +190,7 @@ export function SettingsLive() {
         <button type="button" className={mode === 'test' ? btn : ghost} onClick={() => setMode('test')}>Test</button>
         <button type="button" className={mode === 'live' ? btn : ghost} onClick={() => setMode('live')}>Live</button>
       </div>
-      <button type="submit" className={btn}>Save Netcash settings</button>
+      <button type="submit" className={btn}>Save schedule</button>
       {note ? <p className="text-sm font-bold">{note}</p> : null}
     </form>
   );

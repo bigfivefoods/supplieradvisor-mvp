@@ -1,4 +1,4 @@
-import type { NetcashSettings } from '@/lib/fitness/netcash/types';
+import type { NetcashSettings, PublicSettings } from '@/lib/fitness/netcash/types';
 
 export function defaultSettings(companyId: number, nowIso: string): NetcashSettings {
   return {
@@ -7,6 +7,8 @@ export function defaultSettings(companyId: number, nowIso: string): NetcashSetti
     serviceKeyEnc: null,
     serviceKeyLast4: '',
     serviceKeyConfigured: false,
+    serviceKeyUpdatedAt: '',
+    serviceKeyUpdatedBy: '',
     accountKeyEnc: null,
     accountKeyLast4: '',
     accountKeyConfigured: false,
@@ -36,10 +38,18 @@ export function defaultSettings(companyId: number, nowIso: string): NetcashSetti
   };
 }
 
-export function toPublicSettings(settings: NetcashSettings) {
-  const { serviceKeyEnc: _sealed, ...rest } = settings;
-  void _sealed;
-  return rest;
+export function toPublicSettings(settings: NetcashSettings): PublicSettings {
+  const pub = { ...settings } as PublicSettings & {
+    serviceKeyEnc?: string | null;
+    accountKeyEnc?: string | null;
+    serviceKey?: string;
+    accountKey?: string;
+  };
+  delete pub.serviceKeyEnc;
+  delete pub.accountKeyEnc;
+  delete pub.serviceKey;
+  delete pub.accountKey;
+  return pub;
 }
 
 export function maskAccount(last4: string): string {

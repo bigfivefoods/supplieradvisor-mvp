@@ -9,6 +9,7 @@ import { documentNumber, invoiceFromLine, type InvoicePort } from '@/lib/fitness
 import { summariseCollections } from '@/lib/fitness/netcash/overview';
 import { pendingLateFees, applyResults } from '@/lib/fitness/netcash/reconcile';
 import type { NetcashRepo } from '@/lib/fitness/netcash/repo';
+import { redactSecret } from '@/lib/fitness/netcash/mask';
 import { dunningEmail, invoiceEmail, whatsappHref, whatsappInvoiceText } from '@/lib/fitness/netcash/share';
 import type { AuditEvent, BillingLine, BillingRun, BillableMember, Mandate, NetcashSettings } from '@/lib/fitness/netcash/types';
 import { CONSENT_VERSION, consentText, mockAccountValidation, validateMandateInput, validateSettingsPatch, type MandateInput } from '@/lib/fitness/netcash/validate';
@@ -29,6 +30,8 @@ export type ServiceDeps = {
   sealAccountKey?: (companyId: number, key: string) => string | null;
   openServiceKey?: (companyId: number, settings: NetcashSettings) => string | null;
   openAccountKey?: (companyId: number, settings: NetcashSettings) => string | null;
+  /** Test-mode NIWS probe. Must not be called with a live mode. */
+  probeDebitOrderKey?: (companyId: number, serviceKey: string) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
   gymName?: string;
 };
 
@@ -44,8 +47,15 @@ function idOf(deps: ServiceDeps): () => string {
 async function audit(repo: NetcashRepo, event: Omit<AuditEvent, 'id' | 'createdAt'> & { id: string; createdAt: string }) {
   const safe = { ...event.detail };
   delete safe.serviceKey;
+  delete safe.accountKey;
+  delete safe.serviceKeyEnc;
+  delete safe.accountKeyEnc;
   delete safe.accountNumber;
   delete safe.file;
+  delete safe.removeServiceKey;
+  for (const [key, value] of Object.entries(safe)) {
+    if (typeof value === 'string' && value.includes('gnc1.')) delete safe[key];
+  }
   await repo.appendAudit({ ...event, detail: safe });
 }
 
@@ -63,46 +73,138 @@ export async function updateSettings(
   deps: ServiceDeps,
   companyId: number,
   patch: Record<string, unknown>,
-  actor: string
+  actor: string,
+  ip = ''
 ): Promise<NetcashSettings> {
   const current = await loadSettings(deps, companyId);
   const parsed = validateSettingsPatch(patch as Parameters<typeof validateSettingsPatch>[0]);
   if (!parsed.ok) throw new Error(parsed.error);
-  const next = { ...current, ...parsed.patch, updatedAt: nowOf(deps).toISOString(), updatedBy: actor };
-  delete (next as { serviceKey?: string; accountKey?: string }).serviceKey;
-  delete (next as { accountKey?: string }).accountKey;
-  if (parsed.patch.serviceKey) {
+  const nowIso = nowOf(deps).toISOString();
+  const { serviceKey, accountKey, removeServiceKey, ...rest } = parsed.patch;
+  const next: NetcashSettings = { ...current, ...rest, updatedAt: nowIso, updatedBy: actor };
+  const hadKey = Boolean(current.serviceKeyEnc);
+  if (removeServiceKey && !hadKey && Object.keys(rest).length === 0) return current;
+  let credentialAction: 'credentials.save' | 'credentials.replace' | 'credentials.remove' | null = null;
+  if (removeServiceKey) {
+    if (hadKey) {
+      next.serviceKeyEnc = null;
+      next.serviceKeyLast4 = '';
+      next.serviceKeyConfigured = false;
+      next.serviceKeyUpdatedAt = nowIso;
+      next.serviceKeyUpdatedBy = actor;
+      credentialAction = 'credentials.remove';
+    }
+  } else if (serviceKey) {
     const seal = deps.sealServiceKey;
     if (!seal) throw new Error('The debit order encryption key is not set.');
-    const sealed = seal(companyId, parsed.patch.serviceKey);
-    if (!sealed) throw new Error('The debit order encryption key is not set.');
+    const sealed = seal(companyId, serviceKey);
+    if (!sealed || sealed.includes(serviceKey)) throw new Error('The debit order encryption key is not set.');
     next.serviceKeyEnc = sealed;
-    next.serviceKeyLast4 = parsed.patch.serviceKey.slice(-4);
+    next.serviceKeyLast4 = serviceKey.slice(-4);
     next.serviceKeyConfigured = true;
+    next.serviceKeyUpdatedAt = nowIso;
+    next.serviceKeyUpdatedBy = actor;
+    credentialAction = hadKey ? 'credentials.replace' : 'credentials.save';
+  } else if (rest.merchantAccount != null && rest.merchantAccount !== current.merchantAccount) {
+    credentialAction = 'credentials.save';
   }
-  if (parsed.patch.accountKey) {
+  if (accountKey) {
     const seal = deps.sealAccountKey;
     if (!seal) throw new Error('The debit order encryption key is not set.');
-    const sealed = seal(companyId, parsed.patch.accountKey);
-    if (!sealed) throw new Error('The debit order encryption key is not set.');
+    const sealed = seal(companyId, accountKey);
+    if (!sealed || sealed.includes(accountKey)) throw new Error('The debit order encryption key is not set.');
     next.accountKeyEnc = sealed;
-    next.accountKeyLast4 = parsed.patch.accountKey.slice(-4);
+    next.accountKeyLast4 = accountKey.slice(-4);
     next.accountKeyConfigured = true;
   }
   await deps.repo.saveSettings(next);
   const id = idOf(deps);
-  await audit(deps.repo, {
-    id: id(),
-    companyId,
-    actor,
-    action: 'settings.update',
-    entity: 'settings',
-    entityId: String(companyId),
-    ip: '',
-    detail: { mode: next.mode, serviceKeyConfigured: next.serviceKeyConfigured, autoSubmit: next.autoSubmit },
-    createdAt: next.updatedAt,
-  });
+  if (credentialAction) {
+    await audit(deps.repo, {
+      id: id(),
+      companyId,
+      actor,
+      action: credentialAction,
+      entity: 'settings',
+      entityId: String(companyId),
+      ip,
+      detail: {
+        serviceKeyConfigured: next.serviceKeyConfigured,
+        last4: next.serviceKeyLast4,
+        merchantAccountSet: Boolean(next.merchantAccount),
+      },
+      createdAt: nowIso,
+    });
+  }
+  const other = Object.keys(rest).filter((key) => key !== 'merchantAccount');
+  if (other.length || (!credentialAction && !removeServiceKey)) {
+    await audit(deps.repo, {
+      id: id(),
+      companyId,
+      actor,
+      action: 'settings.update',
+      entity: 'settings',
+      entityId: String(companyId),
+      ip,
+      detail: { mode: next.mode, serviceKeyConfigured: next.serviceKeyConfigured, autoSubmit: next.autoSubmit },
+      createdAt: nowIso,
+    });
+  }
   return next;
+}
+
+export async function removeServiceKey(deps: ServiceDeps, companyId: number, actor: string, ip = ''): Promise<NetcashSettings> {
+  return updateSettings(deps, companyId, { removeServiceKey: true }, actor, ip);
+}
+
+export async function testDebitOrderConnection(
+  deps: ServiceDeps,
+  companyId: number,
+  actor: string,
+  ip = ''
+): Promise<{ ok: boolean; message: string }> {
+  const settings = await loadSettings(deps, companyId);
+  const nowIso = nowOf(deps).toISOString();
+  const id = idOf(deps);
+  const record = async (ok: boolean) => {
+    await audit(deps.repo, {
+      id: id(),
+      companyId,
+      actor,
+      action: 'credentials.test',
+      entity: 'settings',
+      entityId: String(companyId),
+      ip,
+      detail: { ok, mode: 'test' },
+      createdAt: nowIso,
+    });
+  };
+  if (!settings.serviceKeyConfigured || !settings.serviceKeyEnc) {
+    const message = 'Connection failed. Save a Debit Order service key first.';
+    await record(false);
+    return { ok: false, message };
+  }
+  const opened = deps.openServiceKey?.(companyId, settings) || '';
+  if (!opened) {
+    const message = 'Connection failed. The debit order encryption key is not set.';
+    await record(false);
+    return { ok: false, message };
+  }
+  let result: { ok: true; message: string } | { ok: false; error: string };
+  try {
+    result = deps.probeDebitOrderKey
+      ? await deps.probeDebitOrderKey(companyId, opened)
+      : { ok: false, error: 'Connection failed. Netcash network calls are off, so nothing was sent.' };
+  } catch {
+    result = { ok: false, error: 'Connection failed. Netcash did not confirm the service key.' };
+  }
+  const raw = result.ok ? result.message : result.error;
+  const redacted = redactSecret(raw, opened).replace(/\s+/g, ' ').trim();
+  const message = !redacted || redacted.includes(opened)
+    ? 'Connection failed. Netcash did not confirm the service key.'
+    : redacted;
+  await record(result.ok && message.startsWith('Connection passed'));
+  return { ok: message.startsWith('Connection passed'), message };
 }
 
 export async function captureMandate(
