@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { FitgraphWorkbench, useFitgraph } from '@/components/fitness/FitgraphWorkbench';
 import { AdvisorMemberAccounts } from '@/components/advisors/AdvisorMemberAccounts';
@@ -38,9 +39,13 @@ export default function FitgraphAccountsPage() {
               needed
             </p>
             <p className="text-[11px] text-slate-500">
-              Members submit these on their profile. You set up the debit
-              order at your bank — this is not Apple Pay or Paystack.
+              Members sign a debit order mandate in GymAdvisor®. Collections,
+              billing runs, and the Netcash service key live under Money.
+              This is not Apple Pay or Paystack.
             </p>
+            <Link href="/dashboard/fitgraph/debit-orders" className="inline-flex min-h-11 items-center text-sm font-black text-[#0077b6] underline">
+              Open debit orders
+            </Link>
           </div>
           {ready.length ? (
             <div className="overflow-x-auto">

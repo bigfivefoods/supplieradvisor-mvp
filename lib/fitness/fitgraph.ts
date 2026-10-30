@@ -1165,7 +1165,8 @@ export type FitMemberAccess = {
  */
 export function evaluateMemberAccess(
   store: FitgraphStore,
-  client: FitClient
+  client: FitClient,
+  opts?: { debitHold?: boolean }
 ): FitMemberAccess {
   const membership = String(client.membership_status || 'active').toLowerCase();
   const frozen =
@@ -1192,6 +1193,21 @@ export function evaluateMemberAccess(
   const bankOk = gymRequiresDebitBank(store)
     ? memberDebitBankComplete(client)
     : true;
+
+  if (opts?.debitHold) {
+    return {
+      level: 'allowed_with_warning',
+      payment_ok: false,
+      membership_status: membership,
+      subscription_status: subStatus,
+      plan_name: plan?.name || null,
+      alert: 'Debit order unpaid — GymAdvisor® access stays open',
+      member_message: 'Checked in. Please settle the unpaid debit order with reception.',
+      frozen: false,
+      period_end: periodEnd,
+      bank_ok: bankOk,
+    };
+  }
 
   if (client.active === false) {
     return {

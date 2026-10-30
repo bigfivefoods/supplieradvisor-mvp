@@ -205,7 +205,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   sustainability: 'Impact',
   fieldgraph: 'CropAdvisor',
   quarrygraph: 'QuarryAdvisor',
-  fitgraph: 'GymAdvisor (Gym)',
+  fitgraph: 'GymAdvisor®',
   physiograph: 'PhysioAdvisor (Clinic)',
   dentalgraph: 'DentalAdvisor (Dental)',
   psychiatrygraph: 'PsychiatryAdvisor (Mental health)',

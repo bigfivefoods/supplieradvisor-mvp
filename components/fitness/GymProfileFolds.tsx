@@ -774,7 +774,7 @@ export function GymProfileFolds({
 
       <GymExpandSection
         title="Admin"
-        hint="Name, contact, photo, and gym records"
+        hint="Statements, name, contact, and gym records"
         icon={<Shield className="h-4 w-4" />}
         open={adminOpen}
         onToggle={() => setAdminOpen((v) => !v)}
