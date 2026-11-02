@@ -2,13 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { isRecoverPortalPath } from '@/lib/auth/public-paths';
-
-const REGISTER = `(function(){
-  if(!('serviceWorker' in navigator)) return;
-  window.addEventListener('load',function(){
-    navigator.serviceWorker.register('/sw.js',{scope:'/',updateViaCache:'none'}).catch(function(){});
-  });
-})();`;
+import { SERVICE_WORKER_BOOT_SCRIPT } from '@/lib/pwa/register-script';
 
 function hidesSiteInstallTags(path: string) {
   return (
@@ -33,7 +27,7 @@ export default function SiteInstallTags() {
       <meta name="apple-mobile-web-app-capable" content="yes" />
       <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       <meta name="mobile-web-app-capable" content="yes" />
-      <script dangerouslySetInnerHTML={{ __html: REGISTER }} />
+      <script dangerouslySetInnerHTML={{ __html: SERVICE_WORKER_BOOT_SCRIPT }} />
     </>
   );
 }

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node scripts/patch-csp-script-hashes.js",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.typecheck.json",

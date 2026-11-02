@@ -1,5 +1,4 @@
 /** @type {import('next').NextConfig} */
-const cspReportEndpoint = '/api/csp-report';
 const cspReportAbsoluteEndpoint = 'https://www.supplieradvisor.com/api/csp-report';
 const cspReportGroup = 'csp-endpoint';
 const cspReportToValue = `{"group":"${cspReportGroup}","max_age":10886400,"endpoints":[{"url":"${cspReportAbsoluteEndpoint}"}]}`;
@@ -11,112 +10,13 @@ const translatedPathPattern = translatedPaths
   .map((path) => (path ? `${path}/?$` : '$'))
   .join('|');
 
-const cspScriptHosts = [
-  'https://va.vercel-scripts.com',
-  'https://maps.googleapis.com',
-  'https://maps.gstatic.com',
-  'https://js.paystack.co',
-  'https://applepay.cdn-apple.com',
-  'https://pay.google.com',
-  'https://auth.privy.io',
-  'https://*.privy.io',
-  'https://*.privy.systems',
-  'https://*.walletconnect.com',
-  'https://*.walletconnect.org',
-  'https://challenges.cloudflare.com',
-];
-
-const cspFrameHosts = [
-  'https://auth.privy.io',
-  'https://*.privy.io',
-  'https://*.privy.systems',
-  'https://verify.walletconnect.com',
-  'https://verify.walletconnect.org',
-  'https://*.walletconnect.com',
-  'https://*.walletconnect.org',
-  'https://checkout.paystack.com',
-  'https://pay.google.com',
-  'https://www.youtube.com',
-  'https://www.youtube-nocookie.com',
-  'https://player.vimeo.com',
-  'https://maps.googleapis.com',
-  'https://maps.google.com',
-];
-
-const cspReportOnlyConnectHosts = [
-  "'self'",
-  'https://onkklullmgrdqoertngp.supabase.co',
-  'wss://onkklullmgrdqoertngp.supabase.co',
-  'https://auth.privy.io',
-  'https://*.privy.io',
-  'https://*.privy.systems',
-  'wss://*.privy.io',
-  'wss://*.privy.systems',
-  'https://*.walletconnect.com',
-  'https://*.walletconnect.org',
-  'https://relay.walletconnect.com',
-  'https://relay.walletconnect.org',
-  'wss://relay.walletconnect.com',
-  'wss://relay.walletconnect.org',
-  'https://maps.googleapis.com',
-  'https://maps.gstatic.com',
-  'https://js.paystack.co',
-  'https://checkout.paystack.com',
-  'https://pay.google.com',
-  'https://google.com',
-  'https://va.vercel-scripts.com',
-  'https://vitals.vercel-insights.com',
-  'https://vitals.vercel-analytics.com',
-  'https://challenges.cloudflare.com',
-];
-
-function buildCspValue({
-  frameAncestors,
-  connectSrc,
-  includeUpgradeInsecureRequests = true,
-}) {
-  return [
-    "default-src 'self'",
-    `script-src 'self' 'unsafe-inline' ${cspScriptHosts.join(' ')}`,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' data: https://fonts.gstatic.com https://fonts.walletconnect.com https://fonts.reown.com https://applepay.cdn-apple.com",
-    "img-src 'self' data: blob: https:",
-    `connect-src ${connectSrc.join(' ')}`,
-    `frame-src ${cspFrameHosts.join(' ')}`,
-    "base-uri 'self'",
-    "form-action 'self'",
-    "object-src 'none'",
-    `report-uri ${cspReportEndpoint}`,
-    `report-to ${cspReportGroup}`,
-    frameAncestors,
-    ...(includeUpgradeInsecureRequests ? ['upgrade-insecure-requests'] : []),
-  ].join('; ');
-}
-
-const enforcedNonEmbedCsp = buildCspValue({
-  frameAncestors: "frame-ancestors 'none'",
-  connectSrc: ["'self'", 'https:', 'wss:'],
-});
-
-const reportOnlyNonEmbedCsp = buildCspValue({
-  frameAncestors: "frame-ancestors 'none'",
-  connectSrc: cspReportOnlyConnectHosts,
-  includeUpgradeInsecureRequests: false,
-});
-
-const embedCsp = buildCspValue({
-  // Brief 70/98: embed surfaces are intentionally open-framable by partner sites.
-  // Risk accepted for public embeds: this is intentionally wider than fixed-origin framing.
-  frameAncestors: "frame-ancestors *",
-  connectSrc: ["'self'", 'https:', 'wss:'],
-});
-
+// The enforced CSP is set in middleware so a nonce and build-time script
+// hashes can be attached per request. A second policy here would be ANDed
+// with that header and would block the nonce'd scripts.
 const nonEmbedSecurityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Report-To', value: cspReportToValue },
   { key: 'Reporting-Endpoints', value: cspReportingEndpointsValue },
-  { key: 'Content-Security-Policy', value: enforcedNonEmbedCsp },
-  { key: 'Content-Security-Policy-Report-Only', value: reportOnlyNonEmbedCsp },
 ];
 
 const nextConfig = {
@@ -201,11 +101,11 @@ const nextConfig = {
       },
       {
         // Embed routes must stay framable on partner domains.
+        // frame-ancestors * is set on the middleware CSP, not here.
         source: '/embed/:path*',
         headers: [
           { key: 'Report-To', value: cspReportToValue },
           { key: 'Reporting-Endpoints', value: cspReportingEndpointsValue },
-          { key: 'Content-Security-Policy', value: embedCsp },
         ],
       },
       {

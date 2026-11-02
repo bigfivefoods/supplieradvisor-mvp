@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { canonicalRedirectForAppHost } from '@/lib/http/app-host';
 import { isPublicApiPath, isRecoverPortalPath } from '@/lib/auth/public-paths';
+import { contentSecurityPolicyForRequest } from '@/lib/security/csp-request';
 import { companyOpenRewritePath } from '@/lib/seo/company-open-rewrite';
 
 /**
@@ -30,8 +31,25 @@ function isLegacyMiddlewarePath(pathname: string) {
   );
 }
 
-export function middleware(request: NextRequest) {
+async function requestCsp(request: NextRequest) {
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const value = await contentSecurityPolicyForRequest(request.nextUrl.pathname, nonce);
+  return {
+    forward(headers: Headers) {
+      headers.set('x-nonce', nonce);
+      headers.set('Content-Security-Policy', value);
+      return headers;
+    },
+    seal(response: NextResponse) {
+      response.headers.set('Content-Security-Policy', value);
+      return response;
+    },
+  };
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const csp = await requestCsp(request);
 
   const applySecurityHeaders = (res: NextResponse) => {
     res.headers.set('X-Frame-Options', 'DENY');
@@ -54,7 +72,7 @@ export function middleware(request: NextRequest) {
     const redirect = NextResponse.redirect(appHostTarget, 308);
     applySecurityHeaders(redirect);
     redirect.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
-    return redirect;
+    return csp.seal(redirect);
   }
 
   const openPath = companyOpenRewritePath(
@@ -65,28 +83,32 @@ export function middleware(request: NextRequest) {
   if (openPath) {
     const url = request.nextUrl.clone();
     url.pathname = openPath;
-    return NextResponse.rewrite(url);
+    const requestHeaders = csp.forward(new Headers(request.headers));
+    return csp.seal(NextResponse.rewrite(url, { request: { headers: requestHeaders } }));
   }
 
   // Signed-out portal shells. No API is opened. Tokens are never cached.
   // x-sa-portal marks the request. The root layout does not read it.
   if (isRecoverPortalPath(pathname)) {
-    const requestHeaders = new Headers(request.headers);
+    const requestHeaders = csp.forward(new Headers(request.headers));
     requestHeaders.set('x-sa-portal', 'recover');
     const portal = NextResponse.next({ request: { headers: requestHeaders } });
     applySecurityHeaders(portal);
     portal.headers.set('Cache-Control', 'private, no-store');
     portal.headers.set('X-Robots-Tag', 'noindex, nofollow');
-    return portal;
+    return csp.seal(portal);
   }
 
   // Host check above needs a broad matcher. www routes outside the original
   // gate must keep the previous pass-through behaviour.
   if (!isLegacyMiddlewarePath(pathname)) {
-    return NextResponse.next();
+    const requestHeaders = csp.forward(new Headers(request.headers));
+    return csp.seal(NextResponse.next({ request: { headers: requestHeaders } }));
   }
 
-  const response = NextResponse.next();
+  const response = NextResponse.next({
+    request: { headers: csp.forward(new Headers(request.headers)) },
+  });
 
   const isDashboardPath = pathname === '/dashboard' || pathname.startsWith('/dashboard/');
   if (isDashboardPath) {
@@ -100,7 +122,7 @@ export function middleware(request: NextRequest) {
       const redirect = NextResponse.redirect(loginUrl, 307);
       applySecurityHeaders(redirect);
       redirect.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
-      return redirect;
+      return csp.seal(redirect);
     }
   }
 
@@ -109,11 +131,11 @@ export function middleware(request: NextRequest) {
   // Coarse API gate: production requires some credential signal
   if (pathname.startsWith('/api/')) {
     if (isPublicApiPath(pathname)) {
-      return response;
+      return csp.seal(response);
     }
     // SAM lightweight health (GET only) — used by messenger badge
     if (pathname === '/api/sam/chat' && request.method === 'GET') {
-      return response;
+      return csp.seal(response);
     }
     // Cron / provider webhooks / ops pings use their own secrets
     // (Paystack path is /webhook singular; ping is paystack-webhook-ping)
@@ -124,7 +146,7 @@ export function middleware(request: NextRequest) {
       pathname.includes('/system/twilio-') ||
       request.headers.get('x-cron-secret')
     ) {
-      return response;
+      return csp.seal(response);
     }
 
     const strictEnv = process.env.AUTH_STRICT;
@@ -139,19 +161,21 @@ export function middleware(request: NextRequest) {
       const hasBearer = /^Bearer\s+\S{20,}/i.test(auth);
       const hasPrivyCookie = /(?:^|;\s*)privy-token=/.test(cookie);
       if (!hasBearer && !hasPrivyCookie) {
-        return NextResponse.json(
-          {
-            error:
-              'Authentication required. Send Authorization: Bearer <Privy access token>.',
-            code: 'UNAUTHORIZED',
-          },
-          { status: 401 }
+        return csp.seal(
+          NextResponse.json(
+            {
+              error:
+                'Authentication required. Send Authorization: Bearer <Privy access token>.',
+              code: 'UNAUTHORIZED',
+            },
+            { status: 401 }
+          )
         );
       }
     }
   }
 
-  return response;
+  return csp.seal(response);
 }
 
 export const config = {

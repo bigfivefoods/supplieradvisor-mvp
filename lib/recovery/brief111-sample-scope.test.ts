@@ -148,7 +148,7 @@ assert.doesNotMatch(readFileSync(resolve('components/recovery/RecoverCommand.tsx
 assert.match(readFileSync(resolve('components/recovery/RecoverChrome.tsx'), 'utf8'), /clamp\(0\.8rem,3\.2vw,1\.875rem\)/);
 const installTags = readFileSync(resolve('components/pwa/SiteInstallTags.tsx'), 'utf8');
 assert.doesNotMatch(installTags, /sa-favicon/);
-assert.match(installTags, /\{scope:'\/'/);
+assert.match(readFileSync(resolve('lib/pwa/register-script.ts'), 'utf8'), /\{scope:'\/'/);
 assert.match(installTags, /scope "\/"/);
 assert.doesNotMatch(
   readFileSync(resolve('app/customer/recovergraph/[token]/manifest.webmanifest/route.ts'), 'utf8'),
