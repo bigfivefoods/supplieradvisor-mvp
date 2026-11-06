@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { canonicalRedirectForAppHost } from '@/lib/http/app-host';
+import { assertCronSecret } from '@/lib/auth/api-auth';
 import { isPublicApiPath, isRecoverPortalPath } from '@/lib/auth/public-paths';
 import { companyOpenRewritePath } from '@/lib/seo/company-open-rewrite';
 
@@ -115,15 +116,30 @@ export function middleware(request: NextRequest) {
     if (pathname === '/api/sam/chat' && request.method === 'GET') {
       return response;
     }
-    // Cron / provider webhooks / ops pings use their own secrets
-    // (Paystack path is /webhook singular; ping is paystack-webhook-ping)
-    if (
+
+    const cronPath =
       pathname.includes('/cron') ||
       pathname.includes('webhook') ||
       pathname.includes('/system/paystack-') ||
-      pathname.includes('/system/twilio-') ||
-      request.headers.get('x-cron-secret')
-    ) {
+      pathname.includes('/system/twilio-');
+
+    const authorizationHeader = request.headers.get('authorization') || '';
+    const cronHeader = request.headers.get('x-cron-secret') || '';
+    const bearerToken = authorizationHeader.replace(/^Bearer\s+/i, '').trim();
+    const looksLikeJwt = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(bearerToken);
+    const hasCronAttempt =
+      cronHeader.length > 0 ||
+      (authorizationHeader.toLowerCase().startsWith('bearer ') && bearerToken.length > 0 && !looksLikeJwt);
+
+    if (hasCronAttempt) {
+      const gate = assertCronSecret(request);
+      if (!gate.ok) {
+        return gate.response;
+      }
+      return response;
+    }
+
+    if (cronPath) {
       return response;
     }
 

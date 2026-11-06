@@ -6,6 +6,7 @@
  *   if (!gate.ok) return gate.response;
  *   // gate.userId is verified
  */
+import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   allowLegacyPrivyId,
@@ -48,18 +49,38 @@ export type AuthFail = {
 /**
  * Cron / webhook secret auth (Bearer CRON_SECRET or x-cron-secret).
  */
+export function matchesCronSecret(value: string, secret: string): boolean {
+  const left = Buffer.from(value.trim());
+  const right = Buffer.from(secret.trim());
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
 export function assertCronSecret(request: NextRequest): AuthOk | AuthFail {
   const secret = process.env.CRON_SECRET || process.env.CUSTOMER_INVITE_EXPIRE_SECRET || '';
   if (!secret) {
     return fail(503, 'CRON_SECRET not configured', 'NO_CRON_SECRET');
   }
+
   const auth = request.headers.get('authorization') || '';
-  const header = request.headers.get('x-cron-secret') || '';
+  const header = (request.headers.get('x-cron-secret') || '').trim();
   const bearer = auth.replace(/^Bearer\s+/i, '').trim();
-  if (bearer === secret || header === secret) {
+  const headerMatch = header.length > 0 && matchesCronSecret(header, secret);
+  const bearerMatch = bearer.length > 0 && matchesCronSecret(bearer, secret);
+
+  if (headerMatch || bearerMatch) {
     return { ok: true, userId: 'cron:system', verified: true, emails: [] };
   }
-  return fail(401, 'Invalid cron secret', 'CRON_UNAUTHORIZED');
+
+  if (header || auth) {
+    return fail(401, 'Invalid cron secret', 'CRON_UNAUTHORIZED');
+  }
+
+  return fail(
+    401,
+    'Authentication required. Send Authorization: ****** access token>.',
+    'UNAUTHORIZED'
+  );
 }
 
 export function fail(status: number, error: string, code?: string): AuthFail {
