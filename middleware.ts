@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { canonicalRedirectForAppHost } from '@/lib/http/app-host';
-import { assertCronSecret } from '@/lib/auth/api-auth';
+import { assertCronSecretEdge } from '@/lib/auth/cron-secret';
 import { isPublicApiPath, isRecoverPortalPath } from '@/lib/auth/public-paths';
 import { companyOpenRewritePath } from '@/lib/seo/company-open-rewrite';
 
@@ -132,7 +132,7 @@ export function middleware(request: NextRequest) {
       (authorizationHeader.toLowerCase().startsWith('bearer ') && bearerToken.length > 0 && !looksLikeJwt);
 
     if (hasCronAttempt) {
-      const gate = assertCronSecret(request);
+      const gate = assertCronSecretEdge(request);
       if (!gate.ok) {
         return gate.response;
       }

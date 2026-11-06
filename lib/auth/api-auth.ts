@@ -6,8 +6,8 @@
  *   if (!gate.ok) return gate.response;
  *   // gate.userId is verified
  */
-import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { matchesCronSecret } from '@/lib/auth/cron-secret';
 import {
   allowLegacyPrivyId,
   extractAccessToken,
@@ -49,13 +49,6 @@ export type AuthFail = {
 /**
  * Cron / webhook secret auth (Bearer CRON_SECRET or x-cron-secret).
  */
-export function matchesCronSecret(value: string, secret: string): boolean {
-  const left = Buffer.from(value.trim());
-  const right = Buffer.from(secret.trim());
-  if (left.length !== right.length) return false;
-  return timingSafeEqual(left, right);
-}
-
 export function assertCronSecret(request: NextRequest): AuthOk | AuthFail {
   const secret = process.env.CRON_SECRET || process.env.CUSTOMER_INVITE_EXPIRE_SECRET || '';
   if (!secret) {
