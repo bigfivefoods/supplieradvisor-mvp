@@ -7,6 +7,7 @@
  *   // gate.userId is verified
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { matchesCronSecret } from '@/lib/auth/cron-secret';
 import {
   allowLegacyPrivyId,
   extractAccessToken,
@@ -53,13 +54,26 @@ export function assertCronSecret(request: NextRequest): AuthOk | AuthFail {
   if (!secret) {
     return fail(503, 'CRON_SECRET not configured', 'NO_CRON_SECRET');
   }
+
   const auth = request.headers.get('authorization') || '';
-  const header = request.headers.get('x-cron-secret') || '';
+  const header = (request.headers.get('x-cron-secret') || '').trim();
   const bearer = auth.replace(/^Bearer\s+/i, '').trim();
-  if (bearer === secret || header === secret) {
+  const headerMatch = header.length > 0 && matchesCronSecret(header, secret);
+  const bearerMatch = bearer.length > 0 && matchesCronSecret(bearer, secret);
+
+  if (headerMatch || bearerMatch) {
     return { ok: true, userId: 'cron:system', verified: true, emails: [] };
   }
-  return fail(401, 'Invalid cron secret', 'CRON_UNAUTHORIZED');
+
+  if (header || auth) {
+    return fail(401, 'Invalid cron secret', 'CRON_UNAUTHORIZED');
+  }
+
+  return fail(
+    401,
+    'Authentication required. Send Authorization: ****** access token>.',
+    'UNAUTHORIZED'
+  );
 }
 
 export function fail(status: number, error: string, code?: string): AuthFail {
