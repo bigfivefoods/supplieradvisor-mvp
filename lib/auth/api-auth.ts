@@ -8,6 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { matchesCronSecret } from '@/lib/auth/cron-secret';
+import { AUTH_REQUIRED_CODE, AUTH_REQUIRED_ERROR } from '@/lib/auth/unauthorized-response';
 import {
   allowLegacyPrivyId,
   extractAccessToken,
@@ -66,14 +67,10 @@ export function assertCronSecret(request: NextRequest): AuthOk | AuthFail {
   }
 
   if (header || auth) {
-    return fail(401, 'Invalid cron secret', 'CRON_UNAUTHORIZED');
+    return fail(401, AUTH_REQUIRED_ERROR, AUTH_REQUIRED_CODE);
   }
 
-  return fail(
-    401,
-    'Authentication required. Send Authorization: ****** access token>.',
-    'UNAUTHORIZED'
-  );
+  return fail(401, AUTH_REQUIRED_ERROR, AUTH_REQUIRED_CODE);
 }
 
 export function fail(status: number, error: string, code?: string): AuthFail {
@@ -140,7 +137,7 @@ export async function requireVerifiedUser(
   if (isAuthStrict()) {
     return fail(
       401,
-      'Authentication required. Send Authorization: Bearer <Privy access token>.',
+      AUTH_REQUIRED_ERROR,
       verified.code || 'UNAUTHORIZED'
     );
   }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { AUTH_REQUIRED_ERROR, authRequiredBody } from '@/lib/auth/unauthorized-response';
 
 export function matchesCronSecret(value: string, secret: string): boolean {
   const left = new TextEncoder().encode((value ?? '').trim());
@@ -49,24 +50,15 @@ export function assertCronSecretEdge(request: {
   }
 
   if (header || isBearerCronAttempt) {
-    const response = NextResponse.json(
-      { error: 'Invalid cron secret', code: 'CRON_UNAUTHORIZED' },
-      { status: 401 }
-    );
-    return { ok: false, response, error: 'Invalid cron secret', status: 401 };
+    const response = NextResponse.json(authRequiredBody(), { status: 401 });
+    return { ok: false, response, error: AUTH_REQUIRED_ERROR, status: 401 };
   }
 
-  const response = NextResponse.json(
-    {
-      error: 'Authentication required. Send Authorization: ****** access token>.',
-      code: 'UNAUTHORIZED',
-    },
-    { status: 401 }
-  );
+  const response = NextResponse.json(authRequiredBody(), { status: 401 });
   return {
     ok: false,
     response,
-    error: 'Authentication required. Send Authorization: ****** access token>.',
+    error: AUTH_REQUIRED_ERROR,
     status: 401,
   };
 }
