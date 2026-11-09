@@ -279,6 +279,7 @@ jobs:
           npx --yes tsx lib/accounting/po-accept-books.test.ts
           npx --yes tsx lib/accounting/account-totals.test.ts
           npx --yes tsx lib/accounting/management-pack.test.ts
+          npx --yes tsx lib/accounting/vat201.test.ts
 
   trade-portal-db:
     name: trade portal Postgres
@@ -527,3 +528,33 @@ jobs:
         env:
           IMPROVE26_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/improve26
         run: npx --yes tsx lib/db/improve26-db.test.ts
+
+  vat201-migration:
+    name: VAT201 migration (CI Postgres only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vat201
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vat201"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply the VAT201 migration to CI Postgres
+        env:
+          VAT201_MIGRATION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vat201
+        run: npx --yes tsx lib/accounting/vat201-migration.test.ts

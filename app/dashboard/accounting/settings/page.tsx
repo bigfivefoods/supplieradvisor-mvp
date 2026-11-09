@@ -269,8 +269,16 @@ function Inner() {
       <AccountingHeader
         title="Accounting"
         titleAccent="settings"
-        description="Periods, currencies, prefixes, and where new customers and suppliers land on the chart of accounts."
+        description="Periods, currencies, prefixes, VAT registration, and where new customers and suppliers land on the chart of accounts."
       />
+
+      <p className="mb-4 text-sm text-slate-600">
+        VAT number, basis, and tax periods are on{' '}
+        <Link href="/dashboard/accounting/vat201" className="font-semibold text-[#0077b6]">
+          VAT201
+        </Link>
+        . Company admins, owners, and finance can edit them.
+      </p>
 
       <SectionLabel>IFRS / SA GAAP close checklist</SectionLabel>
       <Panel className="mb-6">
