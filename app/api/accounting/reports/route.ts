@@ -174,7 +174,6 @@ export async function GET(request: NextRequest) {
           .from('chart_of_accounts')
           .select('id, code, name, account_type, subtype, is_header, is_active, parent_id, normal_balance')
           .eq('profile_id', companyId)
-          .eq('is_active', true)
           .order('code');
         if (active.error) {
           const all = await supabase
@@ -209,48 +208,44 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Safe column list only — `reference` does NOT exist on journal_entries in prod
-      let jeQ = supabase
-        .from('journal_entries')
-        .select(
-          'id, entry_date, status, source, source_id, memo, entry_number, currency, posted_at, created_at, metadata'
-        )
-        .eq('profile_id', companyId)
-        .eq('status', 'posted')
-        .order('entry_date', { ascending: false })
-        .order('id', { ascending: false });
-      if (from) jeQ = jeQ.gte('entry_date', from);
-      if (to) jeQ = jeQ.lte('entry_date', to);
-      let entries: Array<Record<string, unknown>> | null = null;
-      let jeErr: { message: string } | null = null;
-      {
-        const res = await jeQ;
-        entries = (res.data || null) as Array<Record<string, unknown>> | null;
-        jeErr = res.error;
-      }
-
-      // Retry with minimal columns if optional columns missing
-      if (jeErr && /column|42703/i.test(jeErr.message)) {
-        let retry = supabase
-          .from('journal_entries')
-          .select('id, entry_date, status, source, memo, entry_number')
-          .eq('profile_id', companyId)
-          .eq('status', 'posted')
-          .order('entry_date', { ascending: false })
-          .order('id', { ascending: false });
-        if (from) retry = retry.gte('entry_date', from);
-        if (to) retry = retry.lte('entry_date', to);
-        const r2 = await retry;
-        entries = (r2.data || null) as Array<Record<string, unknown>> | null;
-        jeErr = r2.error;
-      }
-
-      if (jeErr) {
+      // Same paged ledger as the PDF, the AFS and the balance sheet.
+      // An unpaged read stops at PostgREST's 1,000-row cap and drops the oldest journals.
+      const { loadPostedLedger } = await import('@/lib/accounting/posted-ledger');
+      const ledger = await loadPostedLedger({
+        profileId: companyId,
+        from,
+        to,
+        includeLines: true,
+        journalColumns: 'detail',
+        lineColumns: 'detail',
+      });
+      const entries = ledger.journals.map((journal) => ({
+        id: journal.id,
+        entry_date: journal.entry_date,
+        status: journal.status || 'posted',
+        source: journal.source,
+        source_id: journal.source_id ?? null,
+        memo: journal.memo ?? null,
+        entry_number: journal.entry_number ?? null,
+        currency: journal.currency ?? null,
+        posted_at: journal.posted_at ?? null,
+        created_at: journal.created_at ?? null,
+        metadata: journal.metadata ?? null,
+      }));
+      const lines = ledger.lines.map((line) => ({
+        account_id: line.account_id,
+        debit: line.debit,
+        credit: line.credit,
+        journal_entry_id: line.journal_entry_id,
+        memo: line.memo ?? null,
+        counterparty: line.counterparty ?? null,
+      }));
+      if (ledger.warning && !entries.length && !/truncated/i.test(ledger.warning)) {
         return NextResponse.json({
           success: true,
           report,
           period: { from, to },
-          warning: `Journal query failed: ${jeErr.message}`,
+          warning: `Journal query failed: ${ledger.warning}`,
           summary: {
             revenue: 0,
             cogs: 0,
@@ -274,91 +269,7 @@ export async function GET(request: NextRequest) {
           bank: null,
         });
       }
-
-      const entryIds = (entries || [])
-        .map((e) => Number(e.id))
-        .filter((n) => Number.isFinite(n));
-
-      let lines: Array<{
-        account_id: number;
-        debit: number;
-        credit: number;
-        journal_entry_id?: number;
-        memo?: string | null;
-        counterparty?: string | null;
-      }> = [];
-      // Chunk .in() for large periods (PostgREST URL limits)
-      if (entryIds.length) {
-        const chunkSize = 150;
-        let lineSelect = 'account_id, debit, credit, journal_entry_id, memo, counterparty';
-        for (let i = 0; i < entryIds.length; i += chunkSize) {
-          const chunk = entryIds.slice(i, i + chunkSize);
-          let { data: lineRows, error: lineErr } = await supabase
-            .from('journal_lines')
-            .select(lineSelect)
-            .in('journal_entry_id', chunk);
-          if (lineErr && /column|42703|memo|counterparty/i.test(lineErr.message || '')) {
-            lineSelect = 'account_id, debit, credit, journal_entry_id';
-            const retry = await supabase
-              .from('journal_lines')
-              .select(lineSelect)
-              .in('journal_entry_id', chunk);
-            lineRows = retry.data;
-            lineErr = retry.error;
-          }
-          if (lineErr) {
-            return NextResponse.json({
-              success: true,
-              report,
-              period: { from, to },
-              warning: `Journal lines query failed: ${lineErr.message}`,
-              summary: {
-                revenue: 0,
-                cogs: 0,
-                grossProfit: 0,
-                expenses: 0,
-                operatingProfit: 0,
-                netIncome: 0,
-                journalCount: entryIds.length,
-                bankLines: 0,
-                bankIn: 0,
-                bankOut: 0,
-                unallocated: 0,
-                unallocatedIn: 0,
-                unallocatedOut: 0,
-                allocatedCount: 0,
-              },
-              income: [],
-              cogs: [],
-              expenses: [],
-              journals: (entries || []).map((e) => ({
-                id: e.id,
-                entry_date: e.entry_date,
-                document_number: (e.entry_number as string) ?? null,
-                memo: (e.memo as string) ?? null,
-                source: (e.source as string) ?? null,
-                status: e.status,
-                total_debit: 0,
-                total_credit: 0,
-              })),
-              bank: null,
-            });
-          }
-          for (const l of lineRows || []) {
-            if (!l || typeof l !== 'object') continue;
-            const row = l as unknown as Record<string, unknown>;
-            lines.push({
-              account_id: Number(row.account_id),
-              debit: Number(row.debit || 0),
-              credit: Number(row.credit || 0),
-              journal_entry_id: Number(row.journal_entry_id),
-              memo: row.memo != null ? String(row.memo) : null,
-              counterparty:
-                row.counterparty != null ? String(row.counterparty) : null,
-            });
-          }
-        }
-      }
+      const entryIds = entries.map((entry) => Number(entry.id));
 
       // Period journals for management accounts drill-down
       const totalsByEntry: Record<number, { debit: number; credit: number }> = {};
@@ -384,94 +295,98 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      const totals: Record<number, { debit: number; credit: number }> = {};
-      for (const l of lines) {
-        if (!totals[l.account_id]) totals[l.account_id] = { debit: 0, credit: 0 };
-        totals[l.account_id].debit += l.debit;
-        totals[l.account_id].credit += l.credit;
-      }
-
-      const income: Array<Record<string, unknown>> = [];
-      const expenses: Array<Record<string, unknown>> = [];
-      const cogsRows: Array<Record<string, unknown>> = [];
-      const { collectAccountPostings } = await import(
-        '@/lib/accounting/sales-origin'
+      const { PNL_EXCLUDED_SOURCES, debitCreditMap, ledgerCoverageWarning, pnlAccountLines } =
+        await import('@/lib/accounting/statement-figures');
+      const { totalsFromLedger } = await import('@/lib/accounting/posted-ledger');
+      const pnlJournals = entries.filter(
+        (entry) => !PNL_EXCLUDED_SOURCES.has(String(entry.source || '').toLowerCase())
       );
-      const entryRecords = (entries || []) as Array<Record<string, unknown>>;
-
-      for (const a of accounts || []) {
-        if (a.is_header) continue;
-        const aid = Number(a.id);
-        const t = totals[aid] || { debit: 0, credit: 0 };
-        const type = String(a.account_type || '').toLowerCase();
-        // Normalize common aliases
-        const isRevenue = type === 'revenue' || type === 'income' || type === 'sales';
-        const isCogs = type === 'cogs' || type === 'cost_of_sales' || type === 'cost_of_goods';
-        const isExpense = type === 'expense' || type === 'expenses' || type === 'opex';
-        if (isRevenue) {
-          const amount = round2(t.credit - t.debit);
-          if (amount !== 0) {
-            income.push({
-              id: aid,
-              code: a.code,
-              name: a.name,
-              account_type: 'revenue',
-              amount,
-              postings: collectAccountPostings({
-                accountId: aid,
-                polarity: 'revenue',
-                entries: entryRecords,
-                lines,
-              }),
-            });
-          }
-        } else if (isCogs) {
-          const amount = round2(t.debit - t.credit);
-          if (amount !== 0) {
-            cogsRows.push({
-              id: aid,
-              code: a.code,
-              name: a.name,
-              account_type: 'cogs',
-              amount,
-              postings: collectAccountPostings({
-                accountId: aid,
-                polarity: 'expense',
-                entries: entryRecords,
-                lines,
-              }),
-            });
-          }
-        } else if (isExpense) {
-          const amount = round2(t.debit - t.credit);
-          if (amount !== 0) {
-            expenses.push({
-              id: aid,
-              code: a.code,
-              name: a.name,
-              account_type: 'expense',
-              amount,
-              postings: collectAccountPostings({
-                accountId: aid,
-                polarity: 'expense',
-                entries: entryRecords,
-                lines,
-              }),
-            });
-          }
-        }
+      const pnlIds = new Set(pnlJournals.map((entry) => Number(entry.id)));
+      const pnlLines = lines.filter((line) => pnlIds.has(Number(line.journal_entry_id)));
+      const periodAgg = totalsFromLedger({
+        journals: pnlJournals.map((entry) => ({
+          id: Number(entry.id),
+          entry_date: String(entry.entry_date || ''),
+          source: entry.source != null ? String(entry.source) : null,
+        })),
+        lines: pnlLines,
+      });
+      const totals: Record<number, { debit: number; credit: number }> = {};
+      for (const row of periodAgg.rows) {
+        totals[row.account_id] = { debit: row.debit, credit: row.credit };
       }
-
-      const revenue = round2(income.reduce((s, r) => s + Number(r.amount), 0));
-      const cogs = round2(cogsRows.reduce((s, r) => s + Number(r.amount), 0));
-      const expenseTotal = round2(expenses.reduce((s, r) => s + Number(r.amount), 0));
-      const grossProfit = round2(revenue - cogs);
-      const operatingProfit = round2(grossProfit - expenseTotal);
+      const statementAccounts = (accounts || [])
+        .filter((account) => !account.is_header)
+        .map((account) => ({
+          id: Number(account.id),
+          code: String(account.code || ''),
+          name: String(account.name || ''),
+          account_type: String(account.account_type || ''),
+          is_header: false,
+        }));
+      const grouped = pnlAccountLines(statementAccounts, debitCreditMap(periodAgg.rows));
+      const { collectAccountPostings } = await import('@/lib/accounting/sales-origin');
+      const entryRecords = pnlJournals as Array<Record<string, unknown>>;
+      const income = grouped.income.map((row) => ({
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        account_type: 'revenue',
+        amount: row.amount,
+        postings: collectAccountPostings({
+          accountId: row.id,
+          polarity: 'revenue' as const,
+          entries: entryRecords,
+          lines: pnlLines,
+        }),
+      }));
+      const cogsRows = grouped.cogsLines.map((row) => ({
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        account_type: 'cogs',
+        amount: row.amount,
+        postings: collectAccountPostings({
+          accountId: row.id,
+          polarity: 'expense' as const,
+          entries: entryRecords,
+          lines: pnlLines,
+        }),
+      }));
+      const expenses = grouped.expenseLines.map((row) => ({
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        account_type: 'expense',
+        amount: row.amount,
+        postings: collectAccountPostings({
+          accountId: row.id,
+          polarity: 'expense' as const,
+          entries: entryRecords,
+          lines: pnlLines,
+        }),
+      }));
+      const revenue = grouped.revenue;
+      const cogs = grouped.cogs;
+      const expenseTotal = grouped.expenses;
+      const grossProfit = grouped.grossProfit;
+      const operatingProfit = grouped.operatingProfit;
+      const coverageWarning = ledgerCoverageWarning({
+        totals: periodAgg.rows,
+        accounts: (accounts || []).map((account) => ({
+          id: Number(account.id),
+          code: account.code != null ? String(account.code) : null,
+          name: account.name != null ? String(account.name) : null,
+          account_type:
+            account.account_type != null ? String(account.account_type) : null,
+          is_header: Boolean(account.is_header),
+        })),
+      });
 
       const { buildSalesOrigin } = await import('@/lib/accounting/sales-origin');
       const sales = buildSalesOrigin({
-        entries: (entries || []) as Array<Record<string, unknown>>,
-        lines,
+        entries: entryRecords,
+        lines: pnlLines,
         accounts: (accounts || []).map((a) => ({
           id: Number(a.id),
           code: String(a.code || ''),
@@ -541,7 +456,10 @@ export async function GET(request: NextRequest) {
         success: true,
         report,
         period: { from, to },
-        warning: accWarning || crmBooksNote || emptyPeriod || undefined,
+        warning:
+          [ledger.warning, coverageWarning, accWarning, crmBooksNote, emptyPeriod]
+            .filter(Boolean)
+            .join(' ') || undefined,
         summary: {
           revenue,
           cogs,
@@ -549,7 +467,7 @@ export async function GET(request: NextRequest) {
           expenses: expenseTotal,
           operatingProfit,
           netIncome: operatingProfit,
-          journalCount: entryIds.length,
+          journalCount: periodAgg.entry_count,
           lineCount: lines.length,
           bankLines: (bankTxns || []).length,
           bankIn: round2(bankIn),
@@ -1056,7 +974,6 @@ export async function GET(request: NextRequest) {
       .from('chart_of_accounts')
       .select('id, code, name, account_type, subtype, is_header, is_active, parent_id, normal_balance')
       .eq('profile_id', companyId)
-      .eq('is_active', true)
       .order('code');
 
     if (accErr) {
@@ -1068,44 +985,55 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const { loadPostedLedger, totalsFromLedger } = await import(
+      '@/lib/accounting/posted-ledger'
+    );
     const {
-      fetchPostedJournalIds,
-      fetchJournalLinesByEntryIds,
-    } = await import('@/lib/accounting/journal-query');
+      debitCreditMap,
+      ledgerCoverageWarning,
+      pnlAccountLines,
+      signedStatementAmount,
+      statementPosition,
+    } = await import('@/lib/accounting/statement-figures');
     // IAS 1: statement of financial position is as-at a date (all history through `to`).
-    // P&L / TB stay period-filtered.
-    const fetched = await fetchPostedJournalIds({
+    // P&L / TB stay period-filtered. Both read the shared paged ledger.
+    const ledger = await loadPostedLedger({
       profileId: companyId,
       from: report === 'balance_sheet' ? null : from,
       to,
+      includeLines: true,
+      journalColumns: 'core',
+      lineColumns: 'amounts',
     });
-    const entryIds = fetched.ids;
-
-    let lines: Array<{ account_id: number; debit: number; credit: number }> = [];
-    if (entryIds.length) {
-      const { lines: lineRows, warning: lineWarn } =
-        await fetchJournalLinesByEntryIds(entryIds, 'account_id, debit, credit');
-      if (lineWarn) {
-        return NextResponse.json({
-          success: true,
-          report,
-          rows: [],
-          warning: lineWarn,
-        });
-      }
-      lines = lineRows.map((l) => ({
-        account_id: Number(l.account_id),
-        debit: Number(l.debit || 0),
-        credit: Number(l.credit || 0),
-      }));
+    if (ledger.warning && !ledger.journals.length && !/truncated/i.test(ledger.warning)) {
+      return NextResponse.json({
+        success: true,
+        report,
+        rows: [],
+        warning: ledger.warning,
+      });
     }
-
+    const agg = totalsFromLedger({
+      journals: ledger.journals,
+      lines: ledger.lines,
+    });
+    const entryIds = ledger.journals.map((journal) => journal.id);
     const totals: Record<number, { debit: number; credit: number }> = {};
-    for (const l of lines) {
-      if (!totals[l.account_id]) totals[l.account_id] = { debit: 0, credit: 0 };
-      totals[l.account_id].debit += l.debit;
-      totals[l.account_id].credit += l.credit;
+    for (const row of agg.rows) {
+      totals[row.account_id] = { debit: row.debit, credit: row.credit };
     }
+    const figureAccounts = (accounts || []).map((account) => ({
+      id: Number(account.id),
+      code: account.code != null ? String(account.code) : null,
+      name: account.name != null ? String(account.name) : null,
+      account_type: account.account_type != null ? String(account.account_type) : null,
+      is_header: Boolean(account.is_header),
+    }));
+    const dcMap = debitCreditMap(agg.rows);
+    const reportWarning =
+      [ledger.warning, ledgerCoverageWarning({ totals: agg.rows, accounts: figureAccounts })]
+        .filter(Boolean)
+        .join(' ') || undefined;
 
     if (report === 'trial_balance') {
       const rows = (accounts || [])
@@ -1123,6 +1051,23 @@ export async function GET(request: NextRequest) {
           };
         })
         .filter((r) => r.debit !== 0 || r.credit !== 0);
+      const shown = new Set(rows.map((row) => Number(row.id)));
+      for (const total of agg.rows) {
+        if (shown.has(total.account_id)) continue;
+        if (total.debit === 0 && total.credit === 0) continue;
+        const account = (accounts || []).find(
+          (row) => Number(row.id) === total.account_id
+        );
+        rows.push({
+          id: total.account_id,
+          code: account?.code || String(total.account_id),
+          name: account?.name || 'Unmapped ledger account',
+          account_type: account?.account_type || 'unmapped',
+          debit: total.debit,
+          credit: total.credit,
+          net: round2(total.debit - total.credit),
+        });
+      }
 
       const sumDebit = round2(rows.reduce((s, r) => s + r.debit, 0));
       const sumCredit = round2(rows.reduce((s, r) => s + r.credit, 0));
@@ -1133,50 +1078,31 @@ export async function GET(request: NextRequest) {
         rows,
         totals: { debit: sumDebit, credit: sumCredit, balanced: Math.abs(sumDebit - sumCredit) < 0.02 },
         period: { from, to },
-        warning: fetched.warning,
+        warning: reportWarning,
       });
     }
 
     if (report === 'pnl') {
-      const plTypes = new Set(['revenue', 'expense', 'cogs']);
-      const rows = (accounts || [])
-        .filter((a) => plTypes.has(String(a.account_type)) && !a.is_header)
-        .map((a) => {
-          const t = totals[a.id] || { debit: 0, credit: 0 };
-          // revenue credit-positive; expense/cogs debit-positive
-          const amount =
-            a.account_type === 'revenue'
-              ? round2(t.credit - t.debit)
-              : round2(t.debit - t.credit);
-          return {
-            id: a.id,
-            code: a.code,
-            name: a.name,
-            account_type: a.account_type,
-            amount,
-          };
-        })
-        .filter((r) => r.amount !== 0);
-
-      const revenue = round2(
-        rows.filter((r) => r.account_type === 'revenue').reduce((s, r) => s + r.amount, 0)
-      );
-      const cogs = round2(
-        rows.filter((r) => r.account_type === 'cogs').reduce((s, r) => s + r.amount, 0)
-      );
-      const expenses = round2(
-        rows.filter((r) => r.account_type === 'expense').reduce((s, r) => s + r.amount, 0)
-      );
-      const grossProfit = round2(revenue - cogs);
-      const netIncome = round2(grossProfit - expenses);
+      const grouped = pnlAccountLines(figureAccounts, dcMap);
+      const rows = [
+        ...grouped.income.map((row) => ({ ...row, account_type: 'revenue' })),
+        ...grouped.cogsLines.map((row) => ({ ...row, account_type: 'cogs' })),
+        ...grouped.expenseLines.map((row) => ({ ...row, account_type: 'expense' })),
+      ];
 
       return NextResponse.json({
         success: true,
         report,
         rows,
-        summary: { revenue, cogs, grossProfit, expenses, netIncome },
+        summary: {
+          revenue: grouped.revenue,
+          cogs: grouped.cogs,
+          grossProfit: grouped.grossProfit,
+          expenses: grouped.expenses,
+          netIncome: grouped.netIncome,
+        },
         period: { from, to },
-        warning: fetched.warning,
+        warning: reportWarning,
       });
     }
 
@@ -1192,10 +1118,7 @@ export async function GET(request: NextRequest) {
         .filter((a) => bsTypes.has(String(a.account_type)) && !a.is_header)
         .map((a) => {
           const t = totals[a.id] || { debit: 0, credit: 0 };
-          const amount =
-            a.account_type === 'asset'
-              ? round2(t.debit - t.credit)
-              : round2(t.credit - t.debit);
+          const amount = signedStatementAmount(a.account_type, t.debit, t.credit);
           const section = classifyBsSection(
             String(a.account_type),
             a.subtype,
@@ -1221,27 +1144,13 @@ export async function GET(request: NextRequest) {
       const ledgerRows = rows;
       const statementRows = collapseBsStatementRows(rows);
 
-      // Roll net income into equity for BS equation
-      const plTypes = new Set(['revenue', 'expense', 'cogs']);
-      let netIncome = 0;
-      for (const a of accounts || []) {
-        if (!plTypes.has(String(a.account_type)) || a.is_header) continue;
-        const t = totals[a.id] || { debit: 0, credit: 0 };
-        if (a.account_type === 'revenue') netIncome += t.credit - t.debit;
-        else netIncome -= t.debit - t.credit;
-      }
-      netIncome = round2(netIncome);
-
-      const assets = round2(
-        rows.filter((r) => r.account_type === 'asset').reduce((s, r) => s + r.amount, 0)
-      );
-      const liabilities = round2(
-        rows.filter((r) => r.account_type === 'liability').reduce((s, r) => s + r.amount, 0)
-      );
-      const equityBase = round2(
-        rows.filter((r) => r.account_type === 'equity').reduce((s, r) => s + r.amount, 0)
-      );
-      const equity = round2(equityBase + netIncome);
+      // Same position totals as the AFS statement of financial position.
+      const position = statementPosition(figureAccounts, dcMap);
+      const netIncome = position.netIncome;
+      const assets = position.assets;
+      const liabilities = position.liabilities;
+      const equityBase = position.equityBase;
+      const equity = position.equity;
 
       // Section totals
       const sections: Record<string, number> = {};
@@ -1342,10 +1251,10 @@ export async function GET(request: NextRequest) {
           nonCurrentAssets: sections.non_current_assets || 0,
           currentLiabilities: sections.current_liabilities || 0,
           nonCurrentLiabilities: sections.non_current_liabilities || 0,
-          balanced: Math.abs(assets - (liabilities + equity)) < 0.05,
+          balanced: position.balanced,
         },
         period: { from, to },
-        warning: fetched.warning,
+        warning: reportWarning,
       });
     }
 

@@ -25,6 +25,7 @@ import {
   parseInvoiceCogsLines,
 } from '@/lib/accounting/inventory-cogs';
 import { resolvePartyControlAccountId } from '@/lib/accounting/party-gl-accounts';
+import { capPoCogsAmount } from '@/lib/accounting/ledger-guards';
 
 export const PO_INVENTORY_SOURCE = 'po_inventory';
 
@@ -220,7 +221,7 @@ async function liveJournals(opts: {
   profileId: number;
   source: string;
   sourceId: string;
-}): Promise<Array<{ id: number }>> {
+}): Promise<Array<{ id: number; amount: number }>> {
   const supabase = getSupabaseServer();
   const { data: existing } = await supabase
     .from('journal_entries')
@@ -250,9 +251,24 @@ async function liveJournals(opts: {
       const id = Number(j.id);
       return !asMeta(j.metadata).reversed_by_journal_id && !reversed.has(id);
     })
-    .map((j) => ({ id: Number(j.id) }))
+    .map((j) => ({
+      id: Number(j.id),
+      amount: round2(
+        Number(asMeta(j.metadata).cogs_amount || asMeta(j.metadata).amount || 0)
+      ),
+    }))
     .filter((j) => j.id > 0)
     .sort((a, b) => a.id - b.id);
+}
+
+async function postedDebitSum(profileId: number, journalIds: number[]): Promise<number> {
+  if (!journalIds.length) return 0;
+  const supabase = getSupabaseServer();
+  const { data } = await supabase
+    .from('journal_lines')
+    .select('debit')
+    .in('journal_entry_id', journalIds);
+  return round2((data || []).reduce((sum, line) => sum + Number(line.debit || 0), 0));
 }
 
 function srmSupplierIdFromPo(po: Record<string, unknown>): number | null {
@@ -604,6 +620,14 @@ export async function applyPoAcceptBooks(opts: {
         : [];
     if (liveCogs.length) {
       cogsJournalIds.push(liveCogs[0].id);
+      let known = round2(liveCogs.reduce((sum, journal) => sum + journal.amount, 0));
+      if (known < 0.005) {
+        known = await postedDebitSum(
+          opts.companyId,
+          liveCogs.map((journal) => journal.id)
+        );
+      }
+      cogsApplied = round2(cogsApplied + known);
       continue;
     }
     if (!cogsId || !invGlId) {
@@ -613,6 +637,13 @@ export async function applyPoAcceptBooks(opts: {
         error: 'COA missing 5100 or 1140 — seed Chart of Accounts',
       };
     }
+    // Cost relieved across every invoice for this PO stops at the PO cost.
+    const cogsAmount = capPoCogsAmount({
+      poCost: amount,
+      alreadyRelieved: cogsApplied,
+      requested: row.amount,
+    });
+    if (cogsAmount < 0.005) break;
     const invNumber = String(inv.invoice_number || inv.id || '');
     const memo = `COGS ${invNumber} from PO #${opts.poId}`.slice(0, 500);
     const entryDate = String(
@@ -631,28 +662,28 @@ export async function applyPoAcceptBooks(opts: {
         invoice_id: inv.id,
         invoice_number: inv.invoice_number || null,
         purchase_order_id: opts.poId,
-        cogs_amount: row.amount,
+        cogs_amount: cogsAmount,
         from_po_accept: true,
       },
       lines: cogsJournalLines({
         cogsAccountId: cogsId,
         inventoryAccountId: invGlId,
-        amount: row.amount,
+        amount: cogsAmount,
         memo,
       }),
     });
     if (!posted.ok) return { ok: false, inventoryJournalId, error: posted.error };
     cogsJournalIds.push(posted.journalId);
-    cogsApplied = round2(cogsApplied + row.amount);
+    cogsApplied = round2(cogsApplied + cogsAmount);
     if (invNumber) invoiceNumbers.push(invNumber);
     await stampInvoiceCogs(opts.companyId, inv, {
       cogs_journal_id: posted.journalId,
-      cogs_amount: row.amount,
+      cogs_amount: cogsAmount,
       cogs_posted_at: new Date().toISOString(),
       cogs_skipped: null,
       cogs_voided: false,
       cogs_from_po_id: opts.poId,
-      cogs_from_po_amount: row.amount,
+      cogs_from_po_amount: cogsAmount,
     });
   }
 

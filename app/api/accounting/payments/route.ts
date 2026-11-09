@@ -116,6 +116,18 @@ export async function POST(request: NextRequest) {
       direction = inv.direction === 'payable' ? 'outbound' : 'inbound';
       counterparty = counterparty || inv.counterparty_name || undefined;
       if (!customerId && inv.customer_id) customerId = Number(inv.customer_id);
+      const { settledToDate } = await import('@/lib/accounting/invoice-gl');
+      const { settlementExceedsInvoice } = await import(
+        '@/lib/accounting/ledger-guards'
+      );
+      const gate = settlementExceedsInvoice({
+        invoiceTotal: Number(inv.total_amount || 0),
+        settledToDate: await settledToDate(companyId, invoiceId),
+        amount,
+      });
+      if (gate.blocked) {
+        return NextResponse.json({ error: gate.message }, { status: 400 });
+      }
     }
 
     if (!direction) {

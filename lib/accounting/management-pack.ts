@@ -3,12 +3,18 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { round2 } from '@/lib/accounting/server';
-import {
-  fetchJournalLinesByEntryIds,
-  fetchPostedJournals,
-} from '@/lib/accounting/journal-query';
+import { loadPostedLedger, totalsFromLedger } from '@/lib/accounting/posted-ledger';
 import { buildBudgetVsActual } from '@/lib/accounting/budget-vs-actual';
 import { MONTH_SHORT } from '@/lib/accounting/fiscal';
+import {
+  PNL_EXCLUDED_SOURCES,
+  isCogsType,
+  isExpenseType,
+  isRevenueType,
+  ledgerCoverageWarning,
+  pnlAccountLines,
+  signedStatementAmount,
+} from '@/lib/accounting/statement-figures';
 
 export type MgmtPackLine = {
   code: string;
@@ -60,6 +66,7 @@ export type ManagementPack = {
     budgetNet: number;
     actualNet: number;
   } | null;
+  warning?: string;
 };
 
 function monthKey(iso: string): string {
@@ -101,14 +108,8 @@ export function trendMonthKeys(from: string, to: string): string[] {
 }
 
 function signedPnl(type: string, debit: number, credit: number): number {
-  const t = String(type || '').toLowerCase();
-  if (t === 'revenue' || t === 'income' || t === 'sales') {
-    return round2(credit - debit);
-  }
-  if (t === 'expense' || t === 'expenses' || t === 'opex' || t === 'cogs') {
-    return round2(debit - credit);
-  }
-  return 0;
+  if (!isRevenueType(type) && !isCogsType(type) && !isExpenseType(type)) return 0;
+  return signedStatementAmount(type, debit, credit);
 }
 
 export async function buildManagementPack(opts: {
@@ -153,16 +154,17 @@ export async function buildManagementPack(opts: {
   const trendKeys = trendMonthKeys(from, to);
   const histFrom = `${trendKeys[0]}-01`;
 
-  const { rows: journals } = await fetchPostedJournals({
+  const ledger = await loadPostedLedger({
     profileId: opts.profileId,
     from: histFrom,
     to,
+    includeLines: true,
+    journalColumns: 'core',
+    lineColumns: 'amounts',
   });
+  const journals = ledger.journals;
   const byId = new Map(journals.map((j) => [j.id, j]));
-  const { lines: rawLines } = await fetchJournalLinesByEntryIds(
-    journals.map((j) => j.id),
-    'journal_entry_id, account_id, debit, credit'
-  );
+  const rawLines = ledger.lines;
 
   const periodByAcct = new Map<number, { debit: number; credit: number }>();
   const monthByAcct = new Map<
@@ -176,7 +178,7 @@ export async function buildManagementPack(opts: {
     const jid = Number(l.journal_entry_id);
     const je = byId.get(jid);
     if (!je) continue;
-    if (String(je.source || '') === 'year_end_close') continue;
+    if (PNL_EXCLUDED_SOURCES.has(String(je.source || '').toLowerCase())) continue;
     const aid = Number(l.account_id);
     const d = Number(l.debit || 0);
     const c = Number(l.credit || 0);
@@ -198,41 +200,45 @@ export async function buildManagementPack(opts: {
     }
   }
 
-  const income: MgmtPackLine[] = [];
-  const cogs: MgmtPackLine[] = [];
-  const expenses: MgmtPackLine[] = [];
-  let revenue = 0;
-  let cogsTot = 0;
-  let expTot = 0;
-  for (const a of accounts) {
-    const t = periodByAcct.get(a.id);
-    if (!t) continue;
-    const type = a.account_type.toLowerCase();
-    const amount = signedPnl(type, t.debit, t.credit);
-    if (Math.abs(amount) < 0.005) continue;
-    const row = { code: a.code, name: a.name, amount };
-    if (type === 'revenue' || type === 'income' || type === 'sales') {
-      income.push(row);
-      revenue += amount;
-    } else if (type === 'cogs' || type === 'cost_of_sales') {
-      cogs.push(row);
-      cogsTot += amount;
-    } else if (type === 'expense' || type === 'expenses' || type === 'opex') {
-      expenses.push(row);
-      expTot += amount;
-    }
-  }
-  revenue = round2(revenue);
-  cogsTot = round2(cogsTot);
-  expTot = round2(expTot);
-  const grossProfit = round2(revenue - cogsTot);
-  const operatingProfit = round2(grossProfit - expTot);
-
-  const sortAmt = (a: MgmtPackLine, b: MgmtPackLine) =>
-    Math.abs(b.amount) - Math.abs(a.amount);
-  income.sort(sortAmt);
-  cogs.sort(sortAmt);
-  expenses.sort(sortAmt);
+  const grouped = pnlAccountLines(accounts, periodByAcct);
+  const income: MgmtPackLine[] = grouped.income.map((row) => ({
+    code: row.code,
+    name: row.name,
+    amount: row.amount,
+  }));
+  const cogs: MgmtPackLine[] = grouped.cogsLines.map((row) => ({
+    code: row.code,
+    name: row.name,
+    amount: row.amount,
+  }));
+  const expenses: MgmtPackLine[] = grouped.expenseLines.map((row) => ({
+    code: row.code,
+    name: row.name,
+    amount: row.amount,
+  }));
+  const revenue = grouped.revenue;
+  const cogsTot = grouped.cogs;
+  const expTot = grouped.expenses;
+  const grossProfit = grouped.grossProfit;
+  const operatingProfit = grouped.operatingProfit;
+  const periodTotals = totalsFromLedger({
+    journals,
+    lines: rawLines,
+    from,
+    to,
+    excludeSources: [...PNL_EXCLUDED_SOURCES],
+  });
+  const coverage = ledgerCoverageWarning({
+    totals: periodTotals.rows,
+    accounts: (accountsRaw || []).map((account) => ({
+      id: Number(account.id),
+      code: String(account.code || ''),
+      name: String(account.name || ''),
+      account_type: String(account.account_type || ''),
+      is_header: Boolean(account.is_header),
+    })),
+  });
+  const warning = [ledger.warning, coverage].filter(Boolean).join(' ') || undefined;
 
   const months: MgmtPackMonth[] = trendKeys.map((key) => {
     const map = monthByAcct.get(key) || new Map();
@@ -242,11 +248,11 @@ export async function buildManagementPack(opts: {
     for (const [aid, t] of map) {
       const a = acctById.get(aid);
       if (!a) continue;
-      const type = a.account_type.toLowerCase();
+      const type = a.account_type;
       const amount = signedPnl(type, t.debit, t.credit);
-      if (type === 'revenue' || type === 'income' || type === 'sales') rev += amount;
-      else if (type === 'cogs' || type === 'cost_of_sales') cg += amount;
-      else if (type === 'expense' || type === 'expenses' || type === 'opex') ex += amount;
+      if (isRevenueType(type)) rev += amount;
+      else if (isCogsType(type)) cg += amount;
+      else if (isExpenseType(type)) ex += amount;
     }
     const net = round2(rev - cg - ex);
     return {
@@ -340,6 +346,7 @@ export async function buildManagementPack(opts: {
     expenses,
     months,
     budget,
+    warning,
   };
 }
 
