@@ -1909,6 +1909,31 @@ html.dark .b2c-app textarea {
   }
 }
 
+/*
+ * Desktop app sidebar. Width comes from html[data-sidebar], set in the head
+ * before paint. Do not add Tailwind w-64 / w-72 here — those paint the wide
+ * column first, then snap shut when localStorage says collapsed.
+ * 16rem / 18rem match the previous md:w-64 and lg:w-72. 4.5rem is 72px.
+ */
+@media (min-width: 768px) {
+  .sa-app-aside {
+    width: 16rem;
+  }
+}
+@media (min-width: 1024px) {
+  .sa-app-aside {
+    width: 18rem;
+  }
+}
+html[data-sidebar='collapsed'] .sa-app-aside {
+  width: 4.5rem;
+}
+@media (min-width: 768px) {
+  html[data-sidebar-motion='1'] .sa-app-aside {
+    transition: width 200ms ease-out;
+  }
+}
+
 @keyframes profile-sheet-in {
   from { opacity: 0; transform: translateX(12px); }
   to { opacity: 1; transform: none; }

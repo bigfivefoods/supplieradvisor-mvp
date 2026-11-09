@@ -44,7 +44,12 @@ function trialAttemptKey(companyId: number): string {
  * status `none` is not expiry: one idempotent start is attempted, then a calm
  * cyan bar if the company is still without a trial.
  */
-export default function SubscriptionAccessBanner() {
+export default function SubscriptionAccessBanner({
+  onReady,
+}: {
+  /** Fired once the bar has either rendered or decided to stay hidden. */
+  onReady?: () => void;
+} = {}) {
   const pathname = usePathname();
   const companyId = getSelectedCompanyId();
   const [sub, setSub] = useState<CompanySubscriptionInfo | null>(null);
@@ -54,13 +59,19 @@ export default function SubscriptionAccessBanner() {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const startedFor = useRef<number | null>(null);
+  const readyOnce = useRef(false);
+  const signalReady = useCallback(() => {
+    if (readyOnce.current) return;
+    readyOnce.current = true;
+    onReady?.();
+  }, [onReady]);
 
   const load = useCallback(async () => {
-    if (!companyId) {
-      setSub(null);
-      return;
-    }
     try {
+      if (!companyId) {
+        setSub(null);
+        return;
+      }
       const res = await fetch(
         `/api/business/subscription?companyId=${companyId}&autoTrial=0`,
         { cache: 'no-store' }
@@ -105,8 +116,10 @@ export default function SubscriptionAccessBanner() {
       setStartAttempted(attempted);
     } catch {
       /* soft */
+    } finally {
+      signalReady();
     }
-  }, [companyId]);
+  }, [companyId, signalReady]);
 
   useEffect(() => {
     void load();

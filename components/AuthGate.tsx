@@ -73,7 +73,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!ready || (authenticated && !roleChecked) || blocked) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
+      <div key="gate-opening" className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-[#00b4d8] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-neutral-500">
@@ -86,7 +86,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!authenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
+      <div key="gate-redirect" className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
         <div className="text-center max-w-sm">
           <div className="w-8 h-8 border-4 border-[#00b4d8] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-neutral-600 font-medium">Redirecting to sign in…</p>

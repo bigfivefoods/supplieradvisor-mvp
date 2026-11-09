@@ -4,12 +4,12 @@
  * Shared app chrome (sidebar + process rail) for /dashboard/* and full-team /sales/*.
  * sales_contractor uses SalesShell instead — not this chrome.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import ModuleAccessGate from '@/components/ModuleAccessGate';
 import ModuleProcessBar from '@/components/chrome/ModuleProcessBar';
-import { SidebarProvider, useSidebarChrome } from '@/components/chrome/SidebarContext';
+import { SidebarProvider } from '@/components/chrome/SidebarContext';
 import { X } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import SamMessenger from '@/components/sam/SamMessenger';
@@ -49,7 +49,20 @@ function AppShellInner({
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
-  const { collapsed } = useSidebarChrome();
+  // Page body waits until the subscription bar has decided to show or stay
+  // hidden, so the bar cannot push content that already painted.
+  const [mainReady, setMainReady] = useState(hideChrome);
+  const [trackedHide, setTrackedHide] = useState(hideChrome);
+  if (hideChrome !== trackedHide) {
+    setTrackedHide(hideChrome);
+    setMainReady(hideChrome);
+  }
+  const markMainReady = useCallback(() => setMainReady(true), []);
+  useEffect(() => {
+    if (mainReady || hideChrome) return;
+    const timer = window.setTimeout(() => setMainReady(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [hideChrome, mainReady]);
   const skin = useAdvisorSkin();
   const { logoUrl, companyName, selectedCompanyId } = useCompanyRole();
 
@@ -75,14 +88,10 @@ function AppShellInner({
     };
   }, [isMobileMenuOpen]);
 
-  const asideWidth = collapsed ? 'md:w-[72px] lg:w-[72px]' : 'md:w-64 lg:w-72';
-
   return (
     <div className="flex min-h-[100dvh] bg-sa-bg w-full max-w-[100vw] overflow-x-clip">
       {!hideChrome && (
-        <aside
-          className={`hidden md:flex flex-col flex-shrink-0 bg-sa-surface sticky top-0 h-[100dvh] overflow-hidden z-20 transition-[width] duration-200 ease-out ${asideWidth}`}
-        >
+        <aside className="sa-app-aside hidden md:flex flex-col flex-shrink-0 bg-sa-surface sticky top-0 h-[100dvh] overflow-hidden z-20">
           <Sidebar />
         </aside>
       )}
@@ -91,11 +100,11 @@ function AppShellInner({
         {!hideChrome && (
           <div className="sticky top-0 z-40 pt-safe">
             <ModuleProcessBar onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
-            <SubscriptionAccessBanner />
+            <SubscriptionAccessBanner onReady={markMainReady} />
           </div>
         )}
 
-        <main
+        {mainReady ? <main
           className={
             hideChrome
               ? 'flex-1 relative z-10 pointer-events-auto min-w-0 w-full'
@@ -109,7 +118,7 @@ function AppShellInner({
               <ModuleAccessGate>{children}</ModuleAccessGate>
             </div>
           )}
-        </main>
+        </main> : null}
       </div>
 
       {isMobileMenuOpen && !hideChrome && (

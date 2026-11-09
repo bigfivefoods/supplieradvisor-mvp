@@ -226,7 +226,7 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
 
   if (loading || !ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+      <div key="invite-loading" className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8] mx-auto mb-4" />
           <p className="text-neutral-600">Validating your invitation…</p>
@@ -237,7 +237,7 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
+      <div key="invite-success" className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
         <div className="max-w-md text-center">
           <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-6" />
           <h1 className="text-4xl font-black tracking-[-2px] text-[#00b4d8] mb-3">You&apos;re in!</h1>
@@ -249,7 +249,7 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
 
   if (error && !hasInviteMeta) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
+      <div key="invite-error" className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
         <div className="max-w-md text-center bg-white border border-neutral-200 rounded-3xl p-10">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-6" />
           <h1 className="text-3xl font-bold text-slate-900 mb-3">Invitation unavailable</h1>
@@ -294,7 +294,7 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
         : businessInvite?.invitedBy || 'SupplierAdvisor network';
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div key="invite-form" className="min-h-screen bg-[#f8fafc]">
       <div className="max-w-5xl mx-auto px-6 py-10 md:py-16">
         <div className="flex items-center gap-3 mb-10">
           <Image src="/sa-logo.png" alt="SupplierAdvisor" width={100} height={44} className="h-10 w-auto object-contain" />
