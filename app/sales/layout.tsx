@@ -47,7 +47,9 @@ function SalesLayoutInner({ children }: { children: React.ReactNode }) {
   const { role, loading } = useCompanyRole();
   const earlyAgreement = Boolean(pathname?.startsWith('/sales/agreement'));
 
-  if (loading && earlyAgreement) {
+  // Logged-out visitors have no role. Keep them on the agreement shell
+  // instead of AuthGate, which would replace the heading with /login.
+  if (earlyAgreement && (loading || !role || role === 'sales_contractor')) {
     return (
       <SalesShell>
         {children}

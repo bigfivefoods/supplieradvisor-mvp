@@ -67,6 +67,7 @@ const page = read('app/sales/agreement/page.tsx');
 const route = read('app/api/sales/agreement/route.ts');
 const sidebar = read('components/Sidebar.tsx');
 
+assert.match(layout, /earlyAgreement && \(loading \|\| !role \|\| role === 'sales_contractor'\)/);
 assert.match(layout, /\/sales\/agreement/);
 assert.match(layout, /import\('@\/components\/chrome\/AppShell'\)/);
 assert.doesNotMatch(layout, /from '@\/components\/chrome\/AppShell'/);
