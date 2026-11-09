@@ -2,7 +2,7 @@
 
 import { createContext, createElement, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
-import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/member-company';
+import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/company-cookie';
 import { mapRecoverHref } from '@/lib/recovery/href';
 import type { RecoverIllustration } from '@/lib/recovery/sample-desk';
 import type { RecoverDeskPayload, RecoverOp } from '@/lib/recovery/types';

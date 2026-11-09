@@ -41,6 +41,7 @@ import {
   rememberAdvisorPwaMember,
 } from '@/lib/advisors/member-pwa';
 import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
+import { useMeSessionHint } from '@/components/b2c/MeSessionHint';
 import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
 import {
   B2cAppShell,
@@ -199,6 +200,7 @@ function membershipProgressHref(m: Membership) {
 function MeAppInner() {
   const router = useRouter();
   const search = useSearchParams();
+  const hinted = useMeSessionHint();
   const { ready, authenticated, user, logout } = usePrivy();
   const [tab, setTab] = useState<B2cTab>(() => normalizeB2cTab(search?.get('tab')) || 'home');
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -639,23 +641,10 @@ function MeAppInner() {
     }
   };
 
-  // ── Loading ──────────────────────────────────────────────────────
-  if (!ready || (authenticated && loading)) {
-    return (
-      <div className="sa-member-lockup flex min-h-[100dvh] flex-col items-center justify-center bg-[#0c4a6e] text-white">
-        <SaOfficialLogo
-          title="SA Member"
-          className="sa-logo-on-dark sa-logo-member-login h-16 w-auto"
-          priority
-        />
-        <p className="mt-4 text-sm font-black tracking-wide">SA Member</p>
-        <Loader2 className="mt-4 h-6 w-6 animate-spin text-sky-200" />
-      </div>
-    );
-  }
-
-  // ── Login wall (app store style) ─────────────────────────────────
-  if (!authenticated) {
+  // Login wall is in the first HTML when there is no session cookie.
+  // A hinted session paints the wallet shell immediately; profile data fills in.
+  const showLogin = ready ? !authenticated : !hinted;
+  if (showLogin) {
     return (
       <div className="sa-member-lockup flex min-h-[100dvh] flex-col bg-gradient-to-b from-[#0c4a6e] via-[#0077b6] to-[#38bdf8] dark:from-black dark:via-[#082f49] dark:to-[#0c4a6e] lg:grid lg:grid-cols-2">
         <div

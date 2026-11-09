@@ -21,6 +21,7 @@ import {
   resolveProgramSettings,
   tiersSchedulesDiffer,
 } from '@/lib/sales-program';
+import type { SalesProgramSettings } from '@/lib/sales-program/types';
 import {
   isMissingSalesAgreementColumn,
   omitSalesAgreementOptionalColumns,
@@ -166,6 +167,8 @@ export async function getOrCreateAgreement(opts: {
   userId: string;
   name?: string | null;
   email?: string | null;
+  /** Already loaded for this request — avoids a second program read. */
+  program?: SalesProgramSettings;
 }): Promise<
   | { ok: true; agreement: SalesContractorAgreement }
   | { ok: false; error: string; status: number }
@@ -221,7 +224,7 @@ export async function getOrCreateAgreement(opts: {
     };
   }
 
-  const program = await resolveProgramSettings(opts.companyId);
+  const program = opts.program ?? (await resolveProgramSettings(opts.companyId));
 
   // Pending row: keep in sync with live company sales program (4–6% etc.)
   if (rows[0]) {

@@ -31,7 +31,7 @@ import { AdvisorWordmark } from '@/components/brand/AdvisorSkinApplier';
 import { PortalBrandLogo } from '@/components/brand/PortalBrandLogo';
 import { useAdvisorSkin } from '@/lib/brand/useAdvisorSkin';
 import { recoverSidebarSteps } from '@/lib/recovery/nav';
-import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/member-company';
+import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/company-cookie';
 
 const EXPANDED_KEY = 'sa-sidebar-expanded-v1';
 

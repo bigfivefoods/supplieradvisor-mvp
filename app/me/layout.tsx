@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
+import { cookies } from 'next/headers';
 import { Providers } from '@/components/Providers';
 import { B2cInstallPrompt } from '@/components/b2c/B2cInstallPrompt';
+import { MeSessionHint } from '@/components/b2c/MeSessionHint';
 
 export const metadata: Metadata = {
   title: {
@@ -41,14 +43,20 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default function MeAppLayout({
+export default async function MeAppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const jar = await cookies();
+  const signedIn =
+    jar.get('sa_authed')?.value === '1' ||
+    Boolean(jar.get('privy-token')?.value) ||
+    Boolean(jar.get('privy-session')?.value);
+
   return (
     <Providers>
-      {children}
+      <MeSessionHint signedIn={signedIn}>{children}</MeSessionHint>
       <B2cInstallPrompt />
     </Providers>
   );
