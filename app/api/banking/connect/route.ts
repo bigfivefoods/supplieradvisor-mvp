@@ -14,6 +14,7 @@ import {
   ingestCanonicalTxns,
   startSyncRun,
   finishSyncRun,
+  sandboxSamplesAllowed,
   sandboxTransactions,
 } from '@/lib/banking';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
@@ -188,6 +189,15 @@ export async function POST(request: NextRequest) {
         returnUrl,
         bankAccountId,
       });
+      if (session.mode === 'sandbox' && !sandboxSamplesAllowed()) {
+        return NextResponse.json(
+          {
+            error:
+              'SupplierAdvisor® does not open a sample bank feed on production. Connect a live bank or import a statement.',
+          },
+          { status: 409 }
+        );
+      }
 
       const { data: conn, error } = await supabase
         .from('bank_connections')
@@ -249,6 +259,19 @@ export async function POST(request: NextRequest) {
       const { data: conn, error: cErr } = await connQuery.maybeSingle();
       if (cErr || !conn) {
         return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
+      }
+
+      const sampleFeed =
+        conn.provider === 'sandbox' ||
+        (cfg.mode === 'sandbox' && conn.provider !== 'fnb');
+      if (sampleFeed && !sandboxSamplesAllowed()) {
+        return NextResponse.json(
+          {
+            error:
+              'SupplierAdvisor® does not load sample bank transactions on production. Connect a live bank or import a statement.',
+          },
+          { status: 409 }
+        );
       }
 
       // Ensure a bank account exists to land transactions
@@ -317,8 +340,8 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', targetAccountId);
 
-      // Pull transactions (sandbox demo or live)
-      let txns = sandboxTransactions();
+      // Pull transactions. Sample rows only when this deployment allows them.
+      let txns = sampleFeed && sandboxSamplesAllowed() ? sandboxTransactions() : [];
       if (conn.provider === 'fnb') {
         if (!isFnbIntegrationCompany(companyId)) {
           return NextResponse.json(

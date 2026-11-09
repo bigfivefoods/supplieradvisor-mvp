@@ -9,6 +9,7 @@ import {
   ingestCanonicalTxns,
   startSyncRun,
   finishSyncRun,
+  sandboxSamplesAllowed,
   sandboxTransactions,
   triggerBankLinkSync,
 } from '@/lib/banking';
@@ -102,11 +103,18 @@ async function runCron(request: NextRequest) {
 
       // Sample data only for sandbox/demo connections. Live FNB connections
       // always call the real FNB provider, regardless of BankLink mode.
-      let txns =
+      const sampleFeed =
         conn.provider === 'sandbox' ||
-        (cfg.mode === 'sandbox' && conn.provider !== 'fnb')
-          ? sandboxTransactions()
-          : [];
+        (cfg.mode === 'sandbox' && conn.provider !== 'fnb');
+      if (sampleFeed && !sandboxSamplesAllowed()) {
+        results.push({
+          connectionId: conn.id,
+          skipped: true,
+          reason: 'sample bank feed is not loaded on production',
+        });
+        continue;
+      }
+      let txns = sampleFeed ? sandboxTransactions() : [];
 
       if (conn.provider === 'fnb') {
         let fnbError: string | null = null;

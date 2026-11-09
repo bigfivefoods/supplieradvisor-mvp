@@ -72,7 +72,18 @@ export function Vat201Screen({
 }) {
   const [report, setReport] = useState<Vat201Report | null>(fixture ? FIXTURE_REPORT : null);
   const [periods, setPeriods] = useState<VatPeriod[]>([]);
-  const [settings, setSettings] = useState<VatVendorSettings>(FIXTURE_SETTINGS);
+  const [settings, setSettings] = useState<VatVendorSettings>(
+    fixture
+      ? FIXTURE_SETTINGS
+      : {
+          vatNumber: '',
+          basis: 'invoice',
+          category: 'B',
+          effectiveFrom: '',
+          firstPeriodEnd: '',
+          filingChannel: 'efiling',
+        }
+  );
   const [tab, setTab] = useState<Tab>('output');
   const [loading, setLoading] = useState(!fixture);
   const [busy, setBusy] = useState(false);
@@ -81,8 +92,8 @@ export function Vat201Screen({
   );
   const [drift, setDrift] = useState(false);
   const [reference, setReference] = useState('');
-  const [submittedOn, setSubmittedOn] = useState('2026-09-28');
-  const [paidOn, setPaidOn] = useState('2026-09-29');
+  const [submittedOn, setSubmittedOn] = useState(fixture ? '2026-09-28' : '');
+  const [paidOn, setPaidOn] = useState(fixture ? '2026-09-29' : '');
   const [paymentReference, setPaymentReference] = useState('');
   const [confirmPayment, setConfirmPayment] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);

@@ -95,6 +95,12 @@ export async function POST(request: NextRequest) {
     const action = String(body.action || 'merge');
 
     if (action === 'seed_demo') {
+      if (process.env.VERCEL_ENV === 'production') {
+        return NextResponse.json(
+          { error: 'SupplierAdvisor® does not load a sample book on production.' },
+          { status: 409 }
+        );
+      }
       nextStore = apparelgraphSeedStore();
     } else if (action === 'ensure_portal') {
       const existing = prevStore.portals.find((p) => p.kind === 'public');

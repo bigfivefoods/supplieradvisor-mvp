@@ -132,9 +132,13 @@ async function statusOrSeed(
     recipes: recipeCount || 0,
     seeded: (productCount || 0) > 0,
     tip:
-      (productCount || 0) === 0
-        ? 'Catalogue empty — POST action=seed to load demo products + sample recipe'
-        : 'Catalogue already has products — use force=true to add demo rows anyway',
+      process.env.VERCEL_ENV === 'production'
+        ? (productCount || 0) === 0
+          ? 'Catalogue is empty. Add the approved foods. SupplierAdvisor® does not load sample rows on production.'
+          : 'Catalogue has products.'
+        : (productCount || 0) === 0
+          ? 'Catalogue empty — POST action=seed to load demo products + sample recipe'
+          : 'Catalogue already has products — use force=true to add demo rows anyway',
   };
 
   if (action === 'status') {
@@ -143,6 +147,16 @@ async function statusOrSeed(
 
   if (action !== 'seed') {
     return NextResponse.json({ error: 'action must be seed or status' }, { status: 400 });
+  }
+
+  if (process.env.VERCEL_ENV === 'production') {
+    return NextResponse.json(
+      {
+        error:
+          'SupplierAdvisor® does not write sample catalogue rows on production. Add the real approved foods instead.',
+      },
+      { status: 409 }
+    );
   }
 
   const force = body?.force === true || body?.force === '1';
