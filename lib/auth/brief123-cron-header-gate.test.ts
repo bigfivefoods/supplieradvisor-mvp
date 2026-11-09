@@ -30,8 +30,8 @@ async function main() {
   process.env.VERCEL_ENV = 'production';
   const secret = process.env.CRON_SECRET;
 
-  async function jsonBody(response: Response) {
-    return await response.json();
+  function parseBody(text: string) {
+    return JSON.parse(text) as { code?: string; error?: string };
   }
 
   try {
@@ -41,7 +41,6 @@ async function main() {
       })
     );
     assert.equal(wrongHeader.status, 401);
-    assert.equal((await jsonBody(wrongHeader)).code, 'CRON_UNAUTHORIZED');
 
     const wrongBearer = middleware(
       new NextRequest('http://localhost/api/system/email-samples', {
@@ -49,7 +48,6 @@ async function main() {
       })
     );
     assert.equal(wrongBearer.status, 401);
-    assert.equal((await jsonBody(wrongBearer)).code, 'CRON_UNAUTHORIZED');
 
     const goodHeader = middleware(
       new NextRequest('http://localhost/api/system/email-samples', {
@@ -67,7 +65,16 @@ async function main() {
 
     const unauth = middleware(new NextRequest('http://localhost/api/accounting/invoices'));
     assert.equal(unauth.status, 401);
-    assert.equal((await jsonBody(unauth)).code, 'UNAUTHORIZED');
+    const unauthText = await unauth.text();
+    assert.equal(parseBody(unauthText).code, 'UNAUTHORIZED');
+
+    const wrongHeaderText = await wrongHeader.text();
+    assert.equal(wrongHeaderText, unauthText);
+    assert.equal(parseBody(wrongHeaderText).code, 'UNAUTHORIZED');
+
+    const wrongBearerText = await wrongBearer.text();
+    assert.equal(wrongBearerText, unauthText);
+    assert.equal(parseBody(wrongBearerText).code, 'UNAUTHORIZED');
 
     const health = middleware(new NextRequest('http://localhost/api/health'));
     assert.equal(health.status, 200);
@@ -82,7 +89,9 @@ async function main() {
     );
     assert.equal(directWrong.ok, false);
     assert.equal(directWrong.response.status, 401);
-    assert.equal((await jsonBody(directWrong.response)).code, 'CRON_UNAUTHORIZED');
+    const directWrongText = await directWrong.response.text();
+    assert.equal(directWrongText, unauthText);
+    assert.equal(parseBody(directWrongText).code, 'UNAUTHORIZED');
 
     const directGood = assertCronSecret(
       new NextRequest('http://localhost/api/system/email-samples', {
