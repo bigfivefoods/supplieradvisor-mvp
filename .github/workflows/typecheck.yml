@@ -143,6 +143,7 @@ jobs:
             lib/chrome/trade-sidebar.test.ts \
             lib/onboarding/brief118-write-order.test.ts \
             lib/billing/brief118-access.test.ts \
+            lib/billing/subscription-reminders.test.ts \
             lib/onboarding/brief118-profile-columns.test.ts \
             lib/onboarding/register-profile.test.ts \
             lib/marketing/brief121a-no-link-to-static-html.test.ts \
