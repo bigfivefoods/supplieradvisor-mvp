@@ -1,7 +1,8 @@
 /* ============================================
    LEAFLET MAP STYLES
    ============================================ */
-@import "leaflet/dist/leaflet.css";
+/* Leaflet CSS is imported by the map components that use it.
+   Keeping it out of the global sheet avoids shipping map rules on every page. */
 
 /* ============================================
    TAILWIND
@@ -1287,6 +1288,10 @@ html.dark img.sa-logo-base {
   flex-shrink: 0;
   height: 2rem;
   width: auto;
+  aspect-ratio: 640 / 277;
+}
+img.sa-logo {
+  aspect-ratio: 72 / 32;
 }
 .sa-official-logo.sa-logo,
 .sa-official-logo.h-6 {

@@ -26,6 +26,7 @@ import {
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
+import { fetchSalesAgreement } from '@/lib/sales-contractor/agreement-client';
 
 const NAV: {
   href: string;
@@ -75,7 +76,12 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (!ready) return;
     if (!authenticated) {
-      router.replace(`/login?next=${encodeURIComponent(pathname || '/sales')}`);
+      // The agreement heading is the page. Sending logged-out visitors to
+      // /login replaced that heading after Privy booted and made LCP the
+      // login screen. Signing still requires a session.
+      if (!pathname?.startsWith('/sales/agreement')) {
+        router.replace(`/login?next=${encodeURIComponent(pathname || '/sales')}`);
+      }
       return;
     }
     if (!companyId) {
@@ -92,10 +98,9 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
           companyId: String(companyId),
           privyUserId,
         });
-        const res = await fetch(`/api/sales/agreement?${params}`);
-        const data = await res.json();
+        const { ok, data } = await fetchSalesAgreement(params.toString());
         if (cancelled) return;
-        if (res.ok) {
+        if (ok) {
           setCompanyName(data.companyName || '');
           if (data.subscriptionExempt || !data.isSalesContractor) {
             setNeedAgreement(false);
@@ -129,7 +134,11 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
     };
   }, [companyId, privyUserId, pathname, router]);
 
-  if (!ready || !authenticated) {
+  // Privy resolves after the first paint. Keep the shell (and the agreement
+  // heading) on screen instead of swapping a full-page spinner. Logged-out
+  // visitors are sent to /login once Privy is ready. The agreement page stays
+  // put during that redirect so the heading is not torn down.
+  if (ready && !authenticated && !pathname?.startsWith('/sales/agreement')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
         <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />

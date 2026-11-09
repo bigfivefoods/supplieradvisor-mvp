@@ -12,7 +12,6 @@ import {
   getSalesContractorAgreementHtml,
   SALES_CONTRACTOR_CONTRACT_VERSION,
 } from '@/lib/sales-contractor/agreement';
-import { buildSalesAgreementPdf } from '@/lib/sales-contractor/agreement-pdf';
 import { tiersSummaryText } from '@/lib/sales-contractor/commission';
 import { logActivity } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
@@ -46,17 +45,22 @@ export async function GET(request: NextRequest) {
     const format = String(
       request.nextUrl.searchParams.get('format') || ''
     ).toLowerCase();
+    // Program settings overlap the membership lookup. PDF rendering stays
+    // out of this path so a JSON view does not boot pdfkit.
+    const programPromise = resolveProgramSettings(companyId);
     const ctx = await assertSalesPortalAccess(_gate.userId, companyId);
     if (!ctx.ok) {
       return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }
 
+    const program = await programPromise;
     const agr = await getOrCreateAgreement({
       companyId,
       memberId: ctx.memberId,
       userId: ctx.userId,
       name: ctx.name,
       email: ctx.email,
+      program,
     });
     if (!agr.ok) {
       return NextResponse.json({ error: agr.error }, { status: agr.status });
@@ -67,7 +71,6 @@ export async function GET(request: NextRequest) {
       agr.agreement.contractor_name ||
       ctx.name ||
       'Sales Contractor';
-    const program = await resolveProgramSettings(companyId);
     const reallySigned = isAgreementSigned(agr.agreement);
     const companyParam = request.nextUrl.searchParams.get('contractorCompanyName');
     const registrationParam = request.nextUrl.searchParams.get(
@@ -140,6 +143,9 @@ export async function GET(request: NextRequest) {
 
     // PDF download (default download path)
     if (format === 'download' || format === 'pdf') {
+      const { buildSalesAgreementPdf } = await import(
+        '@/lib/sales-contractor/agreement-pdf'
+      );
       const pdf = await buildSalesAgreementPdf({
         bodyHtml,
         meta: agreementMeta,

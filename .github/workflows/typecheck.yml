@@ -265,6 +265,7 @@ jobs:
           set -euo pipefail
           npx --yes tsx lib/sales-contractor/company-records.test.ts
           npx --yes tsx lib/sales-contractor/agreement-party.test.ts
+          npx --yes tsx lib/sales-contractor/agreement-speed.test.ts
       - name: Chart of accounts list tests
         run: |
           set -euo pipefail

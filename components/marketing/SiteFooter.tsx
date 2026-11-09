@@ -181,7 +181,7 @@ export default function SiteFooter() {
                   alt=""
                   width={72}
                   height={32}
-                  className="sa-logo h-8 w-auto shrink-0 object-contain"
+                  className="sa-logo h-8 w-[4.5rem] shrink-0 object-contain"
                 />
                 <span className="font-semibold text-lg tracking-tight text-black dark:text-white group-hover:opacity-70 transition-opacity whitespace-nowrap">
                   SupplierAdvisor<span className="sa-text-brand-on-light">®</span>

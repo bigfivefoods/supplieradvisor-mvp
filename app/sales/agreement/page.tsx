@@ -16,25 +16,26 @@ import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
   DEFAULT_COMMISSION_TIERS,
+  SUPER_LINK_TONNES,
+  SUPER_LINK_UNITS,
+  SUPER_LINK_UNIT_PRICE_ZAR,
+  calculateCommission,
   formatZar,
   formatZarPrecise,
-  calculateCommission,
+  superLinkDealValue,
   type CommissionTier,
 } from '@/lib/sales-contractor/commission';
 import {
   SALES_CONTRACTOR_EMAIL_DOMAIN,
   SALES_CONTRACTOR_KPIS,
-  SUPER_LINK_TONNES,
-  SUPER_LINK_UNITS,
-  SUPER_LINK_UNIT_PRICE_ZAR,
-  superLinkExampleDealValue,
-} from '@/lib/sales-contractor/agreement';
+} from '@/lib/sales-contractor/public-copy';
+import { fetchSalesAgreement } from '@/lib/sales-contractor/agreement-client';
 import type { SalesContractorAgreement } from '@/lib/sales-contractor/types';
 import {
   contractorContractingParty,
   contractorExecutionLine,
 } from '@/lib/sales-contractor/party';
-import type { ProgramCriterion } from '@/lib/sales-program';
+import type { ProgramCriterion } from '@/lib/sales-program/types';
 
 type ProgramBrief = {
   program_name?: string;
@@ -47,10 +48,10 @@ type ProgramBrief = {
 
 export default function SalesAgreementPage() {
   const router = useRouter();
-  const { user } = usePrivy();
+  const { user, authenticated, ready } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const companyId = getSelectedCompanyId();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [signing, setSigning] = useState(false);
   const [html, setHtml] = useState('');
   const [signed, setSigned] = useState(false);
@@ -70,18 +71,18 @@ export default function SalesAgreementPage() {
   const [agreementSigned, setAgreementSigned] = useState(false);
 
   const load = useCallback(async () => {
-    if (!companyId || !privyUserId) return;
+    if (!companyId || !privyUserId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams({
         companyId: String(companyId),
         privyUserId,
       });
-      const res = await fetch(`/api/sales/agreement?${params}`, {
-        cache: 'no-store',
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load agreement');
+      const { ok, data } = await fetchSalesAgreement(params.toString());
+      if (!ok) throw new Error(data.error || 'Failed to load agreement');
       setHtml(data.html || '');
       setSigned(Boolean(data.signed));
       setAgreementSigned(
@@ -89,7 +90,7 @@ export default function SalesAgreementPage() {
           data.agreementSigned ?? data.agreement?.status === 'signed'
         )
       );
-      setAgreement(data.agreement || null);
+      setAgreement((data.agreement as SalesContractorAgreement | null) || null);
       setCompanyName(data.companyName || '');
       const storedCompany = String(data.agreement?.contractor_company_name || '');
       const storedRegistration = String(
@@ -107,7 +108,7 @@ export default function SalesAgreementPage() {
       setContractVersion(
         data.program?.contract_version || data.contractVersion || ''
       );
-      setProgram(data.program || null);
+      setProgram((data.program as ProgramBrief | null) || null);
       if (data.agreement?.signature_name) setSignatureName(data.agreement.signature_name);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -140,10 +141,9 @@ export default function SalesAgreementPage() {
         contractorRegistrationNumber: registration,
         contractorSignerCapacity: capacity,
       });
-      const res = await fetch(`/api/sales/agreement?${params}`, { cache: 'no-store' });
-      const data = await res.json().catch(() => ({}));
+      const { ok, data } = await fetchSalesAgreement(params.toString());
       if (ticket !== previewTicket.current) return;
-      if (res.ok) setHtml(data.html || '');
+      if (ok) setHtml(data.html || '');
       const saved = await fetch('/api/sales/agreement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -270,6 +270,10 @@ export default function SalesAgreementPage() {
   };
 
   const sign = async () => {
+    if (ready && !authenticated) {
+      router.push('/login?next=/sales/agreement');
+      return;
+    }
     if (!accepted) {
       toast.error('Please confirm you have read the agreement');
       return;
@@ -339,16 +343,8 @@ export default function SalesAgreementPage() {
   const emailDomain =
     (program?.email_domain || SALES_CONTRACTOR_EMAIL_DOMAIN).replace(/^@/, '') ||
     SALES_CONTRACTOR_EMAIL_DOMAIN;
-  const linkDealValue = superLinkExampleDealValue();
+  const linkDealValue = superLinkDealValue();
   const halfLinkValue = linkDealValue / 2;
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-24">
-        <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -617,10 +613,15 @@ export default function SalesAgreementPage() {
             </span>
           </div>
         </div>
-        <div
-          className="px-6 py-6 max-h-[min(70vh,560px)] overflow-y-auto prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        <div className="px-6 py-6 max-h-[min(70vh,560px)] min-h-[min(70vh,560px)] overflow-y-auto prose prose-sm max-w-none">
+          {html ? (
+            <div dangerouslySetInnerHTML={{ __html: html }} />
+          ) : (
+            <div className="flex h-full min-h-[16rem] items-center justify-center text-sm text-neutral-400">
+              {loading ? 'Loading the agreement…' : 'The agreement text will appear here.'}
+            </div>
+          )}
+        </div>
       </div>
 
       {!signed && (

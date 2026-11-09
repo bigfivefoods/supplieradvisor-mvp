@@ -3,8 +3,9 @@ import { requireVerifiedUser } from '@/lib/auth/api-auth';
 import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { normalizeTeamRole, type TeamRole } from '@/lib/business/permissions';
+import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/company-cookie';
 
-export const RECOVER_COMPANY_COOKIE = 'sa_company_id';
+export { RECOVER_COMPANY_COOKIE };
 
 export type MemberCompany = {
   companyId: number;

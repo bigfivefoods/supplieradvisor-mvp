@@ -495,7 +495,7 @@ export default function LandingNav() {
               alt=""
               width={72}
               height={32}
-              className="sa-logo h-7 w-auto sm:h-8 object-contain shrink-0"
+              className="sa-logo h-7 w-[3.9375rem] object-contain shrink-0 sm:h-8 sm:w-[4.5rem]"
               priority
             />
             <span className="sa-wordmark hidden text-sm font-black tracking-tight sm:inline sm:text-base md:text-xl">
