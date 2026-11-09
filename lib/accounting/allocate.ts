@@ -713,38 +713,6 @@ export async function unallocateBankTransaction(params: {
  * Match bank receipt/payment to an invoice and record a payment.
  * Inflow → AR invoice; Outflow → AP bill.
  */
-async function settledAmountForInvoice(
-  profileId: number,
-  invoiceId: number
-): Promise<number> {
-  const supabase = getSupabaseServer();
-  const { data: journals } = await supabase
-    .from('journal_entries')
-    .select('id, metadata')
-    .eq('profile_id', profileId)
-    .eq('source', 'invoice_settlement')
-    .eq('status', 'posted')
-    .filter('metadata->>invoice_id', 'eq', String(invoiceId));
-  const ids = (journals || [])
-    .filter((journal) => {
-      const meta =
-        journal.metadata && typeof journal.metadata === 'object'
-          ? (journal.metadata as Record<string, unknown>)
-          : {};
-      return !Number(meta.reversed_by_journal_id || 0);
-    })
-    .map((journal) => Number(journal.id))
-    .filter((id) => Number.isFinite(id));
-  if (!ids.length) return 0;
-  const { data: lines } = await supabase
-    .from('journal_lines')
-    .select('credit')
-    .in('journal_entry_id', ids);
-  return round2(
-    (lines || []).reduce((sum, line) => sum + Number(line.credit || 0), 0)
-  );
-}
-
 export async function matchBankToInvoice(params: {
   profileId: number;
   bankTxnId: number | string;
@@ -798,13 +766,15 @@ export async function matchBankToInvoice(params: {
       status: 400,
     };
   }
-  const alreadySettled = await settledAmountForInvoice(params.profileId, Number(inv.id));
-  if (alreadySettled + amount > round2(Number(inv.total_amount || 0)) + 0.05) {
-    return {
-      ok: false,
-      error: 'This invoice is already settled for that amount',
-      status: 400,
-    };
+  const { settledToDate } = await import('@/lib/accounting/invoice-gl');
+  const { settlementExceedsInvoice } = await import('@/lib/accounting/ledger-guards');
+  const gate = settlementExceedsInvoice({
+    invoiceTotal: Number(inv.total_amount || 0),
+    settledToDate: await settledToDate(params.profileId, Number(inv.id)),
+    amount,
+  });
+  if (gate.blocked) {
+    return { ok: false, error: gate.message || 'Settlement exceeds the invoice', status: 400 };
   }
 
   const payDir = isInflow ? 'inbound' : 'outbound';
@@ -1010,7 +980,7 @@ async function matchBankToCrmInvoice(
         const { settleInvoicePayment } = await import(
           '@/lib/accounting/invoice-gl'
         );
-        await settleInvoicePayment({
+        const settled = await settleInvoicePayment({
           profileId: params.profileId,
           invoice: twin as Record<string, unknown>,
           paymentId: ledger.entry?.id
@@ -1023,6 +993,15 @@ async function matchBankToCrmInvoice(
             : null,
           createdBy: params.privyUserId || null,
         });
+        if (!settled.ok) {
+          return {
+            ok: false,
+            error:
+              settled.error ||
+              'SupplierAdvisor® cannot settle more than the outstanding invoice amount.',
+            status: 400,
+          };
+        }
       }
     } else if (!books.ok) {
       console.warn('CRM invoice books on bank match', books.error);

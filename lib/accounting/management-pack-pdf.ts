@@ -463,8 +463,9 @@ function drawFooter(doc: PdfDoc, pack: ManagementPack) {
   const y = PAGE_H - 26;
   doc.moveTo(MX, y - 4).lineTo(PAGE_W - MX, y - 4).strokeColor(LINE).lineWidth(0.5).stroke();
   doc.font('Helvetica').fontSize(6).fillColor(MUTED);
+  const coverage = pack.warning ? `${pack.warning.slice(0, 220)} ` : '';
   doc.text(
-    `${GAAP_DISCLAIMER_PDF_FOOTER} Compiled ${new Date().toISOString().slice(0, 10)}. ${pack.currency}. SupplierAdvisor Finance.`,
+    `${coverage}${GAAP_DISCLAIMER_PDF_FOOTER} Compiled ${new Date().toISOString().slice(0, 10)}. ${pack.currency}. SupplierAdvisor®.`,
     MX,
     y,
     { width: PAGE_W - MX * 2, align: 'left' }

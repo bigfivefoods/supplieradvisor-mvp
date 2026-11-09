@@ -272,6 +272,13 @@ jobs:
           npx --yes tsx lib/accounting/coa-list.test.ts
           npx --yes tsx lib/accounting/coa-picker.test.ts
           npx --yes tsx lib/accounting/coa-status-filter.test.ts
+      - name: Ledger report agreement tests
+        run: |
+          set -euo pipefail
+          npx --yes tsx lib/accounting/ledger-reports.test.ts
+          npx --yes tsx lib/accounting/po-accept-books.test.ts
+          npx --yes tsx lib/accounting/account-totals.test.ts
+          npx --yes tsx lib/accounting/management-pack.test.ts
 
   trade-portal-db:
     name: trade portal Postgres

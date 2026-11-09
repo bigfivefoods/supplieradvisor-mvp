@@ -21,6 +21,7 @@ import {
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import { GaapDisclaimer } from '@/components/accounting/GaapDisclaimer';
+import LedgerCoverageNote from '@/components/accounting/LedgerCoverageNote';
 import PeriodSlicer from '@/components/accounting/PeriodSlicer';
 import { useAccountingPeriod } from '@/lib/accounting/use-period';
 import { FinanceWorkspaceNote } from '@/components/accounting/FinanceWorkspaceNote';
@@ -144,6 +145,7 @@ function Inner() {
         </div>
         <GaapDisclaimer className="mb-2" />
         <FinanceWorkspaceNote className="mb-4" />
+        <LedgerCoverageNote warning={warning} />
       </div>
 
       {loading ? (

@@ -12,11 +12,8 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { round2 } from '@/lib/accounting/server';
-import {
-  dayBeforeIso,
-  fetchAccountTotals,
-  totalsMap,
-} from '@/lib/accounting/account-totals';
+import { dayBeforeIso, totalsMap } from '@/lib/accounting/account-totals';
+import { loadPostedLedger, totalsFromLedger } from '@/lib/accounting/posted-ledger';
 import { getCachedSettings, getCachedCoa } from '@/lib/accounting/read-cache';
 import {
   classifyBsSection,
@@ -34,6 +31,17 @@ import {
   GAAP_DISCLAIMER_LONG,
   GAAP_DISCLAIMER_SHORT,
 } from '@/lib/accounting/gaap-disclaimer';
+import {
+  COGS_TYPES,
+  EXPENSE_TYPES,
+  PNL_EXCLUDED_SOURCES,
+  REVENUE_TYPES,
+  ledgerCoverageWarning,
+  postingAccounts,
+  signedStatementAmount,
+  statementPosition,
+  statementProfit,
+} from '@/lib/accounting/statement-figures';
 
 export type { AfsLine, AfsNote, AfsPack, AfsSection } from '@/lib/accounting/afs-types';
 
@@ -55,11 +63,7 @@ type Buckets = {
 };
 
 function signed(type: string, debit: number, credit: number): number {
-  const t = String(type || '').toLowerCase();
-  if (t === 'asset' || t === 'expense' || t === 'cogs') {
-    return round2(debit - credit);
-  }
-  return round2(credit - debit);
+  return signedStatementAmount(type, debit, credit);
 }
 
 function amt(
@@ -86,13 +90,7 @@ function residualNi(
   accounts: CoaRow[],
   map: Map<number, { debit: number; credit: number }>
 ): number {
-  let ni = 0;
-  for (const a of accounts) {
-    const t = String(a.account_type);
-    if (t === 'revenue') ni += amt(map, a.id, t);
-    else if (t === 'expense' || t === 'cogs') ni -= amt(map, a.id, t);
-  }
-  return round2(ni);
+  return statementProfit(accounts, map).netIncome;
 }
 
 function periodNi(
@@ -106,33 +104,21 @@ function sofpEquityTotal(
   accounts: CoaRow[],
   map: Map<number, { debit: number; credit: number }>
 ): number {
-  let eq = 0;
-  for (const a of accounts) {
-    if (a.account_type === 'equity') eq += amt(map, a.id, 'equity');
-  }
-  return round2(eq + residualNi(accounts, map));
+  return statementPosition(accounts, map).equity;
 }
 
 function sofpAssets(
   accounts: CoaRow[],
   map: Map<number, { debit: number; credit: number }>
 ): number {
-  let n = 0;
-  for (const a of accounts) {
-    if (a.account_type === 'asset') n += amt(map, a.id, 'asset');
-  }
-  return round2(n);
+  return statementPosition(accounts, map).assets;
 }
 
 function sofpLiab(
   accounts: CoaRow[],
   map: Map<number, { debit: number; credit: number }>
 ): number {
-  let n = 0;
-  for (const a of accounts) {
-    if (a.account_type === 'liability') n += amt(map, a.id, 'liability');
-  }
-  return round2(n);
+  return statementPosition(accounts, map).liabilities;
 }
 
 function cashTotal(
@@ -155,8 +141,9 @@ function sectionLines(
   skip?: (a: CoaRow) => boolean
 ): AfsLine[] {
   const lines: AfsLine[] = [];
+  const wanted = new Set(types.map((type) => type.toLowerCase()));
   for (const a of accounts) {
-    if (!types.includes(a.account_type)) continue;
+    if (!wanted.has(String(a.account_type || '').toLowerCase())) continue;
     if (skip && skip(a)) continue;
     if (sectionKey) {
       const sec = classifyBsSection(a.account_type, a.subtype, a.code);
@@ -230,45 +217,51 @@ export async function buildAfsPack(opts: {
   }
 
   const accountsRaw = await getCachedCoa(opts.profileId);
-  const accounts: CoaRow[] = (accountsRaw || [])
-    .filter((a) => !a.is_header)
-    .filter((a) => !/^(1180|2180|4400)-/.test(String(a.code || '')))
-    .map((a) => ({
-      id: Number(a.id),
-      code: String(a.code || ''),
-      name: String(a.name || ''),
-      account_type: String(a.account_type || ''),
-      subtype: a.subtype || null,
-    }));
+  const chart: CoaRow[] = (accountsRaw || []).map((a) => ({
+    id: Number(a.id),
+    code: String(a.code || ''),
+    name: String(a.name || ''),
+    account_type: String(a.account_type || ''),
+    subtype: a.subtype || null,
+    is_header: Boolean(a.is_header),
+  }));
+  // Headers never carry postings. Party leaves (1180-*, 2180-*, 4400-*) stay:
+  // they hold the trade receivable, payable and member-income balances, and
+  // the roll-up helpers fold them into one face line.
+  const accounts = postingAccounts(chart);
 
   const priorOpenTo = dayBeforeIso(prior.from);
-  const [
-    asAtCurrentT,
-    asAtPriorT,
-    asAtPriorOpenT,
-    periodCurrentT,
-    periodPriorT,
-  ] = await Promise.all([
-    fetchAccountTotals({ profileId: opts.profileId, to }),
-    fetchAccountTotals({ profileId: opts.profileId, to: prior.to }),
-    fetchAccountTotals({ profileId: opts.profileId, to: priorOpenTo }),
-    fetchAccountTotals({
-      profileId: opts.profileId,
-      from,
-      to,
-      excludeSources: ['year_end_close', 'year-end'],
-    }),
-    fetchAccountTotals({
-      profileId: opts.profileId,
-      from: prior.from,
-      to: prior.to,
-      excludeSources: ['year_end_close', 'year-end'],
-    }),
-  ]);
-  const warning = [asAtCurrentT, asAtPriorT, periodCurrentT]
-    .map((t) => t.warning)
-    .filter(Boolean)
-    .join(' ') || undefined;
+  const through = prior.to > to ? prior.to : to;
+  const ledger = await loadPostedLedger({
+    profileId: opts.profileId,
+    to: through,
+    includeLines: true,
+    journalColumns: 'core',
+    lineColumns: 'amounts',
+  });
+  const windowTotals = (
+    windowFrom: string | null,
+    windowTo: string | null,
+    excludeSources?: string[]
+  ) =>
+    totalsFromLedger({
+      journals: ledger.journals,
+      lines: ledger.lines,
+      from: windowFrom,
+      to: windowTo,
+      excludeSources,
+    });
+  const asAtCurrentT = windowTotals(null, to);
+  const asAtPriorT = windowTotals(null, prior.to);
+  const asAtPriorOpenT = windowTotals(null, priorOpenTo);
+  const periodSources = [...PNL_EXCLUDED_SOURCES];
+  const periodCurrentT = windowTotals(from, to, periodSources);
+  const periodPriorT = windowTotals(prior.from, prior.to, periodSources);
+  const coverage = ledgerCoverageWarning({
+    totals: asAtCurrentT.rows,
+    accounts: chart,
+  });
+  const warning = [ledger.warning, coverage].filter(Boolean).join(' ') || undefined;
   const lineWarn = undefined;
 
   const buckets: Buckets = {
@@ -390,29 +383,31 @@ export async function buildAfsPack(opts: {
   );
 
   // ── P&L ───────────────────────────────────────────────────────────────
+  const profitCurrent = statementProfit(accounts, buckets.periodCurrent);
+  const profitPrior = statementProfit(accounts, buckets.periodPrior);
   const revLines = sectionLines(
     accounts,
     buckets.periodCurrent,
     buckets.periodPrior,
-    ['revenue']
+    [...REVENUE_TYPES]
   );
   const cogsLines = sectionLines(
     accounts,
     buckets.periodCurrent,
     buckets.periodPrior,
-    ['cogs']
+    [...COGS_TYPES]
   );
   const expLines = sectionLines(
     accounts,
     buckets.periodCurrent,
     buckets.periodPrior,
-    ['expense']
+    [...EXPENSE_TYPES]
   );
-  const revenue = sumLines(revLines);
-  const cogs = sumLines(cogsLines);
-  const expenses = sumLines(expLines);
-  const grossProfit = pair(revenue.current - cogs.current, revenue.prior - cogs.prior);
-  const netIncome = pair(niCurrent, niPrior);
+  const revenue = pair(profitCurrent.revenue, profitPrior.revenue);
+  const cogs = pair(profitCurrent.cogs, profitPrior.cogs);
+  const expenses = pair(profitCurrent.expenses, profitPrior.expenses);
+  const grossProfit = pair(profitCurrent.grossProfit, profitPrior.grossProfit);
+  const netIncome = pair(profitCurrent.netIncome, profitPrior.netIncome);
 
   const pnlSections: AfsSection[] = [
     { key: 'revenue', title: 'Revenue', lines: revLines, total: revenue },

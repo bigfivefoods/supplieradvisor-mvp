@@ -23,6 +23,7 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { GaapDisclaimer } from '@/components/accounting/GaapDisclaimer';
+import LedgerCoverageNote from '@/components/accounting/LedgerCoverageNote';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import PeriodSlicer from '@/components/accounting/PeriodSlicer';
 import { useAccountingPeriod } from '@/lib/accounting/use-period';
@@ -126,6 +127,7 @@ function Inner() {
   );
 
   const [loading, setLoading] = useState(true);
+  const [warning, setWarning] = useState<string | null>(null);
   const [summary, setSummary] = useState<MgmtSummary | null>(null);
   const [income, setIncome] = useState<LineRow[]>([]);
   const [cogs, setCogs] = useState<LineRow[]>([]);
@@ -200,6 +202,7 @@ function Inner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.warning || 'Failed');
       setSummary(data.summary || null);
+      setWarning(data.warning ? String(data.warning) : null);
       setIncome(data.income || []);
       setCogs(data.cogs || []);
       setExpenses(data.expenses || []);
@@ -241,6 +244,7 @@ function Inner() {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
+      setWarning(null);
       setSummary(null);
     } finally {
       setLoading(false);
@@ -335,6 +339,7 @@ function Inner() {
 
       <GaapDisclaimer className="mb-2" />
       <FinanceWorkspaceNote className="mb-6" />
+      <LedgerCoverageNote warning={warning} />
 
       {loading ? (
         <div className="flex justify-center py-20">

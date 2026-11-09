@@ -35,6 +35,12 @@ import {
   voidInvoiceJournalIds,
 } from '@/lib/accounting/contract-liability';
 import { postCogsOnInvoice } from '@/lib/accounting/inventory-cogs';
+import {
+  settlementExceedsInvoice,
+  sumSettlementDebits,
+} from '@/lib/accounting/ledger-guards';
+
+export { settlementExceedsInvoice } from '@/lib/accounting/ledger-guards';
 
 const ISSUED = new Set([
   'sent',
@@ -632,6 +638,48 @@ export async function recognizeInvoiceIfNeeded(opts: {
   return { ok: true, journalId: posted.journalId };
 }
 
+/**
+ * Cash already applied to an invoice by live settlement journals.
+ * Reversed settlements are ignored. Paged so a long history is not capped at 1,000.
+ */
+export async function settledToDate(
+  profileId: number,
+  invoiceId: number
+): Promise<number> {
+  if (!(invoiceId > 0)) return 0;
+  const supabase = getSupabaseServer();
+  const live: Array<{ id: number }> = [];
+  for (let offset = 0; offset < 5000; offset += 1000) {
+    const { data, error } = await supabase
+      .from('journal_entries')
+      .select('id, metadata')
+      .eq('profile_id', profileId)
+      .eq('status', 'posted')
+      .eq('source', 'invoice_settlement')
+      .filter('metadata->>invoice_id', 'eq', String(invoiceId))
+      .order('id', { ascending: true })
+      .range(offset, offset + 999);
+    if (error || !data?.length) break;
+    for (const entry of data) {
+      if (asMeta(entry.metadata).reversed_by_journal_id) continue;
+      const id = Number(entry.id);
+      if (id > 0) live.push({ id });
+    }
+    if (data.length < 1000) break;
+  }
+  if (!live.length) return 0;
+  const debits: Array<{ debit?: number | null }> = [];
+  for (let i = 0; i < live.length; i += 150) {
+    const ids = live.slice(i, i + 150).map((entry) => entry.id);
+    const { data: lines } = await supabase
+      .from('journal_lines')
+      .select('debit')
+      .in('journal_entry_id', ids);
+    for (const line of lines || []) debits.push(line);
+  }
+  return sumSettlementDebits(debits);
+}
+
 export async function settleInvoicePayment(opts: {
   profileId: number;
   invoice: Record<string, unknown>;
@@ -725,6 +773,25 @@ export async function settleInvoicePayment(opts: {
     return false;
   });
   if (already) return { ok: true, skipped: true };
+
+  // The same receipt can arrive as two payment rows (payments and
+  // customer_invoice_payments) with different ids. The per-payment check
+  // above cannot see that. Block anything past the amount still outstanding.
+  {
+    const invoiceId = Number(opts.invoice.id || 0);
+    const total = round2(Number(opts.invoice.total_amount || 0));
+    if (invoiceId > 0 && total > 0) {
+      const settled = await settledToDate(opts.profileId, invoiceId);
+      const gate = settlementExceedsInvoice({
+        invoiceTotal: total,
+        settledToDate: settled,
+        amount,
+      });
+      if (gate.blocked) {
+        return { ok: false, error: gate.message };
+      }
+    }
+  }
 
   const accts = await invoiceAccounts(opts.profileId);
   const bankGl = await resolveBankGl(opts.profileId, opts.bankAccountId);

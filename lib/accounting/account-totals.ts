@@ -1,13 +1,11 @@
 /**
  * Posted-journal debit/credit totals by account.
- * Prefers sa_account_totals RPC; falls back to paged JS reads.
+ * Always the shared paged ledger (`loadPostedLedger`). The SQL function
+ * `sa_account_totals` is not used: a second total would let the AFS and the
+ * balance sheet disagree.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { round2 } from '@/lib/accounting/server';
-import {
-  fetchJournalLinesByEntryIds,
-  fetchPostedJournalIds,
-} from '@/lib/accounting/journal-query';
+import { loadPostedLedger, totalsFromLedger } from '@/lib/accounting/posted-ledger';
 
 export type AccountTotalRow = {
   account_id: number;
@@ -54,113 +52,60 @@ export async function fetchAccountTotals(opts: {
 }): Promise<AccountTotals> {
   const from = opts.from ? String(opts.from).slice(0, 10) : null;
   const to = opts.to ? String(opts.to).slice(0, 10) : null;
-  const exclude = (opts.excludeSources || []).filter(Boolean);
-
-  const supabase = getSupabaseServer();
-  const rpc = await supabase.rpc('sa_account_totals', {
-    p_company_id: opts.profileId,
-    p_from: from,
-    p_to: to,
-    p_exclude_sources: exclude.length ? exclude : null,
-  });
-  if (!rpc.error && rpc.data && typeof rpc.data === 'object') {
-    const raw = rpc.data as Record<string, unknown>;
-    if (raw.ok === true && Array.isArray(raw.rows)) {
-      const rows = (raw.rows as AccountTotalRow[]).map((r) => ({
-        account_id: Number(r.account_id),
-        debit: round2(Number(r.debit || 0)),
-        credit: round2(Number(r.credit || 0)),
-        code: r.code != null ? String(r.code) : null,
-        name: r.name != null ? String(r.name) : null,
-        account_type: r.account_type != null ? String(r.account_type) : null,
-      }));
-      return {
-        ok: true,
-        entry_count: Number(raw.entry_count) || 0,
-        total_debit: round2(Number(raw.total_debit || 0)),
-        total_credit: round2(Number(raw.total_credit || 0)),
-        rows,
-      };
-    }
-  }
-
-  return fetchAccountTotalsJs(opts);
-}
-
-async function fetchAccountTotalsJs(opts: {
-  profileId: number;
-  from?: string | null;
-  to?: string | null;
-  excludeSources?: string[] | null;
-}): Promise<AccountTotals> {
-  const exclude = new Set(
-    (opts.excludeSources || []).map((s) => String(s).toLowerCase())
-  );
-  const { ids, warning: idWarn } = await fetchPostedJournalIds({
+  const ledger = await loadPostedLedger({
     profileId: opts.profileId,
-    from: opts.from,
-    to: opts.to,
+    from,
+    to,
+    includeLines: true,
+    journalColumns: 'core',
+    lineColumns: 'amounts',
   });
-  if (!ids.length) {
-    return {
-      ok: true,
-      entry_count: 0,
-      total_debit: 0,
-      total_credit: 0,
-      rows: [],
-      warning: idWarn,
-    };
-  }
+  const agg = totalsFromLedger({
+    journals: ledger.journals,
+    lines: ledger.lines,
+    excludeSources: opts.excludeSources,
+  });
 
-  let useIds = ids;
-  if (exclude.size) {
+  const names = new Map<
+    number,
+    { code: string | null; name: string | null; account_type: string | null }
+  >();
+  try {
     const supabase = getSupabaseServer();
-    const live: number[] = [];
-    for (let i = 0; i < ids.length; i += 200) {
-      const chunk = ids.slice(i, i + 200);
-      const { data } = await supabase
-        .from('journal_entries')
-        .select('id, source')
-        .in('id', chunk);
-      for (const row of data || []) {
-        const src = String(row.source || '').toLowerCase();
-        if (exclude.has(src)) continue;
-        live.push(Number(row.id));
+    const { data, error } = await supabase
+      .from('chart_of_accounts')
+      .select('id, code, name, account_type')
+      .eq('profile_id', opts.profileId);
+    if (!error) {
+      for (const account of data || []) {
+        names.set(Number(account.id), {
+          code: account.code != null ? String(account.code) : null,
+          name: account.name != null ? String(account.name) : null,
+          account_type:
+            account.account_type != null ? String(account.account_type) : null,
+        });
       }
     }
-    useIds = live;
-  }
-
-  const { lines, warning: lErr } = await fetchJournalLinesByEntryIds(
-    useIds,
-    'account_id, debit, credit'
-  );
-  const byAcct = new Map<number, { debit: number; credit: number }>();
-  let totalDebit = 0;
-  let totalCredit = 0;
-  for (const l of lines) {
-    const aid = Number(l.account_id);
-    if (!Number.isFinite(aid)) continue;
-    const d = Number(l.debit || 0);
-    const c = Number(l.credit || 0);
-    totalDebit += d;
-    totalCredit += c;
-    const cur = byAcct.get(aid) || { debit: 0, credit: 0 };
-    cur.debit += d;
-    cur.credit += c;
-    byAcct.set(aid, cur);
+  } catch {
+    /* Codes are display-only. Totals already come from the shared ledger. */
   }
 
   return {
-    ok: !lErr,
-    entry_count: useIds.length,
-    total_debit: round2(totalDebit),
-    total_credit: round2(totalCredit),
-    rows: [...byAcct.entries()].map(([account_id, v]) => ({
-      account_id,
-      debit: round2(v.debit),
-      credit: round2(v.credit),
-    })),
-    warning: lErr || idWarn,
+    ok: !ledger.warning || agg.rows.length > 0,
+    entry_count: agg.entry_count,
+    total_debit: agg.total_debit,
+    total_credit: agg.total_credit,
+    rows: agg.rows.map((row) => {
+      const meta = names.get(row.account_id);
+      return {
+        account_id: row.account_id,
+        debit: row.debit,
+        credit: row.credit,
+        code: meta?.code ?? null,
+        name: meta?.name ?? null,
+        account_type: meta?.account_type ?? null,
+      };
+    }),
+    warning: ledger.warning,
   };
 }

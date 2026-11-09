@@ -30,6 +30,7 @@ import {
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import { GaapDisclaimer } from '@/components/accounting/GaapDisclaimer';
+import LedgerCoverageNote from '@/components/accounting/LedgerCoverageNote';
 import { FinanceWorkspaceNote } from '@/components/accounting/FinanceWorkspaceNote';
 import {
   isPeriodValue,
@@ -322,6 +323,7 @@ function Inner() {
       </div>
       <GaapDisclaimer className="mb-2" />
       <FinanceWorkspaceNote className="mb-4" />
+      <LedgerCoverageNote warning={data?.warning ? String(data.warning) : null} />
       <div className="flex flex-wrap gap-2 mb-4 print:hidden">
         {REPORTS.map((r) => (
           <button
