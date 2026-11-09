@@ -64,6 +64,9 @@ function HubInner() {
   const [vatNet, setVatNet] = useState<number | null>(null);
   const [vatOutput, setVatOutput] = useState<number | null>(null);
   const [vatInput, setVatInput] = useState<number | null>(null);
+  const [vatDue, setVatDue] = useState<string | null>(null);
+  const [vatDueLabel, setVatDueLabel] = useState('due');
+  const [vatReminder, setVatReminder] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -92,6 +95,26 @@ function HubInner() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const params = new URLSearchParams({ companyId: String(companyId) });
+    if (privyUserId) params.set('privyUserId', privyUserId);
+    let cancelled = false;
+    void fetch(`/api/accounting/vat201?${params}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.report) return;
+        setVatDue(data.report.period?.dueOn || null);
+        setVatDueLabel(data.report.status || 'due');
+        if (data.report.reminder?.tone === 'overdue' || data.report.reminder?.tone === 'due') {
+          setVatReminder(data.report.reminder.text);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, privyUserId]);
 
   const cur = summary?.currency || 'ZAR';
   const s = summary;
@@ -210,13 +233,23 @@ function HubInner() {
       icon: Receipt,
       code: '11',
       title: 'VAT & tax',
-      desc: 'VAT return box, output/input, rates, SARS-ready summary.',
+      desc: 'VAT codes, output and input charts, and unclassified bank lines.',
       accent: 'from-slate-50 to-white border-slate-200',
       metric:
         vatNet != null
           ? formatMoney(vatNet, cur)
           : 'Open',
       metricLabel: vatNet != null ? 'net VAT' : 'rates',
+    },
+    {
+      href: '/dashboard/accounting/vat201',
+      icon: Receipt,
+      code: '11b',
+      title: 'VAT201',
+      desc: 'SARS return from the posted ledger, with the supporting pack and eFiling sheet.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+      metric: vatDue || 'Open',
+      metricLabel: vatDueLabel,
     },
     {
       href: '/dashboard/accounting/budget',
@@ -335,6 +368,14 @@ function HubInner() {
         }
       />
       <FinanceWorkspaceNote className="mb-4" />
+      {vatReminder && (
+        <div className="mb-4 rounded-2xl border border-[#00b4d8]/40 bg-[#00b4d8]/10 px-4 py-3 text-sm text-slate-800">
+          {vatReminder}{' '}
+          <Link href="/dashboard/accounting/vat201" className="font-semibold text-[#0077b6]">
+            Open VAT201
+          </Link>
+        </div>
+      )}
 
       <AdvisorCoreBridge surface="accounting" />
 

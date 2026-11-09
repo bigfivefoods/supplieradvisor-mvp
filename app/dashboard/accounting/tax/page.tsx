@@ -440,6 +440,9 @@ function Inner() {
             <button type="button" onClick={() => void seed()} className="btn-secondary !py-2.5 !px-5 text-sm">
               <Sparkles className="w-4 h-4" /> Seed ZA VAT
             </button>
+            <Link href="/dashboard/accounting/vat201" className="btn-secondary !py-2.5 !px-5 text-sm">
+              VAT201
+            </Link>
             <button
               type="button"
               onClick={() => setShowModal(true)}

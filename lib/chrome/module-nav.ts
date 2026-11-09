@@ -565,6 +565,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Registers',
       },
       { name: 'VAT', href: '/dashboard/accounting/tax', desc: 'VAT return box', section: 'Registers' },
+      { name: 'VAT201', href: '/dashboard/accounting/vat201', desc: 'SARS VAT201 from the posted ledger', section: 'Registers' },
       { name: 'Budget', href: '/dashboard/accounting/budget', desc: '12-month plan by COA', section: 'Plan' },
       {
         name: 'Management',
