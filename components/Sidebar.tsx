@@ -435,10 +435,9 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         </Link>
       </div>
 
-      {!forceExpanded && !isCollapsed && !loading && role ? (
-        <p className="mt-3 hidden text-[10px] font-semibold uppercase tracking-wide text-neutral-400 md:block">
-          {roleLabel || role}
-          {rights ? ` · ${rights}` : ''}
+      {!forceExpanded && !isCollapsed && (role || loading) ? (
+        <p className="mt-3 hidden min-h-4 text-[10px] font-semibold uppercase tracking-wide text-neutral-400 md:block">
+          {role ? `${roleLabel || role}${rights ? ` · ${rights}` : ''}` : '\u00a0'}
         </p>
       ) : null}
     </div>

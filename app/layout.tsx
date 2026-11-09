@@ -14,6 +14,7 @@ import {
   SITE_URL,
 } from '@/lib/seo/site';
 import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
+import { SIDEBAR_BOOT_SCRIPT } from '@/lib/chrome/sidebar-boot';
 import { THEME_BOOT_SCRIPT } from '@/lib/theme/theme';
 
 const notoSansArabic = Noto_Sans_Arabic({
@@ -128,6 +129,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <JsonLd />
         {/* Apply stored theme before paint — avoids light flash in dark mode */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: SIDEBAR_BOOT_SCRIPT }} />
         {/* Install tags live in SiteInstallTags so signed-out RecoverAdvisor®
             portals do not receive them. This layout stays static. Reading the
             request here made a missing POST route answer 200 instead of 404. */}
