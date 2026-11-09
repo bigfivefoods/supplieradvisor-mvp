@@ -7,7 +7,7 @@ import CustomersHub from '@/app/dashboard/customers/page';
 import ProfilesPage from '@/app/dashboard/customers/profiles/page';
 import LeadsPage from '@/app/dashboard/customers/leads/page';
 import Customers360Page from '@/app/dashboard/customers/360/page';
-import SalesTasksPage from '@/app/sales/tasks/page';
+import SalesTasksPage from '@/app/sales/(portal)/tasks/page';
 
 const COMPANY_ID = 91001;
 

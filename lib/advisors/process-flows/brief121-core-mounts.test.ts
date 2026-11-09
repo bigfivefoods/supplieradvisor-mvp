@@ -14,7 +14,7 @@ const MOUNTED: Record<string, string> = {
   home: 'app/dashboard/page.tsx',
   suppliers: 'app/dashboard/suppliers/page.tsx',
   customers: 'app/dashboard/customers/page.tsx',
-  'sales-portal': 'app/sales/page.tsx',
+  'sales-portal': 'app/sales/(portal)/page.tsx',
   manufacturing: 'app/dashboard/manufacturing/page.tsx',
   distribution: 'app/dashboard/distribution/page.tsx',
   inventory: 'app/dashboard/inventory/page.tsx',

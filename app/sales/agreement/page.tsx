@@ -11,9 +11,14 @@ import {
   Printer,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
-import { getCanonicalUserId } from '@/lib/auth/identity';
+import { clientShouldLoadPrivyImmediately } from '@/lib/auth/login-privy-resume';
+import { useAgreementSession } from '@/components/sales/agreement-session';
+import {
+  consumeAgreementSign,
+  hasAgreementSign,
+  queueAgreementSign,
+} from '@/components/sales/agreement-pending';
 import {
   DEFAULT_COMMISSION_TIERS,
   SUPER_LINK_TONNES,
@@ -48,8 +53,7 @@ type ProgramBrief = {
 
 export default function SalesAgreementPage() {
   const router = useRouter();
-  const { user, authenticated, ready } = usePrivy();
-  const privyUserId = getCanonicalUserId(user?.id);
+  const { ready, authenticated, privyUserId, ensurePrivy } = useAgreementSession();
   const companyId = getSelectedCompanyId();
   const [loading, setLoading] = useState(false);
   const [signing, setSigning] = useState(false);
@@ -270,7 +274,18 @@ export default function SalesAgreementPage() {
   };
 
   const sign = async () => {
-    if (ready && !authenticated) {
+    if (!ready) {
+      // Anonymous visitors take the same login redirect they get once Privy
+      // reports signed-out. A session hint waits for that same user id.
+      if (!clientShouldLoadPrivyImmediately()) {
+        router.push('/login?next=/sales/agreement');
+        return;
+      }
+      queueAgreementSign();
+      ensurePrivy();
+      return;
+    }
+    if (!authenticated) {
       router.push('/login?next=/sales/agreement');
       return;
     }
@@ -310,6 +325,15 @@ export default function SalesAgreementPage() {
       setSigning(false);
     }
   };
+
+  const signRef = useRef(sign);
+  signRef.current = sign;
+
+  useEffect(() => {
+    if (!ready || !hasAgreementSign()) return;
+    consumeAgreementSign();
+    void signRef.current();
+  }, [ready, authenticated]);
 
   /**
    * Commission always follows company Sales program for display/signing,

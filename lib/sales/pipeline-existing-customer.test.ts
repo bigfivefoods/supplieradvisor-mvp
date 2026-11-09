@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const page = readFileSync(resolve('app/sales/pipeline/page.tsx'), 'utf8');
+const page = readFileSync(resolve('app/sales/(portal)/pipeline/page.tsx'), 'utf8');
 assert.match(page, /Existing customer/);
 assert.match(page, /applyBookCustomer/);
 assert.match(page, /customer_id: form\.customer_id/);
