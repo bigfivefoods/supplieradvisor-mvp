@@ -503,6 +503,45 @@ export function toggleId(open: readonly string[], id: string): string[] {
   return open.includes(id) ? open.filter((item) => item !== id) : [...open, id];
 }
 
+/** One detail card is open at a time. The same id closes it. */
+export function toggleOpenNode(current: string | null, id: string): string | null {
+  return current === id ? null : id;
+}
+
+export function bookLines(text: string): string[] {
+  return text
+    .split(/;\s*/)
+    .flatMap((part) => part.split(/,\s*(?=(?:Dr|Cr)\b)/))
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Place the detail card inside the flow container.
+ * The right-hand node must not push the card, its border, or its shadow outside.
+ */
+export function placeDetailCard(
+  containerWidth: number,
+  nodeCenter: number,
+  options?: { maxWidth?: number; gutter?: number }
+): { left: number; width: number; caret: number } {
+  const maxWidth = options?.maxWidth ?? 460;
+  const gutter = options?.gutter ?? 20;
+  const width = Math.min(maxWidth, Math.max(0, containerWidth - gutter * 2));
+  const maxLeft = Math.max(gutter, containerWidth - gutter - width);
+  const left = Math.min(Math.max(gutter, nodeCenter - width / 2), maxLeft);
+  const caret = Math.min(Math.max(14, nodeCenter - left - 7), Math.max(14, width - 28));
+  return { left, width, caret };
+}
+
+export function whoChips(node: GuideNode): string[] {
+  const raw = node.who || node.lane || '';
+  return raw
+    .split(/\s*(?:·| and |,)\s*/i)
+    .map((chip) => chip.trim())
+    .filter(Boolean);
+}
+
 export function expandAllStages(stages: FlowStageGroup[]): string[] {
   return stages.map((stage) => stage.id);
 }

@@ -19,7 +19,11 @@ import {
   missingStageIds,
   needsFlowStages,
   resolveEdges,
+  bookLines,
+  placeDetailCard,
   toggleId,
+  toggleOpenNode,
+  whoChips,
 } from '@/lib/help/flow-model';
 
 for (const guide of MODULE_GUIDES) {
@@ -137,6 +141,27 @@ const branches = branchDetails(balanced, resolveEdges(finance.flow, finance.edge
 assert.ok(branches.length >= 2);
 assert.ok(branches.some((branch) => branch.label === 'Post'));
 assert.ok(branches.some((branch) => branch.label === 'Save draft'));
+
+assert.equal(toggleOpenNode(null, 'post'), 'post');
+assert.equal(toggleOpenNode('post', 'invoice'), 'invoice');
+assert.equal(toggleOpenNode('post', 'post'), null);
+assert.deepEqual(whoChips(post), ['Owner', 'Finance']);
+assert.ok(bookLines('Dr 1130, Cr 4100, Cr 2120').length >= 3);
+assert.match(post.does || '', /Post entry/);
+assert.match(post.posts || '', /Source manual/);
+assert.match(post.status || '', /posted/);
+
+for (const container of [768, 900, 984, 1100, 1280]) {
+  for (const center of [40, container / 2, container - 30, container + 80]) {
+    const place = placeDetailCard(container, center);
+    assert.ok(place.left >= 20, `left gutter ${container} @ ${center}`);
+    assert.ok(place.left + place.width <= container - 20, `right edge ${container} @ ${center}: ${place.left + place.width}`);
+    assert.ok(place.caret >= 14 && place.caret <= place.width - 14, `caret ${container}`);
+  }
+}
+const right = placeDetailCard(960, 900);
+assert.ok(right.left + right.width <= 940);
+assert.ok(Math.abs(right.left + right.caret + 7 - Math.min(900, 940)) < 30 || right.caret > right.width - 40);
 
 const quality = getModuleGuide('quality');
 assert.ok(quality);
