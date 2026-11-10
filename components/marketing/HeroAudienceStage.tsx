@@ -1,16 +1,9 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import {
-  ArrowRight,
-  Home,
-  QrCode,
-  Store,
-  UserRound,
-  WalletCards,
-} from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useLocaleDictionary } from '@/components/i18n/LocaleDictionaryProvider';
 import { localizedPath } from '@/lib/i18n/config';
 
@@ -18,15 +11,6 @@ const SCENES = [
   {
     id: 'b2b',
     code: 'B2B',
-    title: 'Business to business',
-    body: 'Manufacturers, distributors and brands run the full OS, network, buy and sell, inventory, make, ship, finance, SHEQ and quality, with counterparties you can score and prove.',
-    short: 'Run the full OS with counterparties you can score and prove.',
-    points: [
-      'Verified company graph and OTIFEF ratings',
-      'POs, invoices and lot holds on the same books',
-      'One workspace for the whole trade loop',
-    ],
-    cta: { href: '/onboarding?lane=b2b', label: 'Register your company' },
     src: '/marketing/hero-b2b.jpg',
     alt: 'Warehouse operations beside a glass control room',
     imageClass: 'object-[28%_center] sm:object-[32%_center] lg:object-left',
@@ -34,15 +18,6 @@ const SCENES = [
   {
     id: 'b2g',
     code: 'B2G',
-    title: 'Business to government',
-    body: 'Public entities and suppliers need transparent procurement, accountable spend and audit-ready trails, not email chains and disconnected spreadsheets.',
-    short: 'Transparent procurement and audit-ready trails for public trade.',
-    points: [
-      'Transparent supplier discovery and handshakes',
-      'Documented trade and performance scores',
-      'SHEQ, NCR/CAPA and export packs for scrutiny',
-    ],
-    cta: { href: '/onboarding?lane=b2g', label: 'Request government access' },
     src: '/marketing/hero-b2g.jpg',
     alt: 'Civic plaza and public-sector offices at dusk',
     imageClass: 'object-[38%_center] sm:object-[42%_center] lg:object-[36%_center]',
@@ -50,259 +25,14 @@ const SCENES = [
   {
     id: 'b2c',
     code: 'B2C',
-    title: 'Business to consumer',
-    body: 'One free personal wallet. Link any gym, clinic, hire desk or shop on this platform and manage that account, book, buy, check in, family, waitlist, pay and proof, records and push alerts. No company required.',
-    short: 'A free personal wallet for gym, clinic and hire, no company needed.',
-    points: [
-      'Free SA Member app on your phone',
-      'Book, check in, family, waitlist, .ics and shared medical notes',
-      'Pay or send proof — same login if you later run a business',
-    ],
-    cta: { href: '/me', label: 'Create free SA Member account' },
     src: '/marketing/hero-b2c.jpg',
     alt: 'Member using SA Member on their phone',
     imageClass: 'object-[22%_18%] sm:object-[20%_22%] lg:object-[18%_center]',
   },
 ] as const;
 
-function ShotWindow({
-  path,
-  sample,
-  children,
-}: {
-  path: string;
-  sample: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-white/20 bg-white shadow-[0_18px_40px_-12px_rgba(0,0,0,0.55)]">
-      <div className="flex shrink-0 items-center gap-1.5 border-b border-slate-100 bg-slate-50 px-2.5 py-1.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-        <span className="ml-1 min-w-0 truncate font-mono text-[8px] font-medium text-slate-500">
-          {path}
-        </span>
-        <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-slate-500">
-          {sample}
-        </span>
-      </div>
-      <div className="min-h-0 flex-1 bg-gradient-to-br from-slate-50 via-white to-sky-50/50 p-3">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
-      <div className="text-[7px] font-black uppercase tracking-wider text-slate-400">
-        {label}
-      </div>
-      <div className="text-[13px] font-black tabular-nums tracking-tight text-slate-900">
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function MemberPhone() {
-  return (
-    <div
-      className="relative h-full w-[118px] shrink-0 xl:w-[128px]"
-      aria-label="SA Member on a phone"
-    >
-      <div className="flex h-full flex-col rounded-[1.35rem] bg-zinc-900 p-[5px] shadow-[0_18px_40px_-12px_rgba(0,0,0,0.55)] ring-1 ring-white/25">
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.05rem] bg-[#f8fafc]">
-          <div
-            className="pointer-events-none absolute left-1/2 top-1.5 z-10 h-3 w-10 -translate-x-1/2 rounded-full bg-zinc-900"
-            aria-hidden
-          />
-          <div className="bg-gradient-to-br from-[#0077b6] via-[#0284c7] to-[#0c4a6e] px-2 pb-2 pt-5 text-white">
-            <div className="flex items-center gap-1">
-              <Image
-                src="/sa-logo.png"
-                alt=""
-                width={28}
-                height={12}
-                className="sa-logo h-2.5 w-auto object-contain"
-              />
-              <p className="text-[7px] font-black uppercase tracking-[0.16em] text-white/75">
-                SA Member
-              </p>
-            </div>
-            <p className="mt-0.5 text-[12px] font-black leading-tight tracking-tight">
-              Home
-            </p>
-            <p className="text-[8px] text-white/85">Book · family · check in</p>
-          </div>
-          <div className="min-h-0 flex-1 space-y-1.5 overflow-hidden px-1.5 py-1.5">
-            <div className="grid grid-cols-2 gap-1">
-              {[
-                { t: 'Gym', d: 'Tue 06:00' },
-                { t: 'Clinic', d: 'Thu 14:00' },
-                { t: 'Hire', d: 'Out today' },
-                { t: 'Shop', d: '12 near you' },
-              ].map((tile) => (
-                <div
-                  key={tile.t}
-                  className="rounded-md bg-white px-1.5 py-1 shadow-sm ring-1 ring-slate-100"
-                >
-                  <div className="text-[7px] font-black uppercase tracking-wide text-[#00b4d8]">
-                    {tile.t}
-                  </div>
-                  <div className="text-[9px] font-black leading-tight text-slate-900">
-                    {tile.d}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="rounded-md bg-white px-1.5 py-1.5 shadow-sm ring-1 ring-slate-100">
-              <div className="text-[7px] font-black uppercase tracking-wide text-slate-400">
-                Next
-              </div>
-              <div className="text-[9px] font-black leading-tight text-slate-900">
-                VUKA spin · check in
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-end justify-around border-t border-slate-200 bg-white px-0.5 pb-2 pt-1">
-            {(
-              [
-                { Icon: Home, on: true },
-                { Icon: Store, on: false },
-                { Icon: WalletCards, on: false },
-                { Icon: QrCode, on: false },
-                { Icon: UserRound, on: false },
-              ] as const
-            ).map(({ Icon, on }, idx) => (
-              <Icon
-                key={idx}
-                className={`h-2.5 w-2.5 ${on ? 'text-[#0077b6]' : 'text-slate-400'}`}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] }) {
-  const { t } = useLocaleDictionary();
-  const sample = t('hero.sampleScreen');
-
-  if (sceneId === 'b2c') {
-    return (
-      <div className="flex h-[248px] w-full items-stretch gap-3 xl:h-[272px] xl:gap-3.5">
-        <div className="min-w-0 flex-1">
-          <ShotWindow path="app.supplieradvisor.com/me" sample={sample}>
-            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
-              SA Member
-            </div>
-            <div className="mt-0.5 text-[13px] font-black text-slate-900">Your wallet</div>
-            <div className="mt-2.5 grid grid-cols-3 gap-1.5">
-              <Metric label="Gym" value="Tue 06:00" />
-              <Metric label="Hire" value="Out" />
-              <Metric label="Clinic" value="Thu" />
-            </div>
-            <div className="mt-2.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-600">
-              Next: VUKA spin · family · check in
-            </div>
-          </ShotWindow>
-        </div>
-        <MemberPhone />
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid h-[208px] w-full grid-cols-2 gap-3 xl:h-[228px] xl:gap-3.5">
-      {sceneId === 'b2g' ? (
-        <>
-          <ShotWindow path="app.supplieradvisor.com/network" sample={sample}>
-            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
-              Network
-            </div>
-            <div className="mt-0.5 text-[13px] font-black text-slate-900">
-              Public procurement
-            </div>
-            <div className="mt-2.5 space-y-1.5">
-              {['Supplier discovery', 'Documented trade', 'Audit pack'].map((row) => (
-                <div
-                  key={row}
-                  className="flex items-center justify-between rounded-md bg-white px-2 py-1.5 text-[11px] ring-1 ring-slate-100"
-                >
-                  <span className="font-semibold text-slate-700">{row}</span>
-                  <span className="font-semibold text-slate-500">In workspace</span>
-                </div>
-              ))}
-            </div>
-          </ShotWindow>
-          <ShotWindow path="app.supplieradvisor.com/sheq" sample={sample}>
-            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
-              SHEQ · proof
-            </div>
-            <div className="mt-2.5 space-y-1.5">
-              {['NCR / CAPA', 'Export pack', 'Lot hold'].map((row) => (
-                <div
-                  key={row}
-                  className="flex items-center justify-between rounded-md bg-white px-2 py-1.5 text-[11px] ring-1 ring-slate-100"
-                >
-                  <span className="font-semibold text-slate-700">{row}</span>
-                  <span className="font-semibold text-slate-500">On the record</span>
-                </div>
-              ))}
-            </div>
-          </ShotWindow>
-        </>
-      ) : (
-        <>
-          <ShotWindow path="app.supplieradvisor.com/operations" sample={sample}>
-            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
-              Operations
-            </div>
-            <div className="mt-0.5 text-[13px] font-black text-slate-900">
-              One workspace
-            </div>
-            <div className="mt-2.5 space-y-1.5">
-              {['Purchase orders', 'Lot holds', 'Ship release'].map((row) => (
-                <div
-                  key={row}
-                  className="rounded-md bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-100"
-                >
-                  {row}
-                </div>
-              ))}
-            </div>
-          </ShotWindow>
-          <ShotWindow path="app.supplieradvisor.com/suppliers" sample={sample}>
-            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
-              Trust layer
-            </div>
-            <div className="mt-2.5 space-y-1.5">
-              {['Company check', 'OTIFEF scorecard', 'RIAD on the relationship'].map((row) => (
-                <div
-                  key={row}
-                  className="rounded-md bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-100"
-                >
-                  {row}
-                </div>
-              ))}
-            </div>
-          </ShotWindow>
-        </>
-      )}
-    </div>
-  );
-}
-
 export default function HeroAudienceStage() {
   const [i, setI] = useState(0);
-  // First paint only mounts the visible scene. The other photos are full-bleed
-  // and were competing with LCP; they mount after load so the 8s crossfade
-  // still has them cached.
   const [mountedScenes, setMountedScenes] = useState<number[]>([0]);
   const { locale, t } = useLocaleDictionary();
   const bookDemoHref = `${localizedPath(locale, '/')}#book-demo`;
@@ -334,20 +64,15 @@ export default function HeroAudienceStage() {
   const scene = SCENES[i];
   const scenePrefix = `hero.scene.${scene.id}`;
   const sceneTitle = t(`${scenePrefix}.title`);
-  const sceneShort = t(`${scenePrefix}.short`);
   const sceneBody = t(`${scenePrefix}.body`);
   const scenePoints = [
     t(`${scenePrefix}.point1`),
     t(`${scenePrefix}.point2`),
     t(`${scenePrefix}.point3`),
   ];
-  const startFreeHref = '/join';
 
   return (
-    <section
-      id="platform"
-      className="relative isolate min-h-[100svh] overflow-hidden bg-slate-950"
-    >
+    <section id="platform" className="relative isolate min-h-[100svh] overflow-hidden bg-slate-950">
       {SCENES.map((s, idx) =>
         mountedScenes.includes(idx) ? (
           <div
@@ -370,7 +95,6 @@ export default function HeroAudienceStage() {
         ) : null
       )}
 
-      {/* Mobile: fade up so type reads and the person stays in the top of the frame. */}
       <div
         className="pointer-events-none absolute inset-0 lg:hidden"
         style={{
@@ -379,38 +103,21 @@ export default function HeroAudienceStage() {
         }}
         aria-hidden
       />
-      {/* Desktop: fade from the right into the photo so people stay visible. */}
       <div
-        className="pointer-events-none absolute inset-0 hidden lg:block"
+        className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'linear-gradient(to left, rgba(2,6,23,0.90) 0%, rgba(2,6,23,0.70) 22%, rgba(2,6,23,0.28) 44%, rgba(2,6,23,0.06) 62%, transparent 78%)',
+            'linear-gradient(to left, rgba(2,6,23,0.90) 0%, rgba(2,6,23,0.70) 26%, rgba(2,6,23,0.30) 50%, rgba(2,6,23,0.08) 66%, transparent 82%)',
         }}
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-64 bg-gradient-to-t from-slate-950/40 to-transparent lg:block"
         aria-hidden
       />
 
       <div className="relative z-[1] mx-auto flex min-h-[100svh] w-full max-w-screen-2xl">
-        {/* Desktop shots stay in the left column so they never overlap hero copy */}
-        <div className="relative hidden min-w-0 flex-1 overflow-hidden lg:block">
-          <div className="pointer-events-none absolute bottom-8 left-10 right-6 xl:left-12 xl:right-10">
-            <div className="w-full max-w-[44rem] xl:max-w-[48rem]">
-              <HeroProductShots sceneId={scene.id} />
-            </div>
-          </div>
-        </div>
-
-        {/* Right-hand copy — big type, no glass card */}
         <div className="relative ml-auto flex w-full max-w-xl flex-col justify-end px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[calc(var(--sa-nav-offset)+0.75rem)] sm:px-6 sm:pb-8 lg:w-[34rem] lg:max-w-[34rem] lg:justify-center lg:px-10 lg:pb-10 xl:w-[38rem] xl:max-w-[38rem]">
           <div className="w-full">
             <h1 className="text-[1.9rem] font-black leading-[1.04] tracking-[-0.048em] text-white [text-shadow:0_2px_28px_rgba(0,0,0,0.45)] sm:text-5xl lg:text-[3.35rem] xl:text-7xl">
               {t('hero.headlineLead')}
-              <span className="mt-1 block text-[#67e8f9] sm:mt-1.5">
-                {t('hero.headlineAccent')}
-              </span>
+              <span className="mt-1 block text-[#67e8f9] sm:mt-1.5">{t('hero.headlineAccent')}</span>
             </h1>
 
             <p className="mt-3 font-mono text-[10px] font-bold tracking-[0.28em] text-cyan-200 sm:mt-5 sm:text-[11px]">
@@ -419,13 +126,10 @@ export default function HeroAudienceStage() {
             <h2 className="mt-1 text-lg font-black tracking-tight text-white sm:text-2xl lg:text-[1.65rem]">
               {sceneTitle}
             </h2>
-            <p className="mt-2 max-w-md text-[14px] leading-relaxed text-slate-100 sm:hidden">
-              {sceneShort}
-            </p>
-            <p className="mt-2 hidden max-w-lg text-[15px] leading-relaxed text-slate-100 sm:block sm:text-base lg:text-[17px]">
+            <p className="mt-2 max-w-lg text-[15px] leading-relaxed text-slate-100 sm:text-base lg:text-[17px]">
               {sceneBody}
             </p>
-            <ul className="mt-3 hidden space-y-1.5 xl:block">
+            <ul className="mt-3 space-y-1.5">
               {scenePoints.map((pt) => (
                 <li key={pt} className="text-sm font-medium text-slate-200">
                   <span className="me-2 text-cyan-300">•</span>
@@ -436,7 +140,7 @@ export default function HeroAudienceStage() {
 
             <div className="mt-5 flex flex-col gap-2 sm:mt-6 sm:flex-row sm:flex-wrap sm:items-center">
               <Link
-                href={startFreeHref}
+                href="/join"
                 className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-950/40 transition-all hover:bg-[#0099b8] active:scale-[0.99] sm:min-h-12 sm:px-6 sm:text-[15px]"
               >
                 Start free
@@ -461,9 +165,7 @@ export default function HeroAudienceStage() {
                   key={s.id}
                   type="button"
                   onClick={() => {
-                    setMountedScenes((prev) =>
-                      prev.includes(idx) ? prev : [...prev, idx]
-                    );
+                    setMountedScenes((prev) => (prev.includes(idx) ? prev : [...prev, idx]));
                     setI(idx);
                   }}
                   className={`min-h-9 rounded-full px-3.5 py-1.5 text-[11px] font-bold tracking-wide transition-all ${

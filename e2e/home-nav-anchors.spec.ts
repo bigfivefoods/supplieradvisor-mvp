@@ -45,7 +45,7 @@ test.describe('homepage nav page links', () => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Open menu' }).click();
 
-    await page.getByRole('link', { name: 'Product' }).click();
+    await page.getByLabel('Site menu').getByRole('link', { name: 'Product' }).click();
     await expect(page).toHaveURL(/\/product$/);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Product');
   });

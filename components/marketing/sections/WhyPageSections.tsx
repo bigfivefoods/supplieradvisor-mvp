@@ -1,9 +1,5 @@
-import dynamic from 'next/dynamic';
 import HomeBelowFold from '@/components/marketing/HomeBelowFold';
-
-const ComparePlatformsLazy = dynamic(() => import('@/components/marketing/ComparePlatforms'), {
-  ssr: false,
-});
+import ComparePlatformsClientIsland from '@/components/marketing/sections/ComparePlatformsClientIsland';
 
 export default function WhyPageSections() {
   return (
@@ -13,7 +9,7 @@ export default function WhyPageSections() {
         demoHref="/join"
         sections={['why-join']}
       />
-      <ComparePlatformsLazy />
+      <ComparePlatformsClientIsland />
       <HomeBelowFold
         tourHref="/join"
         demoHref="/join"

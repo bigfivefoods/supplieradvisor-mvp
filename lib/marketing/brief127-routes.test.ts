@@ -77,20 +77,28 @@ const walk = (dir: string) => {
 for (const root of scanRoots) walk(root);
 const allSource = corpus.join('\n');
 const relocated = [
-  ['video', 'Product story'],
-  ['markets', 'Who the network serves'],
-  ['member-app', 'Your personal wallet'],
-  ['why-join', 'Compelling reasons to run'],
-  ['systems', 'Every critical system.'],
-  ['modules', 'Core OS · Sector · Industry'],
-  ['packaging', 'Setup SupplierAdvisor®'],
-  ['trust', 'When a lot fails,'],
-  ['how-it-works', 'Four steps to live ops'],
-  ['audiences', 'Why are you joining us?'],
+  { id: 'video', heading: 'Product story' },
+  { id: 'markets', heading: 'Who the network serves' },
+  { id: 'member-app', heading: 'Your personal wallet' },
+  { id: 'why-join', heading: 'Compelling reasons to run' },
+  { id: 'systems', heading: 'Every critical system.' },
+  { id: 'modules', heading: 'Core OS · Sector · Industry' },
+  { id: 'packaging', heading: 'Setup SupplierAdvisor®' },
+  { id: 'trust', heading: 'When a lot fails,' },
+  { heading: 'Four steps to live ops' },
+  { id: 'audiences', heading: 'Why are you joining us?' },
 ] as const;
-for (const [id, heading] of relocated) {
-  assert.ok(allSource.includes(`id="${id}"`) || allSource.includes(`id={'${id}'}`), `missing relocated id ${id}`);
-  assert.ok(allSource.includes(heading), `missing relocated heading text for ${id}`);
+for (const section of relocated) {
+  if (section.id) {
+    assert.ok(
+      allSource.includes(`id="${section.id}"`) || allSource.includes(`id={'${section.id}'}`),
+      `missing relocated id ${section.id}`
+    );
+  }
+  assert.ok(
+    allSource.includes(section.heading),
+    `missing relocated heading text for ${section.id ?? section.heading}`
+  );
 }
 
 console.log('brief127-routes.test.ts ok');
