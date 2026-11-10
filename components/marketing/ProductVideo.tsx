@@ -82,7 +82,7 @@ export default function ProductVideo({ tourHref }: { tourHref: string }) {
             Book a demo <ArrowRight className="h-4 w-4" />
           </a>
           <a
-            href="#modules"
+            href="/modules"
             className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-6 py-3 text-sm font-bold text-white"
           >
             Browse modules <ArrowRight className="h-4 w-4" />

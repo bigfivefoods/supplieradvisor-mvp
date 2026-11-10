@@ -122,7 +122,7 @@ ${principles}
 - Prepaid terms on Core: ${pricing}.
 - Modules & packs: /dashboard/my-business/modules
 - Billing UI: /dashboard/my-business/billing
-- Public pricing & referral: /#pricing and /#referral (same homepage)
+- Public pricing & referral: /pricing and /#referral (same homepage)
 - Sales contractor portal access is free for the first ${SALES_SUBSCRIPTION_TERM_MONTHS} months of that role, then R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/month for a ${SALES_SUBSCRIPTION_TERM_MONTHS}-month prepaid term. A lifetime grant stays free. Owners, admins, and finance are not charged.
 
 ## Product architecture (Core → Sector → Pack → Modules)

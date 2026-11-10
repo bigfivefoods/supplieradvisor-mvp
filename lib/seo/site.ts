@@ -3,6 +3,7 @@
  */
 
 import { industrySlugs } from '@/lib/marketing/industries';
+import { fixtureRoutesOpen } from '@/lib/preview/production-gate';
 
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_APP_URL ||
@@ -35,7 +36,16 @@ export const STATIC_SEO_ROUTES: Array<{
   { path: '/', changeFrequency: 'daily', priority: 1 },
   { path: '/marketplace', changeFrequency: 'daily', priority: 0.9 },
   { path: '/pricing', changeFrequency: 'weekly', priority: 0.85 },
-  { path: '/demo', changeFrequency: 'weekly', priority: 0.85 },
+  ...(fixtureRoutesOpen() ? [{ path: '/demo', changeFrequency: 'weekly' as const, priority: 0.85 }] : []),
+  { path: '/product', changeFrequency: 'weekly', priority: 0.85 },
+  { path: '/modules', changeFrequency: 'weekly', priority: 0.85 },
+  { path: '/how-it-fits', changeFrequency: 'weekly', priority: 0.82 },
+  { path: '/why-supplieradvisor', changeFrequency: 'weekly', priority: 0.82 },
+  { path: '/trust', changeFrequency: 'weekly', priority: 0.82 },
+  { path: '/sa-member', changeFrequency: 'weekly', priority: 0.82 },
+  { path: '/business', changeFrequency: 'weekly', priority: 0.82 },
+  { path: '/government', changeFrequency: 'weekly', priority: 0.82 },
+  { path: '/roi', changeFrequency: 'weekly', priority: 0.85 },
   { path: '/industries', changeFrequency: 'weekly', priority: 0.88 },
   { path: '/catalogues', changeFrequency: 'monthly', priority: 0.7 },
   ...industrySlugs().map((slug) => ({

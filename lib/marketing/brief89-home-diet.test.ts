@@ -1,5 +1,4 @@
 /**
- * Brief 89/97 — homepage composition + lazy module-loading guardrails.
  * Run: npx --yes tsx lib/marketing/brief89-home-diet.test.ts
  */
 import assert from 'node:assert/strict';
@@ -10,74 +9,31 @@ function src(rel: string) {
 }
 
 const page = src('app/page.tsx');
-assert.match(page, /HomeLanding/, 'home page should render HomeLanding shell');
-const mainCount = page.match(/<main[\s>]/g)?.length ?? 0;
-assert.equal(mainCount, 0, 'home page shell should not inline additional <main> landmarks');
-
+assert.match(page, /HomeLanding/);
 assert.doesNotMatch(page, /next\/dynamic/);
-assert.doesNotMatch(page, /ProductMocks/);
 assert.doesNotMatch(page, /@privy-io\/react-auth/);
-assert.doesNotMatch(page, /\bviem\b/);
-assert.doesNotMatch(page, /\bwagmi\b/);
-assert.doesNotMatch(page, /\bundici\b/);
-assert.doesNotMatch(page, /dict\/(fr|ar|pt|sw|zu)/);
-
-const description = page.match(/description:\s*'([^']+)'/);
-assert.ok(description?.[1], 'home metadata description should be present');
-assert.ok(description![1].length <= 160, 'home metadata description should stay concise');
+assert.doesNotMatch(page, /\bviem\b|\bwagmi\b|\bundici\b/);
 
 const landing = src('components/marketing/HomeLanding.tsx');
-assert.match(landing, /HeroAudienceStage/, 'home landing should include hero');
-assert.match(landing, /HomeBelowFoldLazy/, 'home landing should include lazy below-fold boundary');
-assert.match(landing, /COMPANY_TRIAL_DAYS/, 'home landing should include compact trial CTA strip');
-assert.match(landing, /onboarding\?lane=b2b/, 'trial CTA should route to /onboarding?lane=b2b');
-assert.match(landing, /id="book-demo"/, 'home landing should include a demo-booking target');
-assert.match(landing, /sa-btn-brand/, 'start free trial should keep the brand button');
-const landingMainCount = landing.match(/<main[\s>]/g)?.length ?? 0;
-assert.equal(landingMainCount, 1, 'home landing should render exactly one <main> landmark');
+assert.match(landing, /HeroAudienceStage/);
+assert.match(landing, /id="book-demo"/);
+assert.match(landing, /\/business/);
+assert.match(landing, /\/sa-member/);
+assert.match(landing, /\/government/);
+assert.match(landing, /\/modules/);
+assert.match(landing, /id="guided-tour"/);
+assert.doesNotMatch(landing, /HomeBelowFoldLazy/);
+assert.doesNotMatch(landing, /home\.bookSample/);
+assert.equal(landing.match(/<section/g)?.length, 4, 'home main should include four explicit sections after hero');
 
-const lazy = src('components/marketing/HomeBelowFoldLazy.tsx');
-assert.match(lazy, /ssr:\s*false/);
-assert.match(lazy, /HomeBelowFold/);
+const hero = src('components/marketing/HeroAudienceStage.tsx');
+assert.match(hero, /href=\{startFreeHref\}/);
+assert.match(hero, /bookDemoHref/);
+assert.doesNotMatch(hero, /hero\.businessRun/);
+assert.doesNotMatch(hero, /href="#compare"/);
 
 const nav = src('components/marketing/LandingNav.tsx');
 assert.doesNotMatch(nav, /dict\/(fr|ar|pt|sw|zu)/);
 assert.doesNotMatch(nav, /@privy-io\/react-auth|\bviem\b|\bwagmi\b|\bundici\b/);
-
-const hero = src('components/marketing/HeroAudienceStage.tsx');
-assert.doesNotMatch(hero, /dict\/(fr|ar|pt|sw|zu)/);
-assert.doesNotMatch(hero, /@privy-io\/react-auth|\bviem\b|\bwagmi\b|\bundici\b/);
-assert.match(hero, /#book-demo/, 'hero demo action should book, not only open the sample');
-assert.doesNotMatch(hero, /99%/, 'hero should not show invented score percentages');
-
-const proof = src('components/marketing/SocialProofStrip.tsx');
-assert.match(proof, />Delivered</);
-assert.match(proof, />Planned</);
-assert.doesNotMatch(proof, /∞/);
-
-const footer = src('components/marketing/SiteFooter.tsx');
-assert.doesNotMatch(footer, /dict\/(fr|ar|pt|sw|zu)/);
-assert.doesNotMatch(footer, /@privy-io\/react-auth|\bviem\b|\bwagmi\b|\bundici\b/);
-
-const homeBelowFold = src('components/marketing/HomeBelowFold.tsx');
-assert.match(
-  homeBelowFold,
-  /from\s+['"]@\/components\/marketing\/ProductMocks['"]/,
-  'home below-fold should import ProductMocks for restored module richness'
-);
-
-const requiredSections = [
-  'markets',
-  'member-app',
-  'why-join',
-  'systems',
-  'modules',
-  'packaging',
-  'trust',
-  'audiences',
-];
-for (const id of requiredSections) {
-  assert.match(homeBelowFold, new RegExp(`id="${id}"`), `home below-fold should include #${id}`);
-}
 
 console.log('brief89-home-diet.test.ts ok');

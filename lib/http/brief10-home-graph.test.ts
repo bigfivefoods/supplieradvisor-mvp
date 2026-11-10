@@ -84,11 +84,7 @@ assert.doesNotMatch(page, /ProductMocks/);
 assert.doesNotMatch(page, /supply-chain-referral/);
 assert.doesNotMatch(page, /lib\/product\/architecture/);
 assert.doesNotMatch(page, /next\/dynamic/);
-assert.match(page, /HomeBelowFoldLazy/);
-
-const lazy = src('components/marketing/HomeBelowFoldLazy.tsx');
-assert.match(lazy, /ssr:\s*false/);
-assert.match(lazy, /HomeBelowFold/);
+assert.match(page, /HomeLanding/);
 
 const seen = new Set<string>();
 walk('app/page.tsx', seen);

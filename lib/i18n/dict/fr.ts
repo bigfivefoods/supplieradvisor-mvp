@@ -30,6 +30,8 @@ const fr: Dict = {
   'nav.why': 'Pourquoi SA',
   'nav.modules': 'Modules',
   'nav.howFits': 'Comment ça s\'intègre',
+  'nav.trust': 'Trust',
+  'nav.catalogues': 'Catalogues',
   'nav.pricing': 'Tarifs',
   'nav.roi': 'ROI',
   'nav.industries': 'Secteurs',

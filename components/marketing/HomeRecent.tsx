@@ -69,7 +69,7 @@ const HIGHLIGHTS: Array<{
   {
     title: 'home.new.verify.title',
     body: 'home.new.verify.body',
-    href: '#trust',
+    href: '/trust',
   },
 ];
 
@@ -81,10 +81,7 @@ const TRADE_POINTS = [
   'home.trade.point5',
 ] as const;
 
-/**
- * Below-fold showcase. Loaded with ssr:false from HomeBelowFoldLazy so it
- * stays out of the first HTML and the hero bundle.
- */
+/** Product showcase sections reused on /product. */
 export default function HomeRecent({ tourHref }: { tourHref: string }) {
   const { locale, t } = useLocaleDictionary();
   const prices = { core: CORE_OS_MONTHLY_ZAR, pack: INDUSTRY_PACK_MONTHLY_ZAR };

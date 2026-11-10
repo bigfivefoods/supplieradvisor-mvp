@@ -44,19 +44,6 @@ assert.match(compareSrc, /ConstructionAdvisor®/);
 assert.match(compareSrc, /ApparelAdvisor®/);
 assert.match(compareSrc, /progress payments/);
 
-const homeSrc = readFileSync(
-  resolve('components/marketing/HomeBelowFold.tsx'),
-  'utf8'
-);
-assert.match(homeSrc, /ConstructionAdvisor®/);
-assert.match(homeSrc, /Progress payments/);
-assert.match(homeSrc, /BOQ quotes/);
-assert.match(homeSrc, /client\/contractor PWA/);
-assert.match(homeSrc, /ApparelAdvisor®/);
-assert.match(homeSrc, /landed costing/);
-assert.match(homeSrc, /Wholesale ATS/);
-assert.match(homeSrc, /buyer PWA/);
-
 const mockSrc = readFileSync(
   resolve('components/marketing/ProductMocks.tsx'),
   'utf8'

@@ -126,7 +126,7 @@ export default function ReplaceStackDiagram({ tourHref }: { tourHref: string }) 
             Take the guided tour <ArrowRight className="h-4 w-4" />
           </Link>
           <a
-            href="#compare"
+            href="/why-supplieradvisor#compare"
             className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-800 hover:border-[#00b4d8] dark:border-neutral-700 dark:bg-neutral-950 dark:text-white dark:hover:border-cyan-500"
           >
             Compare stacks

@@ -308,7 +308,7 @@ export function SaOsDemoPortal() {
               </ul>
             </section>
             <Link
-              href="/#compare"
+              href="/why-supplieradvisor#compare"
               className="block text-center text-xs font-bold text-[#0077b6] underline"
             >
               Compare vs Excel / Xero / ERP on the site

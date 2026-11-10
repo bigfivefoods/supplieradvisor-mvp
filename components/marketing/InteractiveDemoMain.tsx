@@ -137,10 +137,10 @@ export default function InteractiveDemoMain() {
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="text-sm font-bold text-slate-900">Also explore</h3>
             <div className="mt-3 flex flex-col gap-2 text-sm font-semibold">
-              <Link href="/#compare" className="text-[#0077b6] hover:underline">
+              <Link href="/why-supplieradvisor#compare" className="text-[#0077b6] hover:underline">
                 Compare vs Excel / Xero / ERP
               </Link>
-              <Link href="/#roi" className="text-[#0077b6] hover:underline">
+              <Link href="/roi" className="text-[#0077b6] hover:underline">
                 ROI calculator
               </Link>
               <Link href="/industries" className="text-[#0077b6] hover:underline">

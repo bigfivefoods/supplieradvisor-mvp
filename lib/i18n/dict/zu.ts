@@ -30,6 +30,8 @@ const zu: Dict = {
   'nav.why': 'Kungani i-SA',
   'nav.modules': 'Amamojula',
   'nav.howFits': 'Ilingana kanjani',
+  'nav.trust': 'Trust',
+  'nav.catalogues': 'Catalogues',
   'nav.pricing': 'Intengo',
   'nav.roi': 'ROI',
   'nav.industries': 'Izimboni',

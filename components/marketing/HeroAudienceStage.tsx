@@ -11,10 +11,8 @@ import {
   UserRound,
   WalletCards,
 } from 'lucide-react';
-import { COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
 import { useLocaleDictionary } from '@/components/i18n/LocaleDictionaryProvider';
 import { localizedPath } from '@/lib/i18n/config';
-import { format } from '@/lib/i18n/dict';
 
 const SCENES = [
   {
@@ -343,7 +341,7 @@ export default function HeroAudienceStage() {
     t(`${scenePrefix}.point2`),
     t(`${scenePrefix}.point3`),
   ];
-  const sceneCta = t(`${scenePrefix}.cta`);
+  const startFreeHref = '/join';
 
   return (
     <section
@@ -438,45 +436,23 @@ export default function HeroAudienceStage() {
 
             <div className="mt-5 flex flex-col gap-2 sm:mt-6 sm:flex-row sm:flex-wrap sm:items-center">
               <Link
+                href={startFreeHref}
+                className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-950/40 transition-all hover:bg-[#0099b8] active:scale-[0.99] sm:min-h-12 sm:px-6 sm:text-[15px]"
+              >
+                Start free
+                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 rtl:-scale-x-100" />
+              </Link>
+              <Link
                 href={bookDemoHref}
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-6 py-2.5 text-sm font-bold text-slate-950 shadow-lg shadow-slate-950/30 transition-all hover:bg-slate-100 active:scale-[0.99] sm:px-7 sm:text-[15px]"
               >
                 {t('hero.bookDemo')}
                 <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 rtl:-scale-x-100" />
               </Link>
-              <Link
-                href={scene.cta.href}
-                className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-950/40 transition-all hover:bg-[#0099b8] active:scale-[0.99] sm:min-h-12 sm:px-6 sm:text-[15px]"
-              >
-                {sceneCta}
-                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 rtl:-scale-x-100" />
-              </Link>
-              {scene.id === 'b2c' ? (
-                <Link
-                  href="/onboarding?type=business"
-                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-[2px] hover:bg-white/18 sm:min-h-12 sm:px-6 sm:text-[15px]"
-                >
-                  {t('hero.businessRun')}
-                </Link>
-              ) : null}
             </div>
 
             <p className="mt-3 hidden text-xs leading-relaxed text-slate-300 sm:block sm:text-sm">
-              {t('hero.notExcel')}{' '}
-              <a
-                href="#compare"
-                className="font-semibold text-cyan-200 underline decoration-cyan-200/40 underline-offset-4 hover:text-white"
-              >
-                {t('hero.compare')}
-              </a>
-              {scene.id !== 'b2c' ? (
-                <>
-                  {' · '}
-                  {format(t('hero.trialDays'), { days: COMPANY_TRIAL_DAYS })}
-                </>
-              ) : (
-                ` · ${t('hero.membersNeverPay')}`
-              )}
+              {t('hero.notExcel')}
             </p>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">

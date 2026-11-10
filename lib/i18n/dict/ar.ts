@@ -33,6 +33,8 @@ const ar: Dict = {
   'nav.why': 'لماذا SA',
   'nav.modules': 'الوحدات',
   'nav.howFits': 'كيف يتناسب',
+  'nav.trust': 'Trust',
+  'nav.catalogues': 'Catalogues',
   'nav.pricing': 'الأسعار',
   'nav.roi': 'العائد',
   'nav.industries': 'القطاعات',

@@ -21,11 +21,19 @@ export async function GET() {
 ## Primary public pages
 - Home: ${SITE_URL}/
 - Marketplace: ${SITE_URL}/marketplace
+- Product: ${SITE_URL}/product
+- Modules: ${SITE_URL}/modules
+- How it fits: ${SITE_URL}/how-it-fits
+- Why SupplierAdvisor®: ${SITE_URL}/why-supplieradvisor
+- Trust: ${SITE_URL}/trust
+- SA Member: ${SITE_URL}/sa-member
+- Business: ${SITE_URL}/business
+- Government: ${SITE_URL}/government
+- ROI calculator: ${SITE_URL}/roi
 - Industries: ${SITE_URL}/industries
 - ConstructionAdvisor®: ${SITE_URL}/industries/construction-building
 - ApparelAdvisor®: ${SITE_URL}/industries/apparel-clothing
 - Pricing: ${SITE_URL}/pricing
-- Demo: ${SITE_URL}/demo
 - Verification SLA: ${SITE_URL}/verification-sla
 - Sitemap: ${SITE_URL}/sitemap.xml
 - Robots: ${SITE_URL}/robots.txt

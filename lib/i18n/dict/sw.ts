@@ -30,6 +30,8 @@ const sw: Dict = {
   'nav.why': 'Kwa nini SA',
   'nav.modules': 'Moduli',
   'nav.howFits': 'Inavyofaa',
+  'nav.trust': 'Trust',
+  'nav.catalogues': 'Catalogues',
   'nav.pricing': 'Bei',
   'nav.roi': 'ROI',
   'nav.industries': 'Sekta',

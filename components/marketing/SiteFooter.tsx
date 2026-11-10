@@ -24,17 +24,16 @@ const linkClass =
   'block min-h-6 text-sm text-[#6b7280] hover:text-[#0077b6] transition-colors leading-snug dark:text-slate-300 dark:hover:text-white';
 
 const LINK_KEY_BY_HREF: Record<string, string> = {
-  '/#video': 'nav.product',
-  '/#member-app': 'nav.member',
-  '/#why-join': 'nav.why',
-  '/#modules': 'nav.modules',
-  '/#packaging': 'nav.howFits',
-  '/#compare': 'footer.link.compare',
-  '/#security': 'footer.link.security',
+  '/product': 'nav.product',
+  '/sa-member': 'nav.member',
+  '/why-supplieradvisor': 'nav.why',
+  '/modules': 'nav.modules',
+  '/how-it-fits': 'nav.howFits',
+  '/why-supplieradvisor#compare': 'footer.link.compare',
+  '/trust#security': 'footer.link.security',
   '/pricing': 'nav.pricing',
-  '/#roi': 'footer.link.roi',
+  '/roi': 'footer.link.roi',
   '/industries': 'nav.industries',
-  '/demo': 'footer.link.demo',
   '/join': 'footer.link.joinBusiness',
   '/marketplace': 'footer.link.marketplace',
   '/marketplace/advisors': 'footer.link.findAdvisor',
@@ -42,7 +41,6 @@ const LINK_KEY_BY_HREF: Record<string, string> = {
   '/me': 'footer.link.memberSignup',
   '/install': 'footer.link.installApp',
   '/login': 'nav.logIn',
-  '/onboarding?lane=b2b': 'nav.startTrial',
   '/privacy': 'footer.link.privacy',
   '/terms': 'footer.link.terms',
   '/cancellation-refund': 'footer.link.cancellation',
@@ -59,6 +57,7 @@ const GROUP_LABEL_KEY_BY_LABEL: Record<string, string> = {
 
 function linkLabelKey(link: FooterLink): string | undefined {
   if (link.label === 'Interactive demo') return 'footer.link.demo';
+  if (link.label === 'Start free trial') return 'nav.startTrial';
   return LINK_KEY_BY_HREF[link.href];
 }
 

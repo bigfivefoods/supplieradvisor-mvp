@@ -20,19 +20,9 @@ for (const rel of ['app/page.tsx', 'components/marketing/HomeLanding.tsx']) {
   assert.doesNotMatch(src, /HomeCatalogues/, rel);
 }
 
-const below = read('components/marketing/HomeBelowFold.tsx');
-const industriesAt = below.indexOf('<IndustriesStrip />');
-const cataloguesAt = below.indexOf('<HomeCatalogues />');
-const audiencesAt = below.indexOf('id="audiences"');
-assert.ok(industriesAt >= 0, 'IndustriesStrip should stay');
-assert.ok(cataloguesAt > industriesAt, 'HomeCatalogues renders after IndustriesStrip');
-assert.ok(audiencesAt > cataloguesAt, 'HomeCatalogues renders before #audiences');
-
-const lazyIds = read('lib/marketing/home-nav-sections.ts');
-assert.doesNotMatch(lazyIds, /['"]catalogues['"]/);
-
 const nav = read('components/marketing/LandingNav.tsx');
-assert.doesNotMatch(nav, /catalogues/i);
+assert.match(nav, /nav\\.catalogues/);
+assert.doesNotMatch(nav, /href:\\s*'\\/#/);
 
 const route = read('app/catalogues/[id]/download/route.ts');
 assert.doesNotMatch(route, /searchParams/);

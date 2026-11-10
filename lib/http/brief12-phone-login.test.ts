@@ -45,7 +45,7 @@ assert.match(page, /HomeLanding/);
 
 const landing = src('components/marketing/HomeLanding.tsx');
 assert.match(landing, /LandingNav/);
-assert.match(landing, /HomeBelowFoldLazy/);
+assert.doesNotMatch(landing, /HomeBelowFoldLazy/);
 assert.doesNotMatch(landing, /usePrivy/);
 assert.doesNotMatch(landing, /@privy-io\/react-auth/);
 
