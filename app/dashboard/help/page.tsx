@@ -30,7 +30,7 @@ export default function HelpIndexPage() {
               <span className="text-base font-black text-slate-900">{guide.name}</span>
               <span className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">{guide.purpose}</span>
               <span className="mt-3 text-xs font-bold text-[#0077b6]">
-                {guide.features.length} steps
+                {guide.features.length} features
               </span>
             </Link>
           </li>

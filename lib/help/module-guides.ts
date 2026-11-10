@@ -1,16 +1,23 @@
 /**
  * How-to guides for every sidebar module.
- * Steps come from the process-flow definitions and from MODULE_NAV routes.
- * No sample company, no invented screen.
+ * Priority modules are written from the screens and the server checks.
+ * The remaining modules use the process-flow and sidebar labels, and never
+ * repeat the one-line summary as a step.
  */
 import { ALL_FLOWS } from '@/lib/advisors/process-flows';
 import type { AdvisorFlowDef, FlowStepDef, FlowTarget } from '@/lib/advisors/process-flows/types';
-import {
-  TEAM_ROLE_OPTIONS,
-  canView,
-  type PermissionResource,
-} from '@/lib/business/permissions';
+import { resourceLabel, type PermissionResource } from '@/lib/business/permissions';
 import { MODULE_NAV, type ModuleNav, type ModuleNavItem } from '@/lib/chrome/module-nav';
+import { ACCOUNTING_GUIDE } from '@/lib/help/guides/accounting';
+import { CUSTOMERS_GUIDE } from '@/lib/help/guides/customers';
+import { GYM_GUIDE } from '@/lib/help/guides/gym';
+import { INVENTORY_GUIDE } from '@/lib/help/guides/inventory';
+import { PEOPLE_GUIDE } from '@/lib/help/guides/people';
+import { SALES_GUIDE } from '@/lib/help/guides/sales';
+import { SUPPLIERS_GUIDE } from '@/lib/help/guides/suppliers';
+import { TRADE_GUIDE } from '@/lib/help/guides/trade';
+import { gateMessage, viewRoleLabels } from '@/lib/help/roles';
+import type { GuideError, GuideFaq, GuideFeature, GuideNode, ModuleGuide } from '@/lib/help/types';
 import {
   FLOW_GUARDRAILS,
   FLOW_OUTCOME,
@@ -18,36 +25,17 @@ import {
   FLOW_STEPS,
 } from '@/lib/recovery/process-flow';
 
-export type GuideFeature = {
-  id: string;
-  name: string;
-  href: string | null;
-  summary: string;
-  who: string;
-  steps: string[];
-};
+export type { GuideError, GuideFaq, GuideFeature, GuideNode, ModuleGuide };
 
-export type GuideFaq = {
-  q: string;
-  a: string;
-};
-
-export type GuideNode = {
-  id: string;
-  label: string;
-  hint?: string;
-};
-
-export type ModuleGuide = {
-  id: string;
-  name: string;
-  href: string;
-  purpose: string;
-  roles: string[];
-  features: GuideFeature[];
-  faqs: GuideFaq[];
-  flow: GuideNode[];
-  outcome: string;
+const HAND: Record<string, ModuleGuide> = {
+  accounting: ACCOUNTING_GUIDE,
+  tradegraph: TRADE_GUIDE,
+  fitgraph: GYM_GUIDE,
+  suppliers: SUPPLIERS_GUIDE,
+  customers: CUSTOMERS_GUIDE,
+  inventory: INVENTORY_GUIDE,
+  people: PEOPLE_GUIDE,
+  'sales-portal': SALES_GUIDE,
 };
 
 const PROSE_NAME: Record<string, string> = {
@@ -116,6 +104,19 @@ function sentence(text: string): string {
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
+function norm(text: string): string {
+  return text.trim().replace(/\s+/g, ' ').replace(/[.!?]+$/g, '');
+}
+
+function distinct(summary: string, steps: string[]): string[] {
+  const target = norm(summary);
+  const out = steps.map((step) => step.trim()).filter((step) => step && norm(step) !== target);
+  if (!out.length) {
+    out.push('Use the labelled controls on this screen. Save only when the required fields are filled.');
+  }
+  return out;
+}
+
 function titleCaseRole(label: string): string {
   return label
     .split(' ')
@@ -125,10 +126,14 @@ function titleCaseRole(label: string): string {
 
 function rolesForResource(resource: PermissionResource | undefined): string[] {
   if (!resource) return ['Anyone who can open the SupplierAdvisor® dashboard'];
-  const labels = TEAM_ROLE_OPTIONS.filter((option) => canView(option.value, resource)).map(
-    (option) => option.label
-  );
+  const labels = viewRoleLabels(resource);
   return labels.length ? labels : ['Owner'];
+}
+
+function whoLine(resource: PermissionResource | undefined, fallback: string): string {
+  if (!resource) return fallback;
+  const labels = rolesForResource(resource);
+  return `${labels.join(', ')} can open this module. Anyone else sees “${gateMessage(resource)}”.`;
 }
 
 function joinModule(root: string, path: string): string {
@@ -152,107 +157,125 @@ function skippedCopy(text: string): boolean {
   return /kwaden|sample company|fixture book|demo-data|acme|harbour grocers/i.test(text);
 }
 
+function gateError(resource: PermissionResource | undefined): GuideError {
+  if (!resource) {
+    return {
+      message: 'You do not have access to this area.',
+      fix: 'Sign in on a company role that can open the dashboard.',
+    };
+  }
+  return {
+    message: gateMessage(resource),
+    fix: 'Ask an owner to change your team role, or open a module that role can view.',
+  };
+}
+
 function stepsForFlow(step: FlowStepDef, hrefLabel: string): string[] {
-  const steps = [`Open ${hrefLabel}.`];
-  if (step.desc && !skippedCopy(step.desc)) steps.push(sentence(step.desc));
-  if (step.note && step.note !== step.desc && !skippedCopy(step.note)) steps.push(sentence(step.note));
+  const steps = [`Open ${hrefLabel} from the sidebar.`];
+  if (step.secondary?.length) {
+    steps.push(`This step also opens ${step.secondary.map((item) => item.label).join(', ')}.`);
+  }
+  if (step.note && !skippedCopy(step.note)) steps.push(sentence(step.note));
   if (step.status === 'soon') steps.push('This step is not open yet.');
-  if (step.status === 'partial') steps.push('Part of this step is live. The note says what is still closed.');
+  else if (step.status === 'partial') steps.push('Part of this step is live. The note says what is still closed.');
+  else {
+    steps.push(
+      `Stay on ${hrefLabel}. An empty screen means nothing has been saved for this company yet.`
+    );
+  }
+  if (step.who) steps.push(`The process names ${step.who} for this step. The role check above is what actually opens the screen.`);
   return steps;
 }
 
 function stepsForNav(step: ModuleNavItem): string[] {
   if (step.href === '/dashboard/intelligence/leadership-development') {
     return [
-      'Open Lead from the sidebar.',
+      'Open Lead from the Insights sidebar.',
       'The screen is Super-Cube® training for the people who run the company.',
+      'It does not post a journal and it does not file a return.',
     ];
   }
-  if (step.href === '/dashboard/suppliers/po' || step.href === '/dashboard/procurement/po') {
-    return [
-      'Open Order from the Suppliers sidebar.',
-      'Raise a purchase order, receive it, and settle it on this screen.',
-      '/dashboard/procurement and /dashboard/procurement/po both redirect here.',
-      'The screen uses this company’s own orders. An empty list means no purchase order has been saved yet.',
-    ];
-  }
-  const steps = [`Open ${step.name} from the sidebar.`];
-  if (step.desc) steps.push(sentence(step.desc));
+  const where = step.section ? ` in ${step.section}` : '';
+  const steps = [`Open ${step.name} from the sidebar${where}.`];
   if (step.group) steps.push(`This item is listed for the ${step.group} tools.`);
-  steps.push('The screen uses this company’s own records. An empty list means nothing has been saved yet.');
+  steps.push('Work stays on the company you have open. An empty list means nothing has been saved on this screen yet.');
   return steps;
 }
 
-const VAT201_FEATURE: GuideFeature = {
-  id: 'vat201',
-  name: 'Build and file the VAT201',
-  href: '/dashboard/accounting/vat201',
-  summary:
-    'SupplierAdvisor® builds the SARS VAT201 from the posted ledger. It does not submit the return to SARS.',
-  who: 'Owner, admin, or finance can edit the VAT settings. Filing and the settlement journal need accounting write access. The screen says only an owner or a finance user can file or post the settlement.',
-  steps: [
-    'Open VAT201 from Finance.',
-    'Set the VAT number, the basis, the category, the effective date, and the first period end, then save. If those dates are blank, the return cannot be built until you enter them. SupplierAdvisor® does not invent a VAT number.',
-    'Choose the tax period. The return is assembled from posted journals, invoices, and payments for that period.',
-    'On the payment basis, VAT is due or claimable when cash is received or paid. The ledger still posts output VAT on the invoice date and input VAT on the bill date, so the return will not match accounts 1150 and 2120 until those invoices are paid.',
-    'On the invoice basis, output VAT follows the invoice date and input VAT follows the bill date, including amounts that are still unpaid.',
-    'On the hybrid basis, output VAT follows the invoice date and input VAT follows the cash date. Unpaid supplier bills stay out of input tax.',
-    'Read the field list, the supporting pack, and the reconciliation. Copy a field with its Copy button. The clipboard value has no currency symbol.',
-    'One push marks the return Reviewed, locks the months in the period, and opens SARS eFiling in a new tab. Copy each field into eFiling in order. SupplierAdvisor® cannot log in to SARS.',
-    'SupplierAdvisor® does not submit the return. There is no public VAT201 API, and SupplierAdvisor® is not accredited as an Independent Software Vendor. The submit action stays off.',
-    'After you have submitted on eFiling, record the eFiling reference and the submission date on this screen.',
-    'When the payment has been made to SARS, confirm it and record the payment date. SupplierAdvisor® posts a settlement journal that clears 1150 and 2120 through 2125 and the bank account. It does not send the money.',
-    'Leave diesel refund fields blank on eFiling unless a diesel refund is registered.',
-    'If the period is not set, the screen says to set the VAT period. It does not fill the return with sample rows.',
-  ],
-};
-
-function vatFaqs(): GuideFaq[] {
-  return [
-    {
-      q: 'Does SupplierAdvisor® send the VAT201 to SARS?',
-      a: 'No. SupplierAdvisor® opens eFiling and lets you copy the fields. It does not submit the return, and it never asks for a SARS username or password.',
-    },
-    {
-      q: 'What happens when I mark the return Reviewed?',
-      a: 'The return is locked, the months in the period are locked, and eFiling opens so you can copy the fields. Reopen is only available while the return is still Reviewed.',
-    },
-    {
-      q: 'The VAT201 does not match account 1150 or 2120. What now?',
-      a: 'On the payment basis the return follows cash, while those accounts follow the invoice or bill date. The reconciliation flags that difference. It is not a sample figure.',
-    },
-    {
-      q: 'The VAT201 screen is empty. What now?',
-      a: 'Enter the VAT effective date and a first period end that matches the category. Until then there is no return. The books are not filled with sample invoices.',
-    },
-    {
-      q: 'A report shows no posted journals. What now?',
-      a: 'The profit and loss, balance sheet, cash flow, and the other accounting reports stay empty for that period. Widen the dates, or post journals. They do not fall back to sample rows.',
-    },
-  ];
+function featureShell(
+  partial: Omit<GuideFeature, 'steps' | 'prerequisites' | 'behind' | 'errors' | 'faqs'> & {
+    steps: string[];
+    resource?: PermissionResource;
+    prerequisites?: string[];
+    behind?: string[];
+    errors?: GuideError[];
+    faqs?: GuideFaq[];
+    note?: string;
+  }
+): GuideFeature {
+  const prerequisites = partial.prerequisites?.length
+    ? partial.prerequisites
+    : ['Open the company this work belongs to.', partial.resource ? `Your role must be allowed to view ${resourceLabel(partial.resource)}.` : 'You need access to the dashboard.'];
+  const behind = partial.behind?.length
+    ? partial.behind
+    : [partial.note || 'The screen reads and saves this company’s own records. It does not fill the list when nothing has been saved.'];
+  return {
+    id: partial.id,
+    name: partial.name,
+    href: partial.href,
+    summary: partial.summary,
+    who: partial.who,
+    prerequisites,
+    steps: distinct(partial.summary, partial.steps),
+    behind: (() => {
+    const lines = behind.filter((line) => line.trim() && norm(line) !== norm(partial.summary));
+    return lines.length ? lines : ['This screen uses the company you have open.'];
+  })(),
+    errors: partial.errors?.length ? partial.errors : [gateError(partial.resource)],
+    faqs: partial.faqs?.length
+      ? partial.faqs
+      : [
+          {
+            q: `${partial.name} looks empty. What now?`,
+            a: 'Nothing has been saved for this company on that screen. Enter the first record, or open a period that already has work. The screen is not filled with sample rows.',
+          },
+        ],
+  };
 }
 
-function featuresFromFlow(def: AdvisorFlowDef): GuideFeature[] {
+function featuresFromFlow(def: AdvisorFlowDef, resource: PermissionResource | undefined): GuideFeature[] {
   return def.steps
     .filter((step) => !skippedCopy(`${step.title} ${step.desc} ${step.note || ''}`))
     .map((step) => {
       const href = targetHref(def, step.to);
       const label = step.to?.label || step.title;
-      return {
+      const summary = sentence(step.desc);
+      return featureShell({
         id: step.id,
         name: step.title,
         href,
-        summary: sentence(step.desc),
-        who: step.who,
+        summary,
+        who: `${step.who}. ${whoLine(resource, 'Anyone who can open this module.')}`,
+        resource,
         steps: stepsForFlow(step, label),
-      };
+        note: step.note ? sentence(step.note) : undefined,
+        behind: [
+          step.status === 'soon'
+            ? 'This step is marked not open yet.'
+            : step.status === 'partial'
+              ? 'Part of this step is live.'
+              : `This step is live on ${label}.`,
+          step.note ? sentence(step.note) : `Saving writes this company’s record for ${step.title}.`,
+        ],
+      });
     });
 }
 
 function featuresFromNav(
   steps: readonly ModuleNavItem[],
   covered: Set<string>,
-  who: string
+  who: string,
+  resource: PermissionResource | undefined
 ): GuideFeature[] {
   const seen = new Set<string>();
   const features: GuideFeature[] = [];
@@ -261,14 +284,18 @@ function featuresFromNav(
     if (seen.has(key)) continue;
     seen.add(key);
     if (!step.group && covered.has(step.href.split('?')[0])) continue;
-    features.push({
-      id: key,
-      name: step.group ? `${step.name} · ${step.group}` : step.name,
-      href: step.href,
-      summary: step.desc ? sentence(step.desc) : `Open ${step.name}.`,
-      who: step.group ? `${step.group} tools` : who,
-      steps: stepsForNav(step),
-    });
+    const summary = step.desc ? sentence(step.desc) : `${step.name} is a screen in this module.`;
+    features.push(
+      featureShell({
+        id: key,
+        name: step.group ? `${step.name} · ${step.group}` : step.name,
+        href: step.href,
+        summary,
+        who: step.group ? `${step.group} tools. ${who}` : who,
+        resource,
+        steps: stepsForNav(step),
+      })
+    );
   }
   return features;
 }
@@ -315,19 +342,38 @@ function emptyFaq(name: string): GuideFaq {
 
 function buildRecoverGuide(mod: ModuleNav): ModuleGuide {
   const name = proseName(mod);
-  const features: GuideFeature[] = FLOW_STEPS.map((step) => ({
-    id: step.id,
-    name: step.title,
-    href: step.href,
-    summary: sentence(step.desc),
-    who: step.who,
-    steps: [
-      step.href ? `Open ${step.title}.` : `${step.title} has no screen yet.`,
-      sentence(step.desc),
-      step.soonNote ? sentence(step.soonNote) : '',
-      step.status === 'soon' ? 'This step is not open yet.' : '',
-    ].filter(Boolean),
-  }));
+  const who = 'Owner, Manager, Agent, Finance, and Compliance, as named on each step. RecoverAdvisor® gives no legal advice.';
+  const features: GuideFeature[] = FLOW_STEPS.map((step) => {
+    const summary = sentence(step.desc);
+    return featureShell({
+      id: step.id,
+      name: step.title,
+      href: step.href,
+      summary,
+      who: `${step.who}. ${who}`,
+      steps: [
+        step.href ? `Open ${step.title}.` : `${step.title} has no screen yet.`,
+        step.soonNote ? sentence(step.soonNote) : '',
+        step.status === 'soon' ? 'This step is not open yet.' : 'Save against the placement you have open.',
+      ].filter(Boolean),
+      behind: [
+        step.status === 'soon' ? 'This step is marked not open yet.' : `${step.title} is ${step.status} on the collection desk.`,
+        'RecoverAdvisor® gives no legal advice.',
+      ],
+      errors: [
+        {
+          message: gateMessage('recovery'),
+          fix: 'Ask an owner for a role that can open RecoverAdvisor®.',
+        },
+      ],
+      faqs: [
+        {
+          q: `Who is named for ${step.title}?`,
+          a: step.who,
+        },
+      ],
+    });
+  });
   return {
     id: mod.id,
     name,
@@ -341,31 +387,21 @@ function buildRecoverGuide(mod: ModuleNav): ModuleGuide {
   };
 }
 
-function buildOne(mod: ModuleNav): ModuleGuide {
-  if (mod.id === 'recovergraph') return buildRecoverGuide(mod);
+function buildGenerated(mod: ModuleNav): ModuleGuide {
   const name = proseName(mod);
   const flow = ALL_FLOWS[mod.id as keyof typeof ALL_FLOWS] ?? null;
-  const fromFlow = flow ? featuresFromFlow(flow) : [];
+  const resource = mod.resource;
+  const fromFlow = flow ? featuresFromFlow(flow, resource) : [];
   const covered = new Set(
     fromFlow.map((feature) => feature.href?.split('?')[0]).filter((href): href is string => Boolean(href))
   );
-  const roles = flow
-    ? flow.roles.map((role) => titleCaseRole(role.label))
-    : rolesForResource(mod.resource);
-  let features = [...fromFlow, ...featuresFromNav(mod.steps, covered, roles.join(', '))];
-  if (mod.id === 'accounting') {
-    features = features.filter((feature) => feature.href?.split('?')[0] !== '/dashboard/accounting/vat201');
-    const taxAt = features.findIndex((feature) => feature.id === 'tax');
-    features.splice(taxAt >= 0 ? taxAt + 1 : features.length, 0, VAT201_FEATURE);
-  }
+  const roles = flow ? flow.roles.map((role) => titleCaseRole(role.label)) : rolesForResource(resource);
+  const who = whoLine(resource, roles.join(', '));
+  const features = [...fromFlow, ...featuresFromNav(mod.steps, covered, who, resource)];
   const purpose = flow?.lead
     ? `${name} in SupplierAdvisor®. ${sentence(flow.lead)}`
     : PURPOSE[mod.id] || `${name} is a workspace in SupplierAdvisor®. The steps below are the screens in the sidebar.`;
-  const faqs = [
-    emptyFaq(name),
-    ...(flow ? faqsFromGuardrails(flow.guardrails) : []),
-    ...(mod.id === 'accounting' ? vatFaqs() : []),
-  ];
+  const faqs = [emptyFaq(name), ...(flow ? faqsFromGuardrails(flow.guardrails) : [])];
   return {
     id: mod.id,
     name,
@@ -377,6 +413,11 @@ function buildOne(mod: ModuleNav): ModuleGuide {
     flow: flow ? flowNodes(flow, features) : navNodes(mod.steps),
     outcome: flow?.outcome || `You can move through ${name} from the sidebar without leaving SupplierAdvisor®.`,
   };
+}
+
+function buildOne(mod: ModuleNav): ModuleGuide {
+  if (mod.id === 'recovergraph') return buildRecoverGuide(mod);
+  return HAND[mod.id] ?? buildGenerated(mod);
 }
 
 export const MODULE_GUIDES: readonly ModuleGuide[] = MODULE_NAV.map(buildOne);
