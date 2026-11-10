@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, CircleHelp, MapPin } from 'lucide-react';
 import { ProcessFlow } from '@/components/guide/ProcessFlow';
-import type { ModuleGuide } from '@/lib/help/module-guides';
+import type { ModuleGuide } from '@/lib/help/types';
 
 export function HelpGuide({ guide }: { guide: ModuleGuide }) {
   return (
@@ -53,11 +53,15 @@ export function HelpGuide({ guide }: { guide: ModuleGuide }) {
       </div>
 
       <h2 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-neutral-400">
-        Step by step
+        Feature by feature
       </h2>
       <div className="mb-10 space-y-4">
         {guide.features.map((feature, index) => (
-          <article key={feature.id} className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
+          <article
+            key={feature.id}
+            id={`guide-${feature.id}`}
+            className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm"
+          >
             <div className="flex flex-col gap-2 border-b border-neutral-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <span className="mr-2 text-[10px] font-black text-[#00b4d8]">
@@ -77,18 +81,77 @@ export function HelpGuide({ guide }: { guide: ModuleGuide }) {
                 </Link>
               ) : null}
             </div>
-            <div className="px-5 py-4">
-              <p className="mb-3 text-sm leading-relaxed text-neutral-600">{feature.summary}</p>
-              <ol className="space-y-2">
-                {feature.steps.map((step, stepIndex) => (
-                  <li key={step} className="flex gap-3 text-sm text-slate-800">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#00b4d8]/10 text-[10px] font-black text-[#00b4d8]">
-                      {stepIndex + 1}
-                    </span>
-                    <span className="pt-0.5 leading-relaxed">{step}</span>
-                  </li>
-                ))}
-              </ol>
+            <div className="space-y-5 px-5 py-4">
+              <p className="text-sm leading-relaxed text-neutral-600">{feature.summary}</p>
+
+              {feature.prerequisites.length > 0 ? (
+                <div>
+                  <h4 className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-neutral-400">
+                    Before you start
+                  </h4>
+                  <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
+                    {feature.prerequisites.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div>
+                <h4 className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-neutral-400">
+                  Do this
+                </h4>
+                <ol className="space-y-2">
+                  {feature.steps.map((step, stepIndex) => (
+                    <li key={`${feature.id}-${stepIndex}`} className="flex gap-3 text-sm text-slate-800">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#00b4d8]/10 text-[10px] font-black text-[#00b4d8]">
+                        {stepIndex + 1}
+                      </span>
+                      <span className="pt-0.5 leading-relaxed">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              {feature.behind.length > 0 ? (
+                <div>
+                  <h4 className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-neutral-400">
+                    Behind the scenes
+                  </h4>
+                  <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
+                    {feature.behind.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {feature.errors.length > 0 ? (
+                <div>
+                  <h4 className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-neutral-400">
+                    If you see an error
+                  </h4>
+                  <ul className="space-y-3">
+                    {feature.errors.map((error) => (
+                      <li key={error.message} className="rounded-2xl bg-slate-50 px-3 py-2 text-sm">
+                        <p className="font-semibold text-slate-900">{error.message}</p>
+                        <p className="mt-1 leading-relaxed text-slate-600">{error.fix}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {feature.faqs.length > 0 ? (
+                <div className="space-y-2">
+                  {feature.faqs.map((faq) => (
+                    <details key={faq.q} className="rounded-2xl border border-neutral-100 px-3 py-2">
+                      <summary className="cursor-pointer text-sm font-bold text-slate-900">{faq.q}</summary>
+                      <p className="mt-2 text-sm leading-relaxed text-slate-600">{faq.a}</p>
+                    </details>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </article>
         ))}

@@ -20,6 +20,17 @@ for (const mod of MODULE_NAV) {
   assert.ok(guide.faqs.length > 0, mod.id);
   for (const feature of guide.features) {
     assert.ok(feature.steps.length > 0, `${mod.id}:${feature.id}`);
+    assert.ok(feature.prerequisites.length > 0, `${mod.id}:${feature.id} prerequisites`);
+    assert.ok(feature.behind.length > 0, `${mod.id}:${feature.id} behind`);
+    assert.ok(feature.errors.length > 0, `${mod.id}:${feature.id} errors`);
+    assert.ok(feature.faqs.length > 0, `${mod.id}:${feature.id} faqs`);
+    for (const step of feature.steps) {
+      assert.ok(step.trim().length > 0, `${mod.id}:${feature.id} empty step`);
+      const same =
+        step.trim().replace(/\s+/g, ' ').replace(/[.!?]+$/g, '') ===
+        feature.summary.trim().replace(/\s+/g, ' ').replace(/[.!?]+$/g, '');
+      assert.equal(same, false, `${mod.id}:${feature.id} step repeats summary: ${step}`);
+    }
   }
   const blob = JSON.stringify(guide);
   assert.equal(blob.includes('Kwaden'), false, mod.id);
