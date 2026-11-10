@@ -111,14 +111,8 @@ const schools = getModuleGuide('schools');
 assert.match(JSON.stringify(schools), /does not post the ledger|does not insert an accounting journal|does not post a journal/i);
 
 for (const guide of MODULE_GUIDES) {
-  const errors = flowErrors(guide);
+  const errors = flowErrors(guide, { requireAnchor: true, requireIcon: true });
   assert.deepEqual(errors, [], `${guide.id}: ${errors.join('; ')}`);
 }
-
-const financeFlow = flowErrors(getModuleGuide('accounting') as NonNullable<ReturnType<typeof getModuleGuide>>, {
-  requireAnchor: true,
-  requireIcon: true,
-});
-assert.deepEqual(financeFlow, [], financeFlow.join('; '));
 
 console.log(`module-guides.test.ts ok (${MODULE_GUIDES.length} modules)`);

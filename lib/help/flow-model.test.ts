@@ -15,7 +15,7 @@ import {
 } from '@/lib/help/flow-model';
 
 for (const guide of MODULE_GUIDES) {
-  const errors = flowErrors(guide);
+  const errors = flowErrors(guide, { requireAnchor: true, requireIcon: true });
   assert.deepEqual(errors, [], `${guide.id}: ${errors.join('; ')}`);
   assert.ok(guide.flow.length > 0, `${guide.id} flow`);
 }

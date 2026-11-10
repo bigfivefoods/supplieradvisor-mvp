@@ -1039,7 +1039,7 @@ const OWNER = 'Owner · Finance';
 const SYSTEM = 'System';
 
 /** Steps follow the ledger, invoice, bill, bank, and VAT201 paths in this guide. */
-const ACCOUNTING_FLOW: GuideNode[] = [
+export const ACCOUNTING_FLOW: GuideNode[] = [
   {
     id: 'chart',
     label: 'Chart',
@@ -1246,7 +1246,7 @@ const ACCOUNTING_FLOW: GuideNode[] = [
   },
 ];
 
-const ACCOUNTING_EDGES: GuideEdge[] = [
+export const ACCOUNTING_EDGES: GuideEdge[] = [
   { from: 'chart', to: 'draft' },
   { from: 'draft', to: 'balanced' },
   { from: 'balanced', to: 'post', label: 'Post' },
