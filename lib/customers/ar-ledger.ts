@@ -91,7 +91,17 @@ export async function recordArPayment(
       }
       return { ok: false, error: error.message };
     }
-    return { ok: true, entry: data as ArLedgerEntry };
+    const saved = data as ArLedgerEntry;
+    // bigfivegroup.africa shop flow-back. A no-op unless BFG_SYNC_ENABLED=true; never throws.
+    if (saved && process.env.BFG_SYNC_ENABLED === 'true') {
+      try {
+        const { afterArPaymentRecorded } = await import('@/lib/bfg-shop-sync/flow-back');
+        await afterArPaymentRecorded(saved);
+      } catch {
+        /* the payment is already saved */
+      }
+    }
+    return { ok: true, entry: saved };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'ledger error';
     if (isMissingLedgerTable(msg)) {
