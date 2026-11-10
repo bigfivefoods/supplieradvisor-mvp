@@ -1,0 +1,163 @@
+import type { GuideFeature, ModuleGuide } from '@/lib/help/types';
+
+const WHO =
+  'RetailAdvisor® opens for anyone who can view Operations. The gate says “Your role (…) cannot access Operations.” Till and catalogue saves check membership. A paid sale does not decrement Inventory and does not post a ledger journal. A charge on Accounts can.';
+
+function feat(row: GuideFeature): GuideFeature {
+  return row;
+}
+
+export const RETAIL_GUIDE: ModuleGuide = {
+  id: 'retailgraph',
+  name: 'RetailAdvisor®',
+  href: '/dashboard/retailgraph',
+  purpose:
+    'RetailAdvisor® in SupplierAdvisor® is the till: a catalogue, a basket, cash or a phone payment, and the paid-sale list. The sale stores cash or paystack. It does not store the words QR or NFC. Stock is not reduced.',
+  roles: ['Owner', 'Admin', 'Member', 'Viewer', 'Finance', 'Operations', 'Sales'],
+  outcome: 'A SKU can be rung up and recorded as a paid cash sale or a paid phone sale. Accounts is a separate charge that can invoice.',
+  flow: [
+    { id: 'sku', label: 'SKU', hint: 'Name and price' },
+    { id: 'basket', label: 'Basket', hint: 'Tap to add' },
+    { id: 'pay', label: 'Cash or phone', hint: 'Then paid' },
+    { id: 'list', label: 'Sales', hint: 'No stock move' },
+  ],
+  faqs: [
+    {
+      q: 'I took a QR payment. Why does the sale say paystack?',
+      a: 'Present QR / NFC is the button. The stored method is paystack after the phone payment succeeds, or cash after Cash or Paid in cash. The sale row does not store the words QR or NFC.',
+    },
+  ],
+  features: [
+    feat({
+      id: 'command',
+      name: 'Command',
+      href: '/dashboard/retailgraph',
+      summary: 'Command counts SKUs and takings and opens the till. View portal is on the sidebar and not on this hub.',
+      who: WHO,
+      prerequisites: ['A company is selected.'],
+      steps: ['Open Command. The title is Retail till OS.', 'Open Till, Catalogue, Sales, Customers, Accounts, Comms, or Website.'],
+      behind: ['The tiles read this shop’s sales. No stock movement and no journal are posted from the hub.'],
+      errors: [{ message: 'Your role (…) cannot access Operations.', fix: 'Ask an owner for a role that can view Operations. Zeros mean no SKUs or sales have been saved.' }],
+      faqs: [{ q: 'Where is View portal?', a: 'On the sidebar. The hub cards skip it and include SA Member instead.' }],
+    }),
+    feat({
+      id: 'catalogue',
+      name: 'Catalogue',
+      href: '/dashboard/retailgraph/catalogue',
+      summary: 'Catalogue is what the till can ring. It does not link to Inventory stock.',
+      who: WHO,
+      prerequisites: ['Name is required. Price must be a number that is zero or more.'],
+      steps: ['Open Catalogue. Enter Name, SKU if you want one, and Price ZAR. Press Add SKU.'],
+      behind: ['The SKU is stored active. This page has no delete button. No stock quantity is written and no journal is posted.'],
+      errors: [
+        { message: 'Name and price required', fix: 'Enter a name and a price of zero or more. The success line is SKU saved.' },
+        { message: 'No SKUs yet.', fix: 'Press Add SKU. The till stays empty until one exists.' },
+      ],
+      faqs: [{ q: 'Will the till reduce the warehouse?', a: 'No. A paid sale does not decrement Inventory. Catalogue does not read it either.' }],
+    }),
+    feat({
+      id: 'till',
+      name: 'Till',
+      href: '/dashboard/retailgraph/till',
+      summary: 'Till adds SKUs to a basket and takes cash or a phone payment. Pay my SA bills opens open charges, not the basket.',
+      who: WHO,
+      prerequisites: ['At least one SKU exists. Cash and the QR button stay off while the total is zero. A phone payment needs the payout split when the page says so.'],
+      steps: [
+        'Open Till. Under Catalogue press Add on a SKU. An empty basket says Empty — tap a SKU.',
+        'Press Cash to record the sale immediately. The toast is Cash sale recorded.',
+        'Or press Present QR / NFC. The dialog is Present at till. The customer scans Scan to pay. Status moves from open to pending or paid. Press Paid in cash in that dialog if they pay cash instead, or Cancel.',
+        'Press Pay my SA bills to present open bills. That dialog does not offer Paid in cash.',
+      ],
+      behind: [
+        'Cash stores a sale with status paid and paid via cash. A completed phone payment stores paid via paystack. Neither word is QR or NFC.',
+        'The sale does not decrement stock and the till routes do not post a ledger journal.',
+        'Paid in cash marks the session and then the page writes the sale. The dialog toast is Marked paid · cash.',
+      ],
+      errors: [
+        { message: 'Add SKUs under Catalogue first.', fix: 'The catalogue on the till is empty. Add a SKU, then come back.' },
+        { message: 'Basket empty', fix: 'Add a SKU. Cash is refused when there are no lines or the total is not above zero.' },
+        { message: 'Payment not complete', fix: 'The phone payment has not succeeded. The sale is not written yet. Nothing to pay and Session is closed are the other phone-payment stops.' },
+        { message: 'Could not record sale', fix: 'The cash write failed. The basket is still there. Try Cash again.' },
+      ],
+      faqs: [{ q: 'Does Pay my SA bills ring the basket?', a: 'No. It presents open gym, clinic, and hire charges. The basket is Cash or Present QR / NFC.' }],
+    }),
+    feat({
+      id: 'sales',
+      name: 'Sales',
+      href: '/dashboard/retailgraph/sales',
+      summary: 'Sales lists paid baskets. It prints the stored pay method or the status. There is no status button.',
+      who: WHO,
+      prerequisites: ['A sale exists. The list keeps the latest rows the write stored.'],
+      steps: ['Open Sales. Read the date, the total, and the pay method. cash and paystack are the methods these paths store.'],
+      behind: ['The list is read-only. pop is allowed on the type and the till buttons do not set it. No journal is posted.'],
+      errors: [{ message: 'No sales yet.', fix: 'Ring a basket on Till. This list does not create one.' }],
+      faqs: [{ q: 'Can I void a sale here?', a: 'No. There is no status button. The row stays as it was written.' }],
+    }),
+    feat({
+      id: 'customers',
+      name: 'Customers',
+      href: '/dashboard/retailgraph/customers',
+      summary: 'Customers is the walk-in book. A signed-in scan still lands on this shop.',
+      who: WHO,
+      prerequisites: ['Name is required.'],
+      steps: ['Open Customers. Enter Name, Email, and Phone. Press Add.'],
+      behind: ['The person can be linked to a customer record when that link succeeds. No stock and no journal are posted. The success line is Customer saved.'],
+      errors: [
+        { message: 'Name required', fix: 'Enter the name. Could not save means the write failed.' },
+        { message: 'No customers yet.', fix: 'Press Add. The till can still take cash without a named customer.' },
+      ],
+      faqs: [{ q: 'Must every cash sale name a customer?', a: 'No. Cash records the basket. This book is for the people you add, and for a scan while they are signed in.' }],
+    }),
+    feat({
+      id: 'accounts',
+      name: 'Accounts',
+      href: '/dashboard/retailgraph/accounts',
+      summary: 'Accounts raises a store bill and can post the customer invoice. It is not the till sale.',
+      who: WHO,
+      prerequisites: ['Select a person before you add a charge.'],
+      steps: ['Open Accounts. Enter the description and the amount. Press Add to account. Allocate EFT or Cash, or Present QR / NFC.'],
+      behind: ['The charge kind is Retail account. Add to account creates an invoice in Customers and asks Finance to recognise it. The till sale does not do that. A failed ledger post does not roll the charge back.'],
+      errors: [{ message: 'Load failed', fix: 'Reload Accounts. No charges in this view means the filter has no rows.' }],
+      faqs: [{ q: 'I pressed Cash on the till. Why is Accounts empty?', a: 'The till writes a sale. Accounts is a separate bill. Open Sales for the till row.' }],
+    }),
+    feat({
+      id: 'comms',
+      name: 'Comms',
+      href: '/dashboard/retailgraph/comms',
+      summary: 'Comms publishes a notice to shoppers on the member app.',
+      who: WHO,
+      prerequisites: ['Publish is separate from a draft.'],
+      steps: ['Open Comms. Press New. Choose the type. Press Save draft or Publish to members.'],
+      behind: ['Published notices show for this shop. No journal is posted.'],
+      errors: [{ message: 'No communications yet.', fix: 'Press New. Load failed means the list did not read.' }],
+      faqs: [{ q: 'Does a notice change a price?', a: 'No. Prices are Catalogue. A notice is a message.' }],
+    }),
+    feat({
+      id: 'portal',
+      name: 'View portal',
+      href: '/dashboard/retailgraph/portal',
+      summary: 'View portal previews the shopper app. The token comes from Website.',
+      who: WHO,
+      prerequisites: ['Publish a portal token on Website first when the preview says so.'],
+      steps: ['Open View portal. Press Save what to show.'],
+      behind: ['Section choices are stored. No sale is created and no journal is posted.'],
+      errors: [{ message: 'Publish a portal token on Website first', fix: 'Open Website and save once.' }],
+      faqs: [{ q: 'The hub skipped View portal. Is the page gone?', a: 'No. It is on the sidebar.' }],
+    }),
+    feat({
+      id: 'website',
+      name: 'Website',
+      href: '/dashboard/retailgraph/website',
+      summary: 'Website publishes the shop profile, the join QR, and the catalogue embed.',
+      who: WHO,
+      prerequisites: ['Save once so the public token exists. The QR block waits for that token.'],
+      steps: [
+        'Open Website. Fill Brand name, Website URL, Contact email, Contact phone, and Public shop bio.',
+        'Tick Publish public catalogue. Press save. Copy link or Rotate token when you need a new one.',
+      ],
+      behind: ['The public catalogue embed uses the token. Rotate token replaces it. No stock movement and no journal are posted. The success line is Website settings saved, or Public token rotated.'],
+      errors: [{ message: 'Save failed', fix: 'Keep the company selected and save again.' }],
+      faqs: [{ q: 'Customers scan this to see prices. Does that sell the SKU?', a: 'No. The heading is the QR. A sale is still the till, or a charge on Accounts.' }],
+    }),
+  ],
+};
