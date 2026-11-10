@@ -9,6 +9,7 @@
   { "route": "/api/invites/validate", "methods": ["GET"], "reason": "Invite validation is token-based and intentionally public" },
   { "route": "/api/paystack/webhook", "methods": ["POST"], "reason": "Payment webhook" },
   { "route": "/api/billing/webhook", "methods": ["POST"], "reason": "Billing webhook" },
+  { "route": "/api/webhooks/bfg-shop-sync", "methods": ["POST"], "reason": "bigfivegroup.africa shop sync. HMAC-SHA256 signature verified in lib/bfg-shop-sync/process.ts (constant time, before the timestamp window); off unless BFG_SYNC_ENABLED=true" },
   { "route": "/api/geo", "methods": ["GET", "POST"], "reason": "Geo lookup public path" },
   { "route": "/api/geo/**", "methods": ["GET", "POST"], "reason": "Geo lookup public path" },
   { "route": "/api/storefront/**", "methods": ["GET", "POST", "PUT", "PATCH", "DELETE"], "reason": "Storefront public frontend routes" },
