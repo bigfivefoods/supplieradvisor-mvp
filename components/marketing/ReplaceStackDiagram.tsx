@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { ArrowRight, ArrowDown } from 'lucide-react';
-import { productTourHref } from '@/lib/preview/product-tour';
 
 const BEFORE = [
   'Excel / Sheets',
@@ -26,7 +25,7 @@ const AFTER = [
   'Intelligence + SAM',
 ];
 
-export default function ReplaceStackDiagram() {
+export default function ReplaceStackDiagram({ tourHref }: { tourHref: string }) {
   return (
     <section
       id="stack"
@@ -121,7 +120,7 @@ export default function ReplaceStackDiagram() {
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
           <Link
-            href={productTourHref('dashboard')}
+            href={tourHref}
             className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-[#0f172a] hover:brightness-95"
           >
             Take the guided tour <ArrowRight className="h-4 w-4" />

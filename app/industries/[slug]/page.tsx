@@ -19,6 +19,7 @@ import { marketingMetadata } from '@/lib/seo/metadata';
 import { industryShareCard } from '@/lib/seo/share-cards';
 import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
 import { catalogueForIndustry } from '@/lib/catalogues';
+import { fixturePublicHref, interactiveDemoHref } from '@/lib/preview/production-gate';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -49,10 +50,11 @@ export default async function IndustryDetailPage({ params }: Props) {
   const related = relatedIndustries(ind.slug);
   const showPackPrice = Boolean(ind.pack) && ind.slug !== 'public-sector';
   const trades = ind.slug === 'trades';
+  const demoHref = interactiveDemoHref();
 
   return (
     <div className="min-h-dvh bg-[#f8fafc] text-slate-900">
-      <LandingNav />
+      <LandingNav demoHref={demoHref} />
       <main className="mx-auto max-w-screen-2xl px-4 py-14 sm:px-6 lg:px-10">
         <nav aria-label="Breadcrumb" className="text-sm text-slate-500">
           <Link href="/" className="font-semibold text-[#0077b6] hover:underline">
@@ -88,7 +90,7 @@ export default async function IndustryDetailPage({ params }: Props) {
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href="/demo"
+            href={demoHref}
             className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-800"
           >
             Interactive demo
@@ -100,7 +102,7 @@ export default async function IndustryDetailPage({ params }: Props) {
           />
           {trades ? (
             <Link
-              href="/preview/tradegraph"
+              href={fixturePublicHref('/preview/tradegraph')}
               className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-black text-slate-800 shadow-sm"
             >
               Harbour Plumbing sample
@@ -223,7 +225,7 @@ export default async function IndustryDetailPage({ params }: Props) {
           </div>
         ) : null}
       </main>
-      <SiteFooter />
+      <SiteFooter demoHref={demoHref} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdString(industryJsonLd(ind)) }}

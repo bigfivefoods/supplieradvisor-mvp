@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowRight, Award, Brain, Sparkles, Users2 } from 'lucide-react';
 
-export default function SuperCubeStory() {
+export default function SuperCubeStory({ demoHref }: { demoHref: string }) {
   return (
     <section
       id="super-cube"
@@ -46,7 +46,7 @@ export default function SuperCubeStory() {
                 Join the network <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="/demo"
+                href={demoHref}
                 className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-white px-6 py-3 text-sm font-bold text-violet-900 hover:border-violet-400"
               >
                 See product demo

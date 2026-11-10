@@ -9,12 +9,21 @@ import { COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
 import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/config';
 import { en, format, t, type Dict } from '@/lib/i18n/dict';
 import { productTourHref } from '@/lib/preview/product-tour';
+import {
+  fixturePublicHref,
+  fixtureRoutesOpen,
+  interactiveDemoHref,
+} from '@/lib/preview/production-gate';
 
 export default function HomeLanding({ locale = DEFAULT_LOCALE, dict = en }: { locale?: Locale; dict?: Dict }) {
+  const fixturesOpen = fixtureRoutesOpen();
+  const demoHref = interactiveDemoHref();
+  const tourHref = fixturePublicHref(productTourHref('dashboard', locale));
+
   return (
     <div className="relative z-0 min-h-dvh bg-sa-bg text-sa-text antialiased selection:bg-cyan-100 dark:selection:bg-cyan-500/30">
       {locale !== DEFAULT_LOCALE ? <LocaleDataScript dict={dict} /> : null}
-      <LandingNav />
+      <LandingNav demoHref={demoHref} />
       <HeroAudienceStage />
       <main>
         <section
@@ -38,7 +47,7 @@ export default function HomeLanding({ locale = DEFAULT_LOCALE, dict = en }: { lo
               <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Link
                   id="guided-tour"
-                  href={productTourHref('dashboard', locale)}
+                  href={tourHref}
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-[#0f172a] shadow-sm hover:brightness-95 sm:w-auto"
                 >
                   {t(dict, 'home.tourCta')}
@@ -60,16 +69,29 @@ export default function HomeLanding({ locale = DEFAULT_LOCALE, dict = en }: { lo
                   {t(dict, 'home.bookWhatsapp')}
                 </a>
               </div>
-              <p className="mt-4 text-sm leading-relaxed text-slate-600 dark:text-neutral-300">
-                {t(dict, 'home.bookSample')}{' '}
-                <Link
-                  href={productTourHref('dashboard', locale)}
-                  className="font-semibold text-[#0077b6] underline decoration-[#0077b6]/40 underline-offset-4"
-                >
-                  {t(dict, 'home.bookSampleLink')}
-                </Link>
-                . {t(dict, 'home.bookSampleNote')}
-              </p>
+              {fixturesOpen ? (
+                <p className="mt-4 text-sm leading-relaxed text-slate-600 dark:text-neutral-300">
+                  {t(dict, 'home.bookSample')}{' '}
+                  <Link
+                    href={tourHref}
+                    className="font-semibold text-[#0077b6] underline decoration-[#0077b6]/40 underline-offset-4"
+                  >
+                    {t(dict, 'home.bookSampleLink')}
+                  </Link>
+                  . {t(dict, 'home.bookSampleNote')}
+                </p>
+              ) : (
+                <p className="mt-4 text-sm leading-relaxed text-slate-600 dark:text-neutral-300">
+                  {format(t(dict, 'home.trialStrip'), { days: COMPANY_TRIAL_DAYS })}{' '}
+                  <Link
+                    href="/join"
+                    className="font-semibold text-[#0077b6] underline decoration-[#0077b6]/40 underline-offset-4"
+                  >
+                    {t(dict, 'home.startTrial')}
+                  </Link>
+                  .
+                </p>
+              )}
             </div>
             <div className="rounded-3xl border border-slate-200 bg-[#f8fafc] p-6 dark:border-neutral-800 dark:bg-neutral-900 sm:p-8 lg:col-span-5">
               <p className="text-sm font-semibold leading-relaxed text-slate-700 dark:text-neutral-200 sm:text-base">
@@ -89,9 +111,9 @@ export default function HomeLanding({ locale = DEFAULT_LOCALE, dict = en }: { lo
           </div>
         </section>
       </main>
-      <HomeBelowFoldLazy />
+      <HomeBelowFoldLazy tourHref={tourHref} demoHref={demoHref} />
       {/* Footer stays outside the ssr:false below-fold island so it is in server HTML. */}
-      <SiteFooter />
+      <SiteFooter demoHref={demoHref} />
     </div>
   );
 }

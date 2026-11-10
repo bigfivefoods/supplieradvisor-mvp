@@ -4,6 +4,7 @@ import InteractiveDemoMain from '@/components/marketing/InteractiveDemoMain';
 import SiteFooter from '@/components/marketing/SiteFooter';
 import { marketingMetadata } from '@/lib/seo/metadata';
 import { DEMO_SHARE_CARD } from '@/lib/seo/share-cards';
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
 
 export const metadata: Metadata = marketingMetadata({
   path: '/demo',
@@ -21,11 +22,12 @@ export const metadata: Metadata = marketingMetadata({
 });
 
 export default function InteractiveDemoPage() {
+  const demoHref = interactiveDemoHref();
   return (
     <div className="min-h-dvh bg-[#f8fafc] text-slate-900">
-      <LandingNav />
+      <LandingNav demoHref={demoHref} />
       <InteractiveDemoMain />
-      <SiteFooter />
+      <SiteFooter demoHref={demoHref} />
     </div>
   );
 }

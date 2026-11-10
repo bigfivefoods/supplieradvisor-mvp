@@ -1,5 +1,3 @@
-'use client';
-
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -10,6 +8,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import SiteFooter from '@/components/marketing/SiteFooter';
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
 
 const LANES = [
   {
@@ -55,6 +54,7 @@ const LANES = [
  * Only three first choices: B2C member · B2B business · B2G government.
  */
 export default function JoinPage() {
+  const demoHref = interactiveDemoHref();
   return (
     <div className="min-h-screen bg-[#f8fafc]">
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -146,7 +146,7 @@ export default function JoinPage() {
           same login opens SA Member and any companies you operate.
         </p>
       </div>
-      <SiteFooter />
+      <SiteFooter demoHref={demoHref} />
     </div>
   );
 }

@@ -876,7 +876,13 @@ function DeferredProductMock({
   );
 }
 
-export default function HomeBelowFold() {
+export default function HomeBelowFold({
+  tourHref,
+  demoHref,
+}: {
+  tourHref: string;
+  demoHref: string;
+}) {
   const [activeModule, setActiveModule] = useState(0);
   const heroModules = MODULES;
 
@@ -892,7 +898,7 @@ export default function HomeBelowFold() {
 
   return (
     <>
-      <ProductVideo />
+      <ProductVideo tourHref={tourHref} />
 
       {/* ═══════════ B2B · B2G · B2C ═══════════ */}
       <section
@@ -1228,7 +1234,7 @@ export default function HomeBelowFold() {
 
       <SocialProofStrip />
 
-      <ReplaceStackDiagram />
+      <ReplaceStackDiagram tourHref={tourHref} />
 
       {/* ═══════════ SYSTEMS GRID ═══════════ */}
       <section id="systems" className="relative sa-anchor border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
@@ -1468,7 +1474,7 @@ export default function HomeBelowFold() {
                       opt.specialist
                         ? opt.id === 'government'
                           ? 'mailto:hello@supplieradvisor.com?subject=Government%20setup%20%E2%80%94%20SupplierAdvisor'
-                          : '/demo'
+                          : demoHref
                         : opt.href
                     }
                     className={`mt-6 inline-flex items-center gap-1.5 text-sm font-bold ${ctaTone}`}
@@ -1945,7 +1951,7 @@ export default function HomeBelowFold() {
 
       <SecurityStrip />
 
-      <SuperCubeStory />
+      <SuperCubeStory demoHref={demoHref} />
 
       {/* ═══════════ PRICING + REFERRAL (same site) ═══════════ */}
       <HomePricing />

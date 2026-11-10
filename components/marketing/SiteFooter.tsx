@@ -57,6 +57,11 @@ const GROUP_LABEL_KEY_BY_LABEL: Record<string, string> = {
   Group: 'footer.group.group',
 };
 
+function linkLabelKey(link: FooterLink): string | undefined {
+  if (link.label === 'Interactive demo') return 'footer.link.demo';
+  return LINK_KEY_BY_HREF[link.href];
+}
+
 function FooterNav({
   title,
   children,
@@ -74,7 +79,8 @@ function FooterNav({
 
 function FooterLinkItem({ href, label }: FooterLink) {
   const { locale, t } = useLocaleDictionary();
-  const localizedLabel = LINK_KEY_BY_HREF[href] ? t(LINK_KEY_BY_HREF[href]) : label;
+  const labelKey = linkLabelKey({ href, label });
+  const localizedLabel = labelKey ? t(labelKey) : label;
 
   let nextHref = href;
   let hrefLang: string | undefined;
@@ -154,16 +160,22 @@ function GroupedNav({
   );
 }
 
-export default function SiteFooter() {
+export default function SiteFooter({ demoHref }: { demoHref: string }) {
   const { t } = useLocaleDictionary();
   const localizedGroupTitle = (label: string) => {
     const key = GROUP_LABEL_KEY_BY_LABEL[label];
     return key ? t(key) : label;
   };
   const localizedLabel = (link: FooterLink) => {
-    const key = LINK_KEY_BY_HREF[link.href];
+    const key = linkLabelKey(link);
     return key ? t(key) : link.label;
   };
+  const exploreGroups = FOOTER_EXPLORE_GROUPS.map((group) => ({
+    ...group,
+    links: group.links.map((link) =>
+      link.label === 'Interactive demo' ? { ...link, href: demoHref } : link
+    ),
+  }));
   return (
     <footer className="bg-[#f3f4f6] text-black dark:bg-neutral-950">
       <div className="max-w-7xl 2xl:max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-[max(2rem,env(safe-area-inset-bottom))]">
@@ -241,7 +253,7 @@ export default function SiteFooter() {
             </div>
             <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-6 lg:gap-10">
               <nav className="min-w-0 space-y-8" aria-label={t('footer.explore')}>
-                {FOOTER_EXPLORE_GROUPS.map((group) => (
+                {exploreGroups.map((group) => (
                   <FooterNav key={group.label} title={localizedGroupTitle(group.label)}>
                     <SimpleNav links={group.links} />
                   </FooterNav>

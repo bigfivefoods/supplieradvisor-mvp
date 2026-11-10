@@ -56,7 +56,7 @@ export const FOOTER_EXPLORE_GROUPS: FooterLinkGroup[] = [
     links: [
       { label: 'Pricing', href: '/pricing' },
       { label: 'ROI calculator', href: '/#roi' },
-      { label: 'Interactive demo', href: '/demo' },
+      { label: 'Interactive demo', href: '/join#interactive-demo' },
       { label: 'Start free trial', href: '/onboarding?lane=b2b' },
       { label: 'Join as business', href: '/join' },
       { label: 'Log in', href: '/login' },

@@ -12,6 +12,7 @@ import {
 } from '@/lib/marketing/pricing-plans';
 import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/config';
 import { en, format, t, type Dict } from '@/lib/i18n/dict';
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
 
 export default function PricingContent({
   locale = DEFAULT_LOCALE,
@@ -22,6 +23,7 @@ export default function PricingContent({
   dict?: Dict;
   companyProfileHref?: string;
 }) {
+  const demoHref = interactiveDemoHref();
   const tierLabel = (id: string) =>
     id === 'monthly'
       ? t(dict, 'pricing.tier.monthly')
@@ -118,7 +120,7 @@ export default function PricingContent({
                 {t(dict, 'pricing.ctaTrial')}
               </Link>
               <Link
-                href="/demo"
+                href={demoHref}
                 hrefLang="en"
                 className="rounded-xl border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
               >
@@ -215,7 +217,7 @@ export default function PricingContent({
           </div>
         </section>
       </main>
-      <SiteFooter />
+      <SiteFooter demoHref={demoHref} />
     </>
   );
 }

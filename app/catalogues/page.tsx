@@ -5,6 +5,7 @@ import SiteFooter from '@/components/marketing/SiteFooter';
 import { CatalogueGrid } from '@/components/catalogues/CatalogueGrid';
 import { marketingMetadata } from '@/lib/seo/metadata';
 import { HOME_SHARE_CARD } from '@/lib/seo/share-cards';
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
 
 export const metadata: Metadata = marketingMetadata({
   path: '/catalogues',
@@ -15,9 +16,10 @@ export const metadata: Metadata = marketingMetadata({
 });
 
 export default function CataloguesPage() {
+  const demoHref = interactiveDemoHref();
   return (
     <div className="min-h-dvh bg-[#f8fafc] text-slate-900">
-      <LandingNav />
+      <LandingNav demoHref={demoHref} />
       <main className="mx-auto max-w-screen-2xl px-4 py-16 sm:px-6 lg:px-10">
         <nav aria-label="Breadcrumb" className="text-sm text-slate-500">
           <Link href="/" className="font-semibold text-[#0077b6] hover:underline">
@@ -34,7 +36,7 @@ export default function CataloguesPage() {
           <CatalogueGrid groups />
         </div>
       </main>
-      <SiteFooter />
+      <SiteFooter demoHref={demoHref} />
     </div>
   );
 }

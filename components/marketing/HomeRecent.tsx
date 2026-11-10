@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useLocaleDictionary } from '@/components/i18n/LocaleDictionaryProvider';
 import { localizedPath } from '@/lib/i18n/config';
 import { format } from '@/lib/i18n/dict';
-import { productTourHref } from '@/lib/preview/product-tour';
 import {
   CORE_OS_MONTHLY_ZAR,
   INDUSTRY_PACK_MONTHLY_ZAR,
@@ -86,10 +85,9 @@ const TRADE_POINTS = [
  * Below-fold showcase. Loaded with ssr:false from HomeBelowFoldLazy so it
  * stays out of the first HTML and the hero bundle.
  */
-export default function HomeRecent() {
+export default function HomeRecent({ tourHref }: { tourHref: string }) {
   const { locale, t } = useLocaleDictionary();
   const prices = { core: CORE_OS_MONTHLY_ZAR, pack: INDUSTRY_PACK_MONTHLY_ZAR };
-  const tourHref = productTourHref('dashboard', locale);
 
   return (
     <>
