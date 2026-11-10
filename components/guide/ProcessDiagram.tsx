@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react';
 import {
   ArrowLeftRight,
   Ban,
@@ -52,26 +52,28 @@ import {
   Users,
   Wallet,
   Warehouse,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import {
   DESKTOP_FLOW_WIDTH,
   branchDetails,
-  estimateDetailHeight,
   collapseAllStages,
+  bookLines,
   edgesWithin,
   estimateNodeHeight,
   expandAllStages,
   flowLanes,
   flowStages,
   initialOpenStages,
-  FLOW_LAYOUT,
   layoutFlow,
   needsFlowStages,
   readingOrder,
   resolveEdges,
   stepNumbers,
   toggleId,
+  toggleOpenNode,
+  whoChips,
   type FlowLayout,
   type FlowStageGroup,
 } from '@/lib/help/flow-model';
@@ -136,12 +138,14 @@ type ExpandState = {
   expandable: boolean;
   open: ReadonlySet<string>;
   toggle: (id: string) => void;
+  close: () => void;
 };
 
 const ExpandCtx = createContext<ExpandState>({
   expandable: false,
   open: new Set<string>(),
   toggle: () => {},
+  close: () => {},
 });
 
 /** Module how-to path. Feature links are `${guideHref}#guide-${anchor}`. */
@@ -237,81 +241,161 @@ function StepFace({
   );
 }
 
-function NodeDetail({
+function statusChip(node: GuideNode): string | null {
+  if (node.kind === 'decision') return 'Decision';
+  if (!node.status) return node.hint ?? null;
+  const first = node.status.split('.')[0]?.trim() || node.status;
+  return first.length > 48 ? node.hint || first.slice(0, 48) : first;
+}
+
+function ledgerLines(node: GuideNode): string[] {
+  const source = node.posts || node.books || '';
+  if (!source) return [];
+  return bookLines(source);
+}
+
+function StepDetailCard({
   node,
+  number,
   edges,
   nodes,
-  detailId,
+  cardId,
+  cardRef,
 }: {
   node: GuideNode;
+  number?: number;
   edges: GuideEdge[];
   nodes: GuideNode[];
-  detailId: string;
+  cardId: string;
+  cardRef?: Ref<HTMLElement>;
 }) {
-  const branches = node.kind === 'decision' ? branchDetails(node, edges, nodes) : [];
-  const does = node.does || node.hint;
-  const who = node.who || node.lane;
+  const expand = useContext(ExpandCtx);
   const guideHref = useContext(GuideHrefCtx);
+  const Icon = node.icon ? ICONS[node.icon] : GitBranch;
+  const does = node.does || node.hint;
+  const chips = whoChips(node);
+  const lines = ledgerLines(node);
+  const branches = node.kind === 'decision' ? branchDetails(node, edges, nodes) : [];
+  const chip = statusChip(node);
   return (
-    <div id={detailId} className="sa-flow-detail space-y-1.5 border-t border-cyan-100 px-3 py-2 text-[11px] leading-snug text-slate-700">
-      {does ? (
-        <p>
-          <span className="font-bold text-slate-900">What you do. </span>
-          {does}
-        </p>
-      ) : null}
-      {who ? (
-        <p>
-          <span className="font-bold text-slate-900">Who. </span>
-          {who}
-        </p>
-      ) : null}
-      {node.posts ? (
-        <p>
-          <span className="font-bold text-slate-900">Posted. </span>
-          {node.posts}
-        </p>
-      ) : null}
-      {node.status ? (
-        <p>
-          <span className="font-bold text-slate-900">Status. </span>
-          {node.status}
-        </p>
-      ) : null}
-      {!node.posts && !node.status && node.books ? (
-        <p>
-          <span className="font-bold text-slate-900">In the books. </span>
-          {node.books}
-        </p>
-      ) : null}
-      {branches.length > 0 ? (
-        <div>
-          <p className="font-bold text-slate-900">Branches.</p>
-          <ul className="mt-1 space-y-1">
-            {branches.map((branch) => (
-              <li key={`${branch.label}-${branch.target}`}>
-                <span className="font-bold text-[#0077b6]">{branch.label}. </span>
-                {branch.target}
-                {branch.outcome ? `. ${branch.outcome}` : ''}
-              </li>
-            ))}
-          </ul>
+    <article
+      id={cardId}
+      ref={cardRef}
+      tabIndex={-1}
+      data-flow-card={node.id}
+      className="sa-flow-card relative rounded-2xl border border-slate-200 shadow-lg outline-none"
+    >
+      <header className="flex items-start gap-3 border-b border-slate-100 px-4 py-3">
+        <span className="pt-1 text-xs font-black tracking-wide text-[#00b4d8]">{number ? pad(number) : '◆'}</span>
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#00b4d8]/10 text-[#00b4d8]">
+          <Icon className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1 pt-1">
+          <h3 className="text-base font-black leading-snug text-slate-900">{node.label}</h3>
+          {chip ? (
+            <span className="mt-1 inline-flex max-w-full rounded-full bg-[#00b4d8]/10 px-2 py-1 text-xs font-bold leading-snug text-[#0077b6]">
+              {chip}
+            </span>
+          ) : null}
         </div>
-      ) : null}
-      {node.anchor ? (
-        <a
-          href={featureHref(node.anchor, guideHref)}
-          className={`inline-flex font-bold text-[#0077b6] underline-offset-2 hover:underline ${FOCUS}`}
-          onClick={(event) => {
-            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-            event.preventDefault();
-            openFeature(node.anchor as string);
-          }}
+        <button
+          type="button"
+          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900 ${FOCUS}`}
+          aria-label={`Close ${node.label}`}
+          onClick={() => expand.close()}
         >
-          Open this part of the guide
-        </a>
-      ) : null}
-    </div>
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      </header>
+      <div className="space-y-4 px-4 py-4 text-[15px] leading-relaxed text-slate-800">
+        {does ? (
+          <div className="flex gap-3">
+            <ListChecks className="mt-1 h-4 w-4 shrink-0 text-[#00b4d8]" aria-hidden />
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">What to do</p>
+              <p className="mt-1">{does}</p>
+            </div>
+          </div>
+        ) : null}
+        {chips.length > 0 ? (
+          <div className="flex gap-3">
+            <Users className="mt-1 h-4 w-4 shrink-0 text-[#00b4d8]" aria-hidden />
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Who</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {chips.map((role) => (
+                  <span key={role} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-sm font-bold text-slate-800">
+                    {role}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {lines.length > 0 ? (
+          <div className="flex gap-3">
+            <BookOpen className="mt-1 h-4 w-4 shrink-0 text-[#00b4d8]" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">In the books</p>
+              <ul className="mt-2 space-y-1">
+                {lines.map((line) => (
+                  <li key={line} className={/\b(Dr|Cr)\b|\b\d{4}\b/.test(line) ? 'font-mono text-[14px] leading-relaxed' : ''}>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+        {node.status ? (
+          <div className="flex gap-3">
+            <ArrowLeftRight className="mt-1 h-4 w-4 shrink-0 text-[#00b4d8]" aria-hidden />
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Status change</p>
+              <p className="mt-1">{node.status}</p>
+            </div>
+          </div>
+        ) : null}
+        {branches.length > 0 ? (
+          <div className="flex gap-3">
+            <GitBranch className="mt-1 h-4 w-4 shrink-0 text-[#00b4d8]" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Branches</p>
+              <ul className="mt-2 space-y-2">
+                {branches.map((branch) => (
+                  <li key={`${branch.label}-${branch.target}`}>
+                    <span className="font-bold text-[#0077b6]">{branch.label}</span>
+                    <span> → {branch.target}</span>
+                    {branch.outcome ? (
+                      <ul className="mt-1 space-y-1">
+                        {bookLines(branch.outcome).map((line) => (
+                          <li key={line} className={/\b(Dr|Cr)\b|\b\d{4}\b/.test(line) ? 'font-mono text-[14px] leading-relaxed' : 'text-slate-700'}>
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+        {node.anchor ? (
+          <a
+            href={featureHref(node.anchor, guideHref)}
+            className={`inline-flex min-h-11 items-center rounded-xl bg-[#00b4d8] px-4 text-sm font-bold text-white ${FOCUS}`}
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              openFeature(node.anchor as string);
+            }}
+          >
+            Open this part of the guide
+          </a>
+        ) : null}
+      </div>
+    </article>
   );
 }
 
@@ -322,6 +406,8 @@ function Hit({
   byId,
   className,
   style,
+  buttonId,
+  controlsId,
   children,
 }: {
   node: GuideNode;
@@ -330,6 +416,8 @@ function Hit({
   byId: Map<string, GuideNode>;
   className: string;
   style?: CSSProperties;
+  buttonId?: string;
+  controlsId?: string;
   children: ReactNode;
 }) {
   const label = ariaLabel(node, number, edges, byId);
@@ -337,14 +425,14 @@ function Hit({
   const guideHref = useContext(GuideHrefCtx);
   if (expand.expandable) {
     const open = expand.open.has(node.id);
-    const detailId = `flow-detail-${node.id}`;
     return (
       <button
         type="button"
+        id={buttonId}
         className={className}
         style={style}
         aria-expanded={open}
-        aria-controls={detailId}
+        aria-controls={controlsId}
         aria-label={open ? `Collapse ${node.label}` : `Expand ${node.label}. ${label}`}
         onClick={() => expand.toggle(node.id)}
       >
@@ -419,16 +507,9 @@ function DiagramCanvas({
       edges,
       width: DESKTOP_FLOW_WIDTH,
       heights: Object.fromEntries(
-        nodes.map((node) => {
-          const open = expand.expandable && expand.open.has(node.id);
-          const base =
-            node.kind === 'decision'
-              ? FLOW_LAYOUT.decisionSize
-              : estimateNodeHeight(node, showLane, expand.expandable);
-          const extra = open ? estimateDetailHeight(node, edges ?? [], nodes) : 0;
-          if (node.kind === 'decision' && !extra) return [node.id, 0];
-          return [node.id, base + extra];
-        }).filter((entry) => Number(entry[1]) > 0)
+        nodes
+          .filter((node) => node.kind !== 'decision')
+          .map((node) => [node.id, estimateNodeHeight(node, showLane, expand.expandable)])
       ),
     })
   );
@@ -549,9 +630,6 @@ function DiagramCanvas({
                   chevron={expand.expandable}
                 />
               )}
-              {expand.expandable && expand.open.has(node.id) ? (
-                <NodeDetail node={node} edges={resolved} nodes={nodes} detailId={`${rawId}-m-${node.id}`} />
-              ) : null}
             </div>
           )
         )}
@@ -572,6 +650,7 @@ function DiagramCanvas({
             ordered={ordered}
           />
         ) : null}
+        {layout ? <DesktopDetail layout={layout} nodes={nodes} edges={resolved} numbers={numbers} /> : null}
       </div>
     </section>
   );
@@ -592,11 +671,60 @@ function NodeFrame({
 }) {
   const expand = useContext(ExpandCtx);
   if (!expand.expandable) return <>{children}</>;
-  const open = expand.open.has(node.id);
+  return <div className={className}>{children}</div>;
+}
+
+function focusNode(id: string) {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+  const wide = window.matchMedia('(min-width: 768px)').matches;
+  document.getElementById(wide ? `flow-node-${id}` : `flow-node-${id}-m`)?.focus();
+}
+
+function MobileDetail({
+  node,
+  number,
+  edges,
+  nodes,
+}: {
+  node: GuideNode;
+  number?: number;
+  edges: GuideEdge[];
+  nodes: GuideNode[];
+}) {
+  const expand = useContext(ExpandCtx);
+  if (!expand.expandable || !expand.open.has(node.id)) return null;
   return (
-    <div className={`flex flex-col ${className ?? ''}`}>
-      {children}
-      {open ? <NodeDetail node={node} edges={edges} nodes={nodes} detailId={`flow-detail-${node.id}`} /> : null}
+    <div className="mt-3">
+      <StepDetailCard node={node} number={number} edges={edges} nodes={nodes} cardId={`flow-detail-${node.id}-m`} />
+    </div>
+  );
+}
+
+function DesktopDetail({
+  layout,
+  nodes,
+  edges,
+  numbers,
+}: {
+  layout: FlowLayout;
+  nodes: GuideNode[];
+  edges: GuideEdge[];
+  numbers: Map<string, number>;
+}) {
+  const expand = useContext(ExpandCtx);
+  const openId = [...expand.open][0];
+  const node = nodes.find((item) => item.id === openId);
+  const box = layout.boxes.find((item) => item.id === openId);
+  if (!expand.expandable || !node || !box) return null;
+  const cardW = Math.min(460, Math.max(280, layout.width - 8));
+  const left = Math.max(0, Math.min(box.x + box.w / 2 - cardW / 2, layout.width - cardW));
+  const caret = Math.max(18, Math.min(box.x + box.w / 2 - left - 7, cardW - 32));
+  return (
+    <div className="relative z-50 mt-1 hidden pt-3 md:block">
+      <span className="sa-flow-caret" style={{ left: left + caret }} aria-hidden />
+      <div style={{ marginLeft: left, width: cardW, maxWidth: '100%' }}>
+        <StepDetailCard node={node} number={numbers.get(node.id)} edges={edges} nodes={nodes} cardId={`flow-detail-${node.id}`} />
+      </div>
     </div>
   );
 }
@@ -640,6 +768,8 @@ function MobileTimeline({
                     node={node}
                     edges={edges}
                     byId={byId}
+                    buttonId={`flow-node-${node.id}-m`}
+                    controlsId={`flow-detail-${node.id}-m`}
                     className={`sa-flow-node sa-flow-hit relative mx-auto block h-[124px] w-[124px] ${FOCUS}`}
                     style={delay}
                   >
@@ -651,6 +781,8 @@ function MobileTimeline({
                     number={numbers.get(node.id)}
                     edges={edges}
                     byId={byId}
+                    buttonId={`flow-node-${node.id}-m`}
+                    controlsId={`flow-detail-${node.id}-m`}
                     className={`${cardClass} sa-flow-node ${FOCUS}`}
                     style={delay}
                   >
@@ -659,6 +791,7 @@ function MobileTimeline({
                 )}
               </NodeFrame>
               {node.lane ? <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#0077b6]">{node.lane}</p> : null}
+              <MobileDetail node={node} number={numbers.get(node.id)} edges={edges} nodes={ordered} />
               {returns.map((edge) => (
                 <p key={`${edge.to}-${edge.label ?? ''}`} className="mt-1 text-[11px] font-semibold text-[#0077b6]">
                   ↩ {edge.label ? `${edge.label} → ` : ''}
@@ -754,7 +887,14 @@ function DesktopCanvas({
           <div key={node.id} className="sa-flow-node absolute z-40" style={{ left: box.x, top: box.y, width: box.w, height: box.h, ...delay }}>
             <NodeFrame node={node} edges={edges} nodes={nodes} className="h-full">
               {node.kind === 'decision' ? (
-                <Hit node={node} edges={edges} byId={byId} className={`relative mx-auto block h-[124px] w-[124px] ${FOCUS}`}>
+                <Hit
+                  node={node}
+                  edges={edges}
+                  byId={byId}
+                  buttonId={`flow-node-${node.id}`}
+                  controlsId={`flow-detail-${node.id}`}
+                  className={`relative mx-auto block h-[124px] w-[124px] ${FOCUS}`}
+                >
                   <Diamond label={node.label} gradientId={gradientId} />
                 </Hit>
               ) : (
@@ -763,6 +903,8 @@ function DesktopCanvas({
                   number={numbers.get(node.id)}
                   edges={edges}
                   byId={byId}
+                  buttonId={`flow-node-${node.id}`}
+                  controlsId={`flow-detail-${node.id}`}
                   className={`sa-flow-hit block w-full rounded-2xl border text-left shadow-sm ${FOCUS} ${tone}`}
                 >
                   <StepFace node={node} number={numbers.get(node.id)} showLane={layout.showLanes} chevron />
@@ -785,6 +927,26 @@ const FLOW_CSS = `
 .sa-flow-hit:hover { border-color: #00b4d8; box-shadow: 0 10px 24px -16px rgba(0, 180, 216, 0.9); }
 .sa-flow-diamond { stroke: #00b4d8; }
 html.dark .sa-flow-diamond { fill: #121820; }
+.sa-flow-card { background: #fff; color: #0f172a; border-top: 3px solid #00b4d8; }
+.sa-flow-caret {
+  position: absolute;
+  top: 5px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-left: 1px solid #e2e8f0;
+  border-top: 1px solid #e2e8f0;
+  transform: rotate(45deg);
+}
+html.dark .sa-flow-card { background: #121820; color: #f8fafc; border-color: #2a2a2a; border-top-color: #00b4d8; }
+html.dark .sa-flow-caret { background: #121820; border-color: #2a2a2a; }
+html.dark .sa-flow-card .text-slate-900 { color: #f8fafc !important; }
+html.dark .sa-flow-card .text-slate-800,
+html.dark .sa-flow-card .text-slate-700 { color: #e5e5e5 !important; }
+html.dark .sa-flow-card .text-slate-500 { color: #a3a3a3 !important; }
+html.dark .sa-flow-card .border-slate-100,
+html.dark .sa-flow-card .border-slate-200 { border-color: #2a2a2a !important; }
+html.dark .sa-flow-card .bg-slate-50 { background: #0c1218 !important; }
 .sa-flow-chevron { transition: transform 0.2s ease; }
 .sa-flow-detail { animation: saFlowIn 0.35s ease both; }
 @media (prefers-reduced-motion: reduce) {
@@ -822,16 +984,47 @@ export function ProcessDiagram({
 }) {
   const staged = needsFlowStages(nodes);
   const stages = useMemo(() => flowStages(nodes), [nodes]);
-  const [openStages, setOpenStages] = useState<string[]>(() => initialOpenStages(stages));
-  const [openNodes, setOpenNodes] = useState<string[]>(initialOpenNodes);
+  const [openStages, setOpenStages] = useState<string[]>(() => {
+    const base = initialOpenStages(stages);
+    const id = initialOpenNodes[0];
+    if (!id) return base;
+    const stage = stages.find((item) => item.nodes.some((node) => node.id === id));
+    if (!stage || base.includes(stage.id)) return base;
+    return [...base, stage.id];
+  });
+  const [openId, setOpenId] = useState<string | null>(initialOpenNodes[0] ?? null);
   const expand = useMemo<ExpandState>(
     () => ({
       expandable: staged,
-      open: new Set(openNodes),
-      toggle: (id: string) => setOpenNodes((prev) => toggleId(prev, id)),
+      open: new Set(openId ? [openId] : []),
+      toggle: (id: string) =>
+        setOpenId((prev) => {
+          const next = toggleOpenNode(prev, id);
+          if (prev && next !== prev) queueMicrotask(() => focusNode(prev));
+          return next;
+        }),
+      close: () =>
+        setOpenId((prev) => {
+          if (prev) queueMicrotask(() => focusNode(prev));
+          return null;
+        }),
     }),
-    [staged, openNodes]
+    [staged, openId]
   );
+  useEffect(() => {
+    if (!openId) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      const id = openId;
+      setOpenId(null);
+      queueMicrotask(() => focusNode(id));
+    };
+    document.addEventListener('keydown', onKey);
+    const wide = window.matchMedia('(min-width: 768px)').matches;
+    document.getElementById(wide ? `flow-detail-${openId}` : `flow-detail-${openId}-m`)?.focus();
+    return () => document.removeEventListener('keydown', onKey);
+  }, [openId]);
   const canvas = !staged ? (
     <DiagramCanvas title={title} nodes={nodes} edges={edges} />
   ) : (

@@ -503,6 +503,27 @@ export function toggleId(open: readonly string[], id: string): string[] {
   return open.includes(id) ? open.filter((item) => item !== id) : [...open, id];
 }
 
+/** One detail card is open at a time. The same id closes it. */
+export function toggleOpenNode(current: string | null, id: string): string | null {
+  return current === id ? null : id;
+}
+
+export function bookLines(text: string): string[] {
+  return text
+    .split(/;\s*/)
+    .flatMap((part) => part.split(/,\s*(?=(?:Dr|Cr)\b)/))
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+export function whoChips(node: GuideNode): string[] {
+  const raw = node.who || node.lane || '';
+  return raw
+    .split(/\s*(?:·| and |,)\s*/i)
+    .map((chip) => chip.trim())
+    .filter(Boolean);
+}
+
 export function expandAllStages(stages: FlowStageGroup[]): string[] {
   return stages.map((stage) => stage.id);
 }

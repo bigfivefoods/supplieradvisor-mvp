@@ -19,7 +19,10 @@ import {
   missingStageIds,
   needsFlowStages,
   resolveEdges,
+  bookLines,
   toggleId,
+  toggleOpenNode,
+  whoChips,
 } from '@/lib/help/flow-model';
 
 for (const guide of MODULE_GUIDES) {
@@ -137,6 +140,15 @@ const branches = branchDetails(balanced, resolveEdges(finance.flow, finance.edge
 assert.ok(branches.length >= 2);
 assert.ok(branches.some((branch) => branch.label === 'Post'));
 assert.ok(branches.some((branch) => branch.label === 'Save draft'));
+
+assert.equal(toggleOpenNode(null, 'post'), 'post');
+assert.equal(toggleOpenNode('post', 'invoice'), 'invoice');
+assert.equal(toggleOpenNode('post', 'post'), null);
+assert.deepEqual(whoChips(post), ['Owner', 'Finance']);
+assert.ok(bookLines('Dr 1130, Cr 4100, Cr 2120').length >= 3);
+assert.match(post.does || '', /Post entry/);
+assert.match(post.posts || '', /Source manual/);
+assert.match(post.status || '', /posted/);
 
 const quality = getModuleGuide('quality');
 assert.ok(quality);
