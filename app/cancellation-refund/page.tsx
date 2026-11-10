@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft } from 'lucide-react';
 import SiteFooter from '@/components/marketing/SiteFooter';
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
 
 export const metadata = {
   title: 'Cancellation & Refund Policy',
@@ -19,6 +20,7 @@ export const metadata = {
 };
 
 export default function CancellationRefundPage() {
+  const demoHref = interactiveDemoHref();
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <header className="border-b border-slate-100 bg-white">
@@ -341,7 +343,7 @@ export default function CancellationRefundPage() {
           </Link>
         </div>
       </main>
-      <SiteFooter />
+      <SiteFooter demoHref={demoHref} />
     </div>
   );
 }

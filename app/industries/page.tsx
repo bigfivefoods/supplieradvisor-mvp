@@ -6,6 +6,7 @@ import { ArrowRight } from 'lucide-react';
 import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
 import SiteFooter from '@/components/marketing/SiteFooter';
 import { COMPANY_PROFILE_PDF } from '@/lib/marketing/company-profile';
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
 import { marketingMetadata } from '@/lib/seo/metadata';
 import { INDUSTRIES_SHARE_CARD } from '@/lib/seo/share-cards';
 
@@ -128,9 +129,10 @@ function Section({
 }
 
 export default function IndustriesIndexPage() {
+  const demoHref = interactiveDemoHref();
   return (
     <div className="min-h-dvh bg-[#f8fafc] text-slate-900">
-      <LandingNav />
+      <LandingNav demoHref={demoHref} />
       <main className="mx-auto max-w-screen-2xl px-4 py-16 sm:px-6 lg:px-10">
         <p className="sa-text-brand-on-light text-[11px] font-semibold uppercase tracking-[0.28em]">
           Industries
@@ -229,7 +231,7 @@ export default function IndustriesIndexPage() {
           </Link>
         </p>
       </main>
-      <SiteFooter />
+      <SiteFooter demoHref={demoHref} />
     </div>
   );
 }

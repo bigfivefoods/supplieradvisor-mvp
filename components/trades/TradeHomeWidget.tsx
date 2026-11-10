@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getSelectedCompanyId } from '@/lib/containers/company';
-import { fixturePublicHref } from '@/lib/preview/production-gate';
 import { formatZar } from '@/lib/trades/tradegraph';
 import { tradeReport, type Book } from '@/lib/trades/desk';
 
@@ -39,7 +38,7 @@ export function TradeHomeWidget() {
       <div className="mt-3 flex flex-wrap gap-2">
         <Link href="/dashboard/tradegraph" className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]">Open TradeAdvisor®</Link>
         <Link href="/dashboard/tradegraph/board?new=1" className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold">New job</Link>
-        <Link href={fixturePublicHref('/preview/tradegraph')} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold">Sample book</Link>
+        <Link href="/join" className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold">Sample book</Link>
       </div>
     </section>
   );

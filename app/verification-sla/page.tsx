@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ShieldCheck, Clock, CreditCard, RefreshCw, BadgeCheck } from 'lucide-react';
 import { SITE_URL } from '@/lib/seo/company-public';
 import SiteFooter from '@/components/marketing/SiteFooter';
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
 
 export const metadata: Metadata = {
   title: 'CIPC verification SLA',
@@ -55,6 +56,7 @@ const STEPS = [
 ] as const;
 
 export default function VerificationSlaPage() {
+  const demoHref = interactiveDemoHref();
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
@@ -208,7 +210,7 @@ export default function VerificationSlaPage() {
           </Link>
         </div>
       </main>
-      <SiteFooter />
+      <SiteFooter demoHref={demoHref} />
     </div>
   );
 }

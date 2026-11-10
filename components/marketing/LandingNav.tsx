@@ -23,7 +23,6 @@ import {
   realSection,
   revealAndScroll,
 } from '@/lib/marketing/home-section-scroll';
-import { interactiveDemoHref } from '@/lib/preview/production-gate';
 
 /**
  * Links follow the landing story top-to-bottom so the bar never jumps back up.
@@ -47,66 +46,6 @@ type NavLink = {
   href: string;
   group: 'product' | 'pricing' | 'try';
 };
-
-const LINKS: NavLink[] = [
-  {
-    id: 'product',
-    labelKey: 'nav.product',
-    section: 'video',
-    href: '/#video',
-    group: 'product',
-  },
-  {
-    id: 'member',
-    labelKey: 'nav.member',
-    section: 'member-app',
-    href: '/#member-app',
-    group: 'product',
-  },
-  {
-    id: 'why',
-    labelKey: 'nav.why',
-    section: 'why-join',
-    href: '/#why-join',
-    group: 'product',
-  },
-  {
-    id: 'modules',
-    labelKey: 'nav.modules',
-    section: 'modules',
-    href: '/#modules',
-    group: 'product',
-  },
-  {
-    id: 'how',
-    labelKey: 'nav.howFits',
-    section: 'packaging',
-    href: '/#packaging',
-    group: 'product',
-  },
-  {
-    id: 'pricing',
-    labelKey: 'nav.pricing',
-    section: 'pricing',
-    href: '/#pricing',
-    group: 'pricing',
-  },
-  {
-    id: 'roi',
-    labelKey: 'nav.roi',
-    section: 'roi',
-    href: '/#roi',
-    group: 'pricing',
-  },
-  {
-    id: 'industries',
-    labelKey: 'nav.industries',
-    section: 'industries',
-    href: '/#industries',
-    group: 'pricing',
-  },
-  { id: 'demo', labelKey: 'nav.demo', href: interactiveDemoHref(), group: 'try' },
-];
 
 const OVERFLOW_PRIORITY: NavLink['id'][] = [
   'demo',
@@ -164,7 +103,66 @@ function mobileLinkClass(active: boolean) {
   ].join(' ');
 }
 
-export default function LandingNav() {
+export default function LandingNav({ demoHref }: { demoHref: string }) {
+  const LINKS: NavLink[] = [
+    {
+      id: 'product',
+      labelKey: 'nav.product',
+      section: 'video',
+      href: '/#video',
+      group: 'product',
+    },
+    {
+      id: 'member',
+      labelKey: 'nav.member',
+      section: 'member-app',
+      href: '/#member-app',
+      group: 'product',
+    },
+    {
+      id: 'why',
+      labelKey: 'nav.why',
+      section: 'why-join',
+      href: '/#why-join',
+      group: 'product',
+    },
+    {
+      id: 'modules',
+      labelKey: 'nav.modules',
+      section: 'modules',
+      href: '/#modules',
+      group: 'product',
+    },
+    {
+      id: 'how',
+      labelKey: 'nav.howFits',
+      section: 'packaging',
+      href: '/#packaging',
+      group: 'product',
+    },
+    {
+      id: 'pricing',
+      labelKey: 'nav.pricing',
+      section: 'pricing',
+      href: '/#pricing',
+      group: 'pricing',
+    },
+    {
+      id: 'roi',
+      labelKey: 'nav.roi',
+      section: 'roi',
+      href: '/#roi',
+      group: 'pricing',
+    },
+    {
+      id: 'industries',
+      labelKey: 'nav.industries',
+      section: 'industries',
+      href: '/#industries',
+      group: 'pricing',
+    },
+    { id: 'demo', labelKey: 'nav.demo', href: demoHref, group: 'try' },
+  ];
   const router = useRouter();
   const pathname = usePathname() || '/';
   const { locale, t } = useLocaleDictionary();

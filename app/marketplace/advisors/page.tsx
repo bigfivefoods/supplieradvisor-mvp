@@ -184,7 +184,7 @@ export default function AdvisorMarketplacePage() {
           </ul>
         )}
       </div>
-      <SiteFooter />
+      <SiteFooter demoHref="/join" />
     </div>
   );
 }

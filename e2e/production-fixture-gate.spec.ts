@@ -18,6 +18,18 @@ test.describe('Production fixture-route gate coverage', () => {
     }
   });
 
+  test('hydrated public pages keep live href targets', async ({ page }) => {
+    for (const path of PUBLIC_PAGES) {
+      await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
+      const fixtureHrefs = await page.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLAnchorElement>('a'))
+          .map((node) => node.getAttribute('href') || '')
+          .filter((href) => href === '/demo' || href.startsWith('/preview/'))
+      );
+      expect(fixtureHrefs, `${path} should not hydrate to fixture hrefs`).toEqual([]);
+    }
+  });
+
   test('tour/demo CTAs resolve to live 200 pages', async ({ page, request }) => {
     await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
     const hrefs = await page.evaluate(() => {

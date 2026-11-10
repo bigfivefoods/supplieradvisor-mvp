@@ -129,7 +129,7 @@ assert.doesNotMatch(
 );
 
 const homeLanding = readFileSync(resolve(root, 'components/marketing/HomeLanding.tsx'), 'utf8');
-assert.match(homeLanding, /<SiteFooter\s*\/>/, 'home landing should render the footer in server HTML');
+assert.match(homeLanding, /<SiteFooter\b/, 'home landing should render the footer in server HTML');
 const footerAfterLazy = homeLanding.indexOf('<SiteFooter');
 const lazyAt = homeLanding.indexOf('<HomeBelowFoldLazy');
 assert.ok(lazyAt >= 0 && footerAfterLazy > lazyAt, 'footer should sit outside the below-fold island');

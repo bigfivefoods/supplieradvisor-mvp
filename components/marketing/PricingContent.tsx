@@ -23,6 +23,7 @@ export default function PricingContent({
   dict?: Dict;
   companyProfileHref?: string;
 }) {
+  const demoHref = interactiveDemoHref();
   const tierLabel = (id: string) =>
     id === 'monthly'
       ? t(dict, 'pricing.tier.monthly')
@@ -119,7 +120,7 @@ export default function PricingContent({
                 {t(dict, 'pricing.ctaTrial')}
               </Link>
               <Link
-                href={interactiveDemoHref()}
+                href={demoHref}
                 hrefLang="en"
                 className="rounded-xl border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
               >
@@ -216,7 +217,7 @@ export default function PricingContent({
           </div>
         </section>
       </main>
-      <SiteFooter />
+      <SiteFooter demoHref={demoHref} />
     </>
   );
 }

@@ -42,7 +42,13 @@ function AnchorPlaceholders({ pending }: { pending: readonly string[] }) {
   );
 }
 
-export default function HomeBelowFoldLazy() {
+export default function HomeBelowFoldLazy({
+  tourHref,
+  demoHref,
+}: {
+  tourHref: string;
+  demoHref: string;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [show, setShow] = useState(false);
@@ -106,14 +112,14 @@ export default function HomeBelowFoldLazy() {
   return (
     <div ref={rootRef} data-home-below-fold="">
       <AnchorPlaceholders pending={pendingAnchors} />
-      {show ? <HomeRecent /> : null}
+      {show ? <HomeRecent tourHref={tourHref} /> : null}
       {englishBelow ? (
         <p className="mx-auto max-w-screen-2xl px-4 py-2 text-xs font-semibold text-slate-600 sm:px-6 lg:px-10">
           {t('notice.englishOnlySection')}
         </p>
       ) : null}
       <div ref={sentinelRef} lang={englishBelow ? 'en' : undefined} dir={englishBelow ? 'ltr' : undefined}>
-        {show ? <HomeBelowFold /> : null}
+        {show ? <HomeBelowFold tourHref={tourHref} demoHref={demoHref} /> : null}
       </div>
     </div>
   );

@@ -2,13 +2,12 @@
 
 import Link from 'next/link';
 import { Play, ArrowRight } from 'lucide-react';
-import { productTourHref } from '@/lib/preview/product-tour';
 
 /**
  * Product story block — animated “video” panel until a real host is added.
  * CTA deep-links to interactive demo.
  */
-export default function ProductVideo() {
+export default function ProductVideo({ tourHref }: { tourHref: string }) {
   return (
     <section
       id="video"
@@ -39,7 +38,7 @@ export default function ProductVideo() {
             <div className="absolute inset-0 opacity-30 bg-[linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[size:32px_32px]" />
             <div className="relative flex h-full flex-col items-center justify-center p-8 text-center">
               <Link
-                href={productTourHref('dashboard')}
+                href={tourHref}
                 className="group mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#00b4d8] shadow-lg transition-transform hover:scale-105 sm:h-20 sm:w-20"
                 aria-label="Start the SupplierAdvisor® guided tour"
               >
@@ -70,7 +69,7 @@ export default function ProductVideo() {
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link
-            href={productTourHref('dashboard')}
+            href={tourHref}
             className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-[#0f172a] hover:brightness-95"
           >
             <Play className="h-4 w-4 fill-current" />

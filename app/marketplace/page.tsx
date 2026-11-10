@@ -192,7 +192,7 @@ export default function PublicMarketplacePage() {
           </div>
         )}
       </main>
-      <SiteFooter />
+      <SiteFooter demoHref="/join" />
     </div>
   );
 }
