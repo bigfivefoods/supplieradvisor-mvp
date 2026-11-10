@@ -1569,6 +1569,134 @@ html.sa-smooth-scroll {
    COMPONENT STYLES — light default, dark-aware
    ============================================ */
 @layer components {
+  .sa-home-sec {
+    @apply border-t border-slate-200 px-4 sm:px-6 lg:px-10;
+  }
+  .sa-home-sec-white {
+    @apply bg-white py-12 sm:py-14;
+  }
+  .sa-home-sec-muted {
+    @apply bg-[#f8fafc] py-12 sm:py-14;
+  }
+  .sa-home-sec-tight {
+    @apply bg-white py-6 sm:py-8;
+  }
+  .sa-home-wrap {
+    @apply mx-auto max-w-screen-2xl;
+  }
+  .sa-home-h2 {
+    @apply text-3xl font-black tracking-tight text-slate-900 sm:text-4xl;
+  }
+  .sa-home-link {
+    @apply mt-5 inline-flex font-semibold text-[#0077b6] underline underline-offset-4;
+  }
+  .sa-home-card {
+    @apply flex h-full flex-col rounded-3xl border border-slate-200 bg-white p-6;
+  }
+  .sa-home-card-title {
+    @apply text-xl font-black text-slate-900;
+  }
+  .sa-home-card-body {
+    @apply mt-3 text-sm leading-relaxed text-slate-600;
+  }
+  .sa-home-bullets {
+    @apply mt-4 space-y-2 text-sm text-slate-700;
+  }
+  .sa-home-module {
+    @apply rounded-2xl border border-slate-200 bg-slate-50 p-6;
+  }
+  .sa-home-module-title {
+    @apply text-lg font-black text-slate-900;
+  }
+  .sa-home-module-body {
+    @apply mt-2 text-sm text-slate-600;
+  }
+  .sa-home-proof {
+    @apply rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 sm:px-6;
+  }
+  .sa-home-proof-grid {
+    @apply grid gap-3 text-sm font-semibold text-slate-700 sm:grid-cols-2 lg:grid-cols-4;
+  }
+  .sa-home-proof-item {
+    @apply inline-flex items-center gap-1.5;
+  }
+  .sa-home-cta {
+    @apply rounded-3xl border border-slate-200 bg-white p-6 sm:p-8;
+  }
+  .sa-home-btn {
+    @apply inline-flex min-h-12 items-center justify-center rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-[#0f172a] hover:brightness-95;
+  }
+  .sa-home-btn-ghost {
+    @apply inline-flex min-h-12 items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-bold text-slate-900;
+  }
+  .sa-footer-link {
+    @apply block min-h-6 text-sm leading-snug text-[#6b7280] transition-colors hover:text-[#0077b6];
+  }
+  .sa-footer-contact-link {
+    @apply flex min-h-6 items-center gap-2 text-[#6b7280] hover:text-[#0077b6];
+  }
+  .sa-footer-social-link {
+    @apply inline-flex h-11 w-11 items-center justify-center rounded-full text-black transition-opacity hover:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0077b6];
+  }
+  html.dark .sa-home-sec {
+    border-color: rgb(38 38 38 / 1);
+  }
+  html.dark .sa-home-sec-white {
+    background-color: rgb(10 10 10 / 1);
+  }
+  html.dark .sa-home-sec-muted {
+    background-color: rgb(0 0 0 / 1);
+  }
+  html.dark .sa-home-h2,
+  html.dark .sa-home-card-title,
+  html.dark .sa-home-module-title {
+    @apply text-white;
+  }
+  html.dark .sa-home-card {
+    border-color: rgb(38 38 38 / 1);
+    background-color: rgb(10 10 10 / 1);
+  }
+  html.dark .sa-home-card-body,
+  html.dark .sa-home-module-body {
+    color: rgb(212 212 212 / 1);
+  }
+  html.dark .sa-home-bullets,
+  html.dark .sa-home-proof-grid {
+    color: rgb(229 229 229 / 1);
+  }
+  html.dark .sa-home-module {
+    border-color: rgb(64 64 64 / 1);
+    background-color: rgb(23 23 23 / 1);
+  }
+  html.dark .sa-home-proof {
+    border-color: rgb(64 64 64 / 1);
+    background-color: rgb(23 23 23 / 1);
+  }
+  html.dark .sa-home-cta {
+    border-color: rgb(38 38 38 / 1);
+    background-color: rgb(10 10 10 / 1);
+  }
+  html.dark .sa-home-btn-ghost {
+    border-color: rgb(82 82 82 / 1);
+    background-color: rgb(23 23 23 / 1);
+    color: #fff;
+  }
+  html.dark .sa-footer-link {
+    color: rgb(203 213 225 / 1);
+  }
+  html.dark .sa-footer-link:hover {
+    color: #fff;
+  }
+  html.dark .sa-footer-contact-link {
+    color: rgb(203 213 225 / 1);
+  }
+  html.dark .sa-footer-contact-link:hover {
+    color: #fff;
+  }
+  html.dark .sa-footer-social-link {
+    color: #fff;
+  }
+
   .card {
     @apply rounded-3xl border p-6 sm:p-8;
     background-color: var(--sa-surface);

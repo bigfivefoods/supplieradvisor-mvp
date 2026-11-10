@@ -20,8 +20,7 @@ import {
 
 const sectionTitleClass = 'text-sm font-semibold text-slate-900 mb-4 dark:text-white';
 const groupLabelClass = 'text-xs font-medium text-[#737373] mb-2 dark:text-slate-400';
-const linkClass =
-  'block min-h-6 text-sm text-[#6b7280] hover:text-[#0077b6] transition-colors leading-snug dark:text-slate-300 dark:hover:text-white';
+const linkClass = 'sa-footer-link';
 
 const LINK_KEY_BY_HREF: Record<string, string> = {
   '/product': 'nav.product',
@@ -205,7 +204,7 @@ export default function SiteFooter({ demoHref }: { demoHref: string }) {
                   <a
                     key={social.href}
                     href={social.href}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-full text-black dark:text-white transition-opacity hover:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0077b6]"
+                    className="sa-footer-social-link"
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={social.label}
@@ -219,14 +218,14 @@ export default function SiteFooter({ demoHref }: { demoHref: string }) {
               <div className="mt-8 space-y-2.5 text-sm text-[#6b7280] dark:text-slate-300">
                 <a
                   href={FOOTER_CONTACT.email.href}
-                  className="flex min-h-6 items-center gap-2 hover:text-[#0077b6] dark:hover:text-white"
+                  className="sa-footer-contact-link"
                 >
                   <Mail className="w-4 h-4 shrink-0" />
                   <span className="break-all">{FOOTER_CONTACT.email.label}</span>
                 </a>
                 <a
                   href={FOOTER_CONTACT.phone.href}
-                  className="flex min-h-6 items-center gap-2 hover:text-[#0077b6] dark:hover:text-white"
+                  className="sa-footer-contact-link"
                 >
                   <Phone className="w-4 h-4 shrink-0" />
                   {FOOTER_CONTACT.phone.label}
@@ -235,7 +234,7 @@ export default function SiteFooter({ demoHref }: { demoHref: string }) {
                   href={FOOTER_CONTACT.whatsapp.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex min-h-6 items-center gap-2 hover:text-[#0077b6] dark:hover:text-white"
+                  className="sa-footer-contact-link"
                 >
                   <MessageCircle className="w-4 h-4 shrink-0" />
                   {t('footer.contact.whatsapp')}

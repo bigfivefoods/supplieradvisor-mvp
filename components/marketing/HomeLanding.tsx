@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { CheckCircle2 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
 import HeroAudienceStage from '@/components/marketing/HeroAudienceStage';
 import SiteFooter from '@/components/marketing/SiteFooter';
@@ -41,6 +42,44 @@ const MODULE_TILES = [
   { title: 'Bespoke', body: 'Specialist module combinations for unique operating requirements.' },
 ] as const;
 
+function HomeProofItem({ children }: { children: ReactNode }) {
+  return (
+    <p className="sa-home-proof-item">
+      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+      {children}
+    </p>
+  );
+}
+
+function HomeAudienceCard({ card }: { card: (typeof AUDIENCES)[number] }) {
+  return (
+    <article className="sa-home-card">
+      <h3 className="sa-home-card-title">{card.title}</h3>
+      <p className="sa-home-card-body">{card.body}</p>
+      <ul className="sa-home-bullets">
+        {card.bullets.map((bullet) => (
+          <li key={bullet} className="flex gap-2">
+            <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#00b4d8]" />
+            <span>{bullet}</span>
+          </li>
+        ))}
+      </ul>
+      <Link href={card.href} className="sa-home-link">
+        {card.cta}
+      </Link>
+    </article>
+  );
+}
+
+function HomeModuleTile({ tile }: { tile: (typeof MODULE_TILES)[number] }) {
+  return (
+    <article className="sa-home-module">
+      <h3 className="sa-home-module-title">{tile.title}</h3>
+      <p className="sa-home-module-body">{tile.body}</p>
+    </article>
+  );
+}
+
 export default function HomeLanding({ locale = DEFAULT_LOCALE, dict = en }: { locale?: Locale; dict?: Dict }) {
   const demoHref = interactiveDemoHref();
   const tourHref = fixturePublicHref(productTourHref('dashboard', locale));
@@ -51,71 +90,54 @@ export default function HomeLanding({ locale = DEFAULT_LOCALE, dict = en }: { lo
       <LandingNav demoHref={demoHref} />
       <HeroAudienceStage />
       <main>
-        <section className="border-t border-slate-200 bg-white px-4 py-6 dark:border-neutral-800 dark:bg-neutral-950 sm:px-6 sm:py-8 lg:px-10">
-          <div className="mx-auto max-w-screen-2xl rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-neutral-700 dark:bg-neutral-900 sm:px-6">
-            <div className="grid gap-3 text-sm font-semibold text-slate-700 dark:text-neutral-200 sm:grid-cols-2 lg:grid-cols-4">
-              <p className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-emerald-600" />30-day free trial</p>
-              <p className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-emerald-600" />Verified trade and trust layer</p>
-              <p className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-emerald-600" />Published pricing from R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month</p>
-              <p className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-emerald-600" />South African built</p>
+        <section className="sa-home-sec sa-home-sec-white sa-home-sec-tight">
+          <div className="sa-home-wrap sa-home-proof">
+            <div className="sa-home-proof-grid">
+              <HomeProofItem>30-day free trial</HomeProofItem>
+              <HomeProofItem>Verified trade and trust layer</HomeProofItem>
+              <HomeProofItem>Published pricing from R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month</HomeProofItem>
+              <HomeProofItem>South African built</HomeProofItem>
             </div>
           </div>
         </section>
 
-        <section className="border-t border-slate-200 bg-[#f8fafc] px-4 py-12 dark:border-neutral-800 dark:bg-black sm:px-6 sm:py-14 lg:px-10">
-          <div className="mx-auto max-w-screen-2xl">
-            <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white sm:text-4xl">Choose your path</h2>
+        <section className="sa-home-sec sa-home-sec-muted">
+          <div className="sa-home-wrap">
+            <h2 className="sa-home-h2">Choose your path</h2>
             <div className="mt-6 grid gap-6 lg:grid-cols-3">
               {AUDIENCES.map((card) => (
-                <article key={card.href} className="flex h-full flex-col rounded-3xl border border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-950">
-                  <h3 className="text-xl font-black text-slate-900 dark:text-white">{card.title}</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-neutral-300">{card.body}</p>
-                  <ul className="mt-4 space-y-2 text-sm text-slate-700 dark:text-neutral-200">
-                    {card.bullets.map((bullet) => (
-                      <li key={bullet} className="flex gap-2">
-                        <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#00b4d8]" />
-                        <span>{bullet}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Link href={card.href} className="mt-5 inline-flex font-semibold text-[#0077b6] underline underline-offset-4">
-                    {card.cta}
-                  </Link>
-                </article>
+                <HomeAudienceCard key={card.href} card={card} />
               ))}
             </div>
           </div>
         </section>
 
-        <section className="border-t border-slate-200 bg-white px-4 py-12 dark:border-neutral-800 dark:bg-neutral-950 sm:px-6 sm:py-14 lg:px-10">
-          <div className="mx-auto max-w-screen-2xl">
-            <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white sm:text-4xl">Module structure</h2>
+        <section className="sa-home-sec sa-home-sec-white">
+          <div className="sa-home-wrap">
+            <h2 className="sa-home-h2">Module structure</h2>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {MODULE_TILES.map((tile) => (
-                <article key={tile.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-6 dark:border-neutral-700 dark:bg-neutral-900">
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white">{tile.title}</h3>
-                  <p className="mt-2 text-sm text-slate-600 dark:text-neutral-300">{tile.body}</p>
-                </article>
+                <HomeModuleTile key={tile.title} tile={tile} />
               ))}
             </div>
-            <Link href="/modules" className="mt-5 inline-flex font-semibold text-[#0077b6] underline underline-offset-4">
+            <Link href="/modules" className="sa-home-link">
               See all modules
             </Link>
           </div>
         </section>
 
-        <section id="book-demo" className="border-t border-slate-200 bg-[#f8fafc] px-4 py-12 dark:border-neutral-800 dark:bg-black sm:px-6 sm:py-14 lg:px-10">
-          <div className="mx-auto max-w-screen-2xl rounded-3xl border border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-950 sm:p-8">
-            <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white sm:text-4xl">Start on SupplierAdvisor®</h2>
-            <p className="mt-3 text-sm text-slate-600 dark:text-neutral-300">
+        <section id="book-demo" className="sa-home-sec sa-home-sec-muted">
+          <div className="sa-home-wrap sa-home-cta">
+            <h2 className="sa-home-h2">Start on SupplierAdvisor®</h2>
+            <p className="mt-3 text-sm text-slate-600">
               {format(t(dict, 'home.trialStrip'), { days: COMPANY_TRIAL_DAYS })} From R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/join" className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-[#0f172a] hover:brightness-95">Start free</Link>
-              <Link href="/me" className="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-bold text-slate-900 dark:border-neutral-600 dark:bg-neutral-900 dark:text-white">Create free SA Member account</Link>
-              <Link href="/login" className="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-bold text-slate-900 dark:border-neutral-600 dark:bg-neutral-900 dark:text-white">Log in</Link>
+              <Link href="/join" className="sa-home-btn">Start free</Link>
+              <Link href="/me" className="sa-home-btn-ghost">Create free SA Member account</Link>
+              <Link href="/login" className="sa-home-btn-ghost">Log in</Link>
             </div>
-            <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-600 dark:text-neutral-300">
+            <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-600">
               <Link id="guided-tour" href={tourHref} className="underline underline-offset-4">Guided tour</Link>
               <a href="mailto:hello@supplieradvisor.com?subject=Demo%20request%20SupplierAdvisor" className="underline underline-offset-4">Email demo</a>
               <a href="https://wa.me/27825814215?text=Hi%20I%20would%20like%20a%20SupplierAdvisor%20demo" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">WhatsApp demo</a>
