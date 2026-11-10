@@ -568,7 +568,7 @@ function DiagramCanvas({
       className={
         embedded
           ? 'relative'
-          : 'sa-flow-shell relative overflow-hidden rounded-3xl border border-cyan-100/80 bg-gradient-to-br from-white via-white to-cyan-50/70 p-4 shadow-sm sm:p-5'
+          : 'sa-flow-shell relative overflow-visible rounded-3xl border border-cyan-100/80 bg-gradient-to-br from-white via-white to-cyan-50/70 p-4 shadow-sm sm:p-5'
       }
       aria-labelledby={title ? `${rawId}-title` : undefined}
       aria-describedby={listId}
@@ -607,7 +607,7 @@ function DiagramCanvas({
         </ol>
       ) : null}
 
-      <div className="pointer-events-none absolute -left-[12000px] top-0 w-[176px]" aria-hidden>
+      <div className="pointer-events-none absolute left-0 top-0 -z-10 h-0 w-[176px] overflow-hidden opacity-0" aria-hidden>
         {nodes.map((node) => (
             <div
               key={node.id}
@@ -716,13 +716,16 @@ function DesktopDetail({
   const node = nodes.find((item) => item.id === openId);
   const box = layout.boxes.find((item) => item.id === openId);
   if (!expand.expandable || !node || !box) return null;
-  const cardW = Math.min(460, Math.max(280, layout.width - 8));
-  const left = Math.max(0, Math.min(box.x + box.w / 2 - cardW / 2, layout.width - cardW));
-  const caret = Math.max(18, Math.min(box.x + box.w / 2 - left - 7, cardW - 32));
+  const center = box.x + box.w / 2;
+  const gutter = 20;
+  const maxWidth = 460;
+  const width = `min(${maxWidth}px, calc(100% - ${gutter * 2}px))`;
+  const marginLeft = `clamp(${gutter}px, ${center - maxWidth / 2}px, calc(100% - ${width} - ${gutter}px))`;
+  const caret = `clamp(14px, calc(${center}px - (${marginLeft}) - 7px), calc(${width} - 28px))`;
   return (
-    <div className="relative z-50 mt-1 hidden pt-3 md:block">
-      <span className="sa-flow-caret" style={{ left: left + caret }} aria-hidden />
-      <div style={{ marginLeft: left, width: cardW, maxWidth: '100%' }}>
+    <div className="relative z-50 mt-1 hidden w-full pt-3 md:block">
+      <div className="relative max-w-full" style={{ marginLeft, width }}>
+        <span className="sa-flow-caret" style={{ left: caret }} aria-hidden />
         <StepDetailCard node={node} number={numbers.get(node.id)} edges={edges} nodes={nodes} cardId={`flow-detail-${node.id}`} />
       </div>
     </div>
@@ -1088,7 +1091,7 @@ function StagedDiagram({
           const open = openStages.includes(stage.id);
           const panelId = `${rawId}-stage-${stage.id}`;
           return (
-            <section key={stage.id} className="mb-3 overflow-hidden rounded-3xl border border-cyan-100 bg-white/70" data-stage={stage.id} data-open={open ? '1' : '0'}>
+            <section key={stage.id} className="mb-3 overflow-visible rounded-3xl border border-cyan-100 bg-white/70" data-stage={stage.id} data-open={open ? '1' : '0'}>
               <button
                 type="button"
                 className={`flex w-full items-center gap-3 px-4 py-3 text-left ${FOCUS}`}

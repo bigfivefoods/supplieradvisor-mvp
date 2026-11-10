@@ -516,6 +516,24 @@ export function bookLines(text: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Place the detail card inside the flow container.
+ * The right-hand node must not push the card, its border, or its shadow outside.
+ */
+export function placeDetailCard(
+  containerWidth: number,
+  nodeCenter: number,
+  options?: { maxWidth?: number; gutter?: number }
+): { left: number; width: number; caret: number } {
+  const maxWidth = options?.maxWidth ?? 460;
+  const gutter = options?.gutter ?? 20;
+  const width = Math.min(maxWidth, Math.max(0, containerWidth - gutter * 2));
+  const maxLeft = Math.max(gutter, containerWidth - gutter - width);
+  const left = Math.min(Math.max(gutter, nodeCenter - width / 2), maxLeft);
+  const caret = Math.min(Math.max(14, nodeCenter - left - 7), Math.max(14, width - 28));
+  return { left, width, caret };
+}
+
 export function whoChips(node: GuideNode): string[] {
   const raw = node.who || node.lane || '';
   return raw
