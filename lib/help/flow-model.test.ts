@@ -6,12 +6,20 @@ import assert from 'node:assert/strict';
 import { MODULE_GUIDES, getModuleGuide } from '@/lib/help/module-guides';
 import {
   boxesOverlap,
+  branchDetails,
   classifyEdges,
+  collapseAllStages,
   columnsForWidth,
+  expandAllStages,
   flowErrors,
   flowLanes,
+  flowStages,
+  initialOpenStages,
   layoutFlow,
+  missingStageIds,
+  needsFlowStages,
   resolveEdges,
+  toggleId,
 } from '@/lib/help/flow-model';
 
 for (const guide of MODULE_GUIDES) {
@@ -93,5 +101,46 @@ assert.ok(broken.some((error) => error.includes('duplicate')));
 assert.ok(broken.some((error) => error.includes('unknown node')));
 assert.ok(broken.some((error) => error.includes('needs 2')));
 assert.ok(broken.some((error) => error.includes('not a feature')));
+
+for (const guide of MODULE_GUIDES) {
+  if (!needsFlowStages(guide.flow)) continue;
+  const missing = missingStageIds(guide.flow);
+  assert.deepEqual(missing, [], `${guide.id} missing stages: ${missing.join(',')}`);
+  const stages = flowStages(guide.flow);
+  assert.ok(stages.length > 1, guide.id);
+  assert.equal(initialOpenStages(stages).length, 1);
+  assert.deepEqual(expandAllStages(stages), stages.map((stage) => stage.id));
+  assert.deepEqual(collapseAllStages(), []);
+  const opened = toggleId(initialOpenStages(stages), stages[1].id);
+  assert.equal(opened.includes(stages[1].id), true);
+  assert.equal(toggleId(opened, stages[1].id).includes(stages[1].id), false);
+}
+
+const financeStages = flowStages(finance.flow);
+assert.deepEqual(
+  financeStages.map((stage) => stage.title),
+  [
+    'Setup and journals',
+    'Invoicing and settlement',
+    'Bills and costs',
+    'Bank and reconciliation',
+    'VAT201',
+    'Close and reporting',
+  ]
+);
+assert.deepEqual(initialOpenStages(financeStages), ['setup-and-journals']);
+const post = finance.flow.find((node) => node.id === 'post');
+assert.ok(post?.posts && post.status && post.who);
+const balanced = finance.flow.find((node) => node.id === 'balanced');
+assert.ok(balanced);
+const branches = branchDetails(balanced, resolveEdges(finance.flow, finance.edges), finance.flow);
+assert.ok(branches.length >= 2);
+assert.ok(branches.some((branch) => branch.label === 'Post'));
+assert.ok(branches.some((branch) => branch.label === 'Save draft'));
+
+const quality = getModuleGuide('quality');
+assert.ok(quality);
+assert.equal(needsFlowStages(quality.flow), false);
+assert.equal(quality.flow.some((node) => node.kind === 'decision'), true);
 
 console.log('flow-model.test.ts ok');

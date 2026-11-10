@@ -71,7 +71,7 @@ export function flowLanes(nodes: GuideNode[]): string[] {
 }
 
 export function resolveEdges(nodes: GuideNode[], edges?: GuideEdge[]): GuideEdge[] {
-  if (edges && edges.length > 0) return edges;
+  if (edges) return edges;
   const sequential: GuideEdge[] = [];
   for (let i = 0; i < nodes.length - 1; i += 1) {
     sequential.push({ from: nodes[i].id, to: nodes[i + 1].id });
@@ -189,10 +189,10 @@ function round(n: number): number {
 }
 
 /** Rough card height so the first paint matches the text before the browser measures it. */
-export function estimateNodeHeight(node: GuideNode, showLane: boolean): number {
+export function estimateNodeHeight(node: GuideNode, showLane: boolean, compact = false): number {
   if (node.kind === 'decision') return FLOW_LAYOUT.decisionSize;
   const chars = 28;
-  const booksLines = node.books ? Math.ceil(node.books.length / chars) : 0;
+  const booksLines = !compact && node.books ? Math.ceil(node.books.length / chars) : 0;
   const hintLines = node.hint ? Math.max(1, Math.ceil(node.hint.length / 32)) : 0;
   const titleLines = Math.max(1, Math.ceil(node.label.length / 18));
   return (
@@ -208,7 +208,12 @@ export function estimateNodeHeight(node: GuideNode, showLane: boolean): number {
 
 function nodeSize(node: GuideNode, heights: Record<string, number>): { w: number; h: number } {
   if (node.kind === 'decision') {
-    return { w: FLOW_LAYOUT.decisionSize, h: FLOW_LAYOUT.decisionSize };
+    const measured = heights[node.id];
+    const tall = Boolean(measured && measured > FLOW_LAYOUT.decisionSize + 8);
+    return {
+      w: tall ? FLOW_LAYOUT.columnWidth : FLOW_LAYOUT.decisionSize,
+      h: Math.max(FLOW_LAYOUT.decisionSize, measured || FLOW_LAYOUT.decisionSize),
+    };
   }
   const measured = heights[node.id];
   return { w: FLOW_LAYOUT.columnWidth, h: Math.max(84, measured || 108) };
@@ -444,4 +449,101 @@ export function flowErrors(guide: Pick<ModuleGuide, 'id' | 'flow' | 'edges' | 'f
   }
 
   return errors;
+}
+
+/** A diagram longer than this is grouped into named stages. */
+export const FLOW_STAGE_LIMIT = 8;
+
+export function needsFlowStages(nodes: GuideNode[]): boolean {
+  return nodes.length > FLOW_STAGE_LIMIT;
+}
+
+export type FlowStageGroup = {
+  id: string;
+  title: string;
+  nodes: GuideNode[];
+};
+
+export function stageId(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export function flowStages(nodes: GuideNode[]): FlowStageGroup[] {
+  if (!needsFlowStages(nodes)) return [{ id: 'all', title: '', nodes }];
+  const order: string[] = [];
+  const groups = new Map<string, GuideNode[]>();
+  for (const node of nodes) {
+    const title = node.stage?.trim() || 'Process';
+    if (!groups.has(title)) {
+      groups.set(title, []);
+      order.push(title);
+    }
+    groups.get(title)?.push(node);
+  }
+  return order.map((title) => ({
+    id: stageId(title),
+    title,
+    nodes: groups.get(title) ?? [],
+  }));
+}
+
+export function missingStageIds(nodes: GuideNode[]): string[] {
+  if (!needsFlowStages(nodes)) return [];
+  return nodes.filter((node) => !node.stage?.trim()).map((node) => node.id);
+}
+
+export function initialOpenStages(stages: FlowStageGroup[]): string[] {
+  return stages[0] ? [stages[0].id] : [];
+}
+
+export function toggleId(open: readonly string[], id: string): string[] {
+  return open.includes(id) ? open.filter((item) => item !== id) : [...open, id];
+}
+
+export function expandAllStages(stages: FlowStageGroup[]): string[] {
+  return stages.map((stage) => stage.id);
+}
+
+export function collapseAllStages(): string[] {
+  return [];
+}
+
+export type BranchDetail = {
+  label: string;
+  target: string;
+  outcome: string;
+};
+
+export function estimateDetailHeight(node: GuideNode, edges: GuideEdge[], nodes: GuideNode[]): number {
+  const chars = 32;
+  let lines = 1;
+  if (node.does || node.hint) lines += 2;
+  if (node.who || node.lane) lines += 2;
+  if (node.posts) lines += Math.max(1, Math.ceil(node.posts.length / chars));
+  if (node.status) lines += Math.max(1, Math.ceil(node.status.length / chars));
+  if (!node.posts && !node.status && node.books) lines += Math.max(1, Math.ceil(node.books.length / chars));
+  if (node.kind === 'decision') lines += 1 + branchDetails(node, edges, nodes).length * 2;
+  return 20 + lines * 18;
+}
+
+export function branchDetails(node: GuideNode, edges: GuideEdge[], nodes: GuideNode[]): BranchDetail[] {
+  const byId = new Map(nodes.map((item) => [item.id, item]));
+  return edges
+    .filter((edge) => edge.from === node.id)
+    .map((edge) => {
+      const target = byId.get(edge.to);
+      return {
+        label: edge.label?.trim() || 'Next',
+        target: target?.label ?? edge.to,
+        outcome: target?.status || target?.posts || target?.books || target?.hint || '',
+      };
+    });
+}
+
+export function edgesWithin(nodes: GuideNode[], edges: GuideEdge[]): GuideEdge[] {
+  const ids = new Set(nodes.map((node) => node.id));
+  return edges.filter((edge) => ids.has(edge.from) && ids.has(edge.to));
 }

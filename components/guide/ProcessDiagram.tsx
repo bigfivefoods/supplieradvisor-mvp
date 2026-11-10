@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   ArrowLeftRight,
   Ban,
@@ -14,6 +14,7 @@ import {
   Box,
   Building2,
   CalendarDays,
+  ChevronDown,
   CircleCheck,
   ClipboardCheck,
   Dumbbell,
@@ -55,13 +56,24 @@ import {
 } from 'lucide-react';
 import {
   DESKTOP_FLOW_WIDTH,
+  branchDetails,
+  estimateDetailHeight,
+  collapseAllStages,
+  edgesWithin,
   estimateNodeHeight,
+  expandAllStages,
   flowLanes,
+  flowStages,
+  initialOpenStages,
+  FLOW_LAYOUT,
   layoutFlow,
+  needsFlowStages,
   readingOrder,
   resolveEdges,
   stepNumbers,
+  toggleId,
   type FlowLayout,
+  type FlowStageGroup,
 } from '@/lib/help/flow-model';
 import type { GuideEdge, GuideFlowIcon, GuideNode } from '@/lib/help/types';
 
@@ -120,6 +132,18 @@ const ICONS: Record<GuideFlowIcon, LucideIcon> = {
 const FOCUS =
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0077b6]';
 
+type ExpandState = {
+  expandable: boolean;
+  open: ReadonlySet<string>;
+  toggle: (id: string) => void;
+};
+
+const ExpandCtx = createContext<ExpandState>({
+  expandable: false,
+  open: new Set<string>(),
+  toggle: () => {},
+});
+
 function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -157,21 +181,40 @@ function openFeature(anchor: string) {
   el.focus({ preventScroll: true });
 }
 
-function StepFace({ node, number, showLane }: { node: GuideNode; number?: number; showLane?: boolean }) {
+function StepFace({
+  node,
+  number,
+  showLane,
+  hideBooks,
+  chevron,
+}: {
+  node: GuideNode;
+  number?: number;
+  showLane?: boolean;
+  hideBooks?: boolean;
+  chevron?: boolean;
+}) {
   const Icon = node.icon ? ICONS[node.icon] : null;
+  const expand = useContext(ExpandCtx);
+  const open = expand.open.has(node.id);
   return (
     <span className="flex h-full flex-col px-3 py-2.5">
       <span className="flex items-start justify-between gap-2">
         <span className="text-[10px] font-black tracking-[0.14em] text-[#00b4d8]">{number ? pad(number) : ''}</span>
-        {Icon ? (
-          <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#00b4d8]/10 text-[#00b4d8]">
-            <Icon className="h-3.5 w-3.5" aria-hidden />
-          </span>
-        ) : null}
+        <span className="flex items-center gap-1">
+          {Icon ? (
+            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#00b4d8]/10 text-[#00b4d8]">
+              <Icon className="h-3.5 w-3.5" aria-hidden />
+            </span>
+          ) : null}
+          {chevron && expand.expandable ? (
+            <ChevronDown className={`sa-flow-chevron h-4 w-4 text-[#00b4d8] ${open ? 'rotate-180' : ''}`} aria-hidden />
+          ) : null}
+        </span>
       </span>
       <span className="mt-1 block text-[13px] font-black leading-tight text-slate-900">{node.label}</span>
       {node.hint ? <span className="mt-0.5 block text-[11px] font-medium leading-snug text-slate-500">{node.hint}</span> : null}
-      {node.books ? (
+      {!hideBooks && !expand.expandable && node.books ? (
         <span className="mt-1.5 flex gap-1 text-[10px] leading-snug text-slate-600">
           <BookOpen className="mt-px h-3 w-3 shrink-0 text-[#00b4d8]" aria-hidden />
           <span>{node.books}</span>
@@ -183,6 +226,83 @@ function StepFace({ node, number, showLane }: { node: GuideNode; number?: number
         </span>
       ) : null}
     </span>
+  );
+}
+
+function NodeDetail({
+  node,
+  edges,
+  nodes,
+  detailId,
+}: {
+  node: GuideNode;
+  edges: GuideEdge[];
+  nodes: GuideNode[];
+  detailId: string;
+}) {
+  const branches = node.kind === 'decision' ? branchDetails(node, edges, nodes) : [];
+  const does = node.does || node.hint;
+  const who = node.who || node.lane;
+  return (
+    <div id={detailId} className="sa-flow-detail space-y-1.5 border-t border-cyan-100 px-3 py-2 text-[11px] leading-snug text-slate-700">
+      {does ? (
+        <p>
+          <span className="font-bold text-slate-900">What you do. </span>
+          {does}
+        </p>
+      ) : null}
+      {who ? (
+        <p>
+          <span className="font-bold text-slate-900">Who. </span>
+          {who}
+        </p>
+      ) : null}
+      {node.posts ? (
+        <p>
+          <span className="font-bold text-slate-900">Posted. </span>
+          {node.posts}
+        </p>
+      ) : null}
+      {node.status ? (
+        <p>
+          <span className="font-bold text-slate-900">Status. </span>
+          {node.status}
+        </p>
+      ) : null}
+      {!node.posts && !node.status && node.books ? (
+        <p>
+          <span className="font-bold text-slate-900">In the books. </span>
+          {node.books}
+        </p>
+      ) : null}
+      {branches.length > 0 ? (
+        <div>
+          <p className="font-bold text-slate-900">Branches.</p>
+          <ul className="mt-1 space-y-1">
+            {branches.map((branch) => (
+              <li key={`${branch.label}-${branch.target}`}>
+                <span className="font-bold text-[#0077b6]">{branch.label}. </span>
+                {branch.target}
+                {branch.outcome ? `. ${branch.outcome}` : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {node.anchor ? (
+        <a
+          href={`#guide-${node.anchor}`}
+          className={`inline-flex font-bold text-[#0077b6] underline-offset-2 hover:underline ${FOCUS}`}
+          onClick={(event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            openFeature(node.anchor as string);
+          }}
+        >
+          Open this part of the guide
+        </a>
+      ) : null}
+    </div>
   );
 }
 
@@ -204,6 +324,24 @@ function Hit({
   children: ReactNode;
 }) {
   const label = ariaLabel(node, number, edges, byId);
+  const expand = useContext(ExpandCtx);
+  if (expand.expandable) {
+    const open = expand.open.has(node.id);
+    const detailId = `flow-detail-${node.id}`;
+    return (
+      <button
+        type="button"
+        className={className}
+        style={style}
+        aria-expanded={open}
+        aria-controls={detailId}
+        aria-label={open ? `Collapse ${node.label}` : `Expand ${node.label}. ${label}`}
+        onClick={() => expand.toggle(node.id)}
+      >
+        {children}
+      </button>
+    );
+  }
   if (!node.anchor) {
     return (
       <div className={className} style={style} role="group" aria-label={label}>
@@ -248,15 +386,19 @@ const cardClass =
  * Illustrated process diagram for a how-to guide.
  * Desktop wraps into swimlane bands. Narrow screens use a vertical timeline.
  */
-export function ProcessDiagram({
+function DiagramCanvas({
   title,
   nodes,
   edges,
+  embedded,
 }: {
   title?: string;
   nodes: GuideNode[];
   edges?: GuideEdge[];
+  embedded?: boolean;
 }) {
+  const expand = useContext(ExpandCtx);
+  const openKey = [...expand.open].sort().join('|');
   const rawId = useId().replace(/:/g, '');
   const shellRef = useRef<HTMLDivElement>(null);
   const measureRefs = useRef(new Map<string, HTMLDivElement>());
@@ -267,7 +409,16 @@ export function ProcessDiagram({
       edges,
       width: DESKTOP_FLOW_WIDTH,
       heights: Object.fromEntries(
-        nodes.filter((node) => node.kind !== 'decision').map((node) => [node.id, estimateNodeHeight(node, showLane)])
+        nodes.map((node) => {
+          const open = expand.expandable && expand.open.has(node.id);
+          const base =
+            node.kind === 'decision'
+              ? FLOW_LAYOUT.decisionSize
+              : estimateNodeHeight(node, showLane, expand.expandable);
+          const extra = open ? estimateDetailHeight(node, edges ?? [], nodes) : 0;
+          if (node.kind === 'decision' && !extra) return [node.id, 0];
+          return [node.id, base + extra];
+        }).filter((entry) => Number(entry[1]) > 0)
       ),
     })
   );
@@ -285,7 +436,7 @@ export function ProcessDiagram({
       if (width < 280) return;
       const heights: Record<string, number> = {};
       for (const node of nodes) {
-        if (node.kind === 'decision') continue;
+        if (node.kind === 'decision' && !expand.expandable) continue;
         const el = measureRefs.current.get(node.id);
         if (el && el.offsetHeight > 0) heights[node.id] = el.offsetHeight;
       }
@@ -316,14 +467,18 @@ export function ProcessDiagram({
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [nodes, edges]);
+  }, [nodes, edges, openKey, expand.expandable]);
 
   const listId = `${rawId}-text`;
   const gradientId = `${rawId}-diamond`;
 
   return (
     <section
-      className="sa-flow-shell relative overflow-hidden rounded-3xl border border-cyan-100/80 bg-gradient-to-br from-white via-white to-cyan-50/70 p-4 shadow-sm sm:p-5"
+      className={
+        embedded
+          ? 'relative'
+          : 'sa-flow-shell relative overflow-hidden rounded-3xl border border-cyan-100/80 bg-gradient-to-br from-white via-white to-cyan-50/70 p-4 shadow-sm sm:p-5'
+      }
       aria-labelledby={title ? `${rawId}-title` : undefined}
       aria-describedby={listId}
       data-flow-diagram
@@ -337,7 +492,7 @@ export function ProcessDiagram({
           </linearGradient>
         </defs>
       </svg>
-      {title ? (
+      {!embedded && title ? (
         <p id={`${rawId}-title`} className="mb-3 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">
           {title}
         </p>
@@ -353,24 +508,40 @@ export function ProcessDiagram({
         </div>
       ) : null}
 
-      <ol id={listId} className="sr-only">
-        {ordered.map((node) => (
-          <li key={node.id}>{ariaLabel(node, numbers.get(node.id), resolved, byId)}</li>
-        ))}
-      </ol>
+      {!embedded ? (
+        <ol id={listId} className="sr-only">
+          {ordered.map((node) => (
+            <li key={node.id}>{ariaLabel(node, numbers.get(node.id), resolved, byId)}</li>
+          ))}
+        </ol>
+      ) : null}
 
       <div className="pointer-events-none absolute -left-[12000px] top-0 w-[176px]" aria-hidden>
-        {nodes.map((node) =>
-          node.kind === 'decision' ? null : (
+        {nodes.map((node) => (
             <div
               key={node.id}
               ref={(el) => {
                 if (el) measureRefs.current.set(node.id, el);
                 else measureRefs.current.delete(node.id);
               }}
-              className="mb-2 w-[176px] rounded-2xl border border-transparent"
+              className="mb-2 w-[176px]"
             >
-              <StepFace node={node} number={numbers.get(node.id)} showLane={showLane} />
+              {node.kind === 'decision' ? (
+                <div className="relative mx-auto h-[124px] w-[124px]">
+                  <Diamond label={node.label} gradientId={gradientId} />
+                </div>
+              ) : (
+                <StepFace
+                  node={node}
+                  number={numbers.get(node.id)}
+                  showLane={showLane}
+                  hideBooks={expand.expandable}
+                  chevron={expand.expandable}
+                />
+              )}
+              {expand.expandable && expand.open.has(node.id) ? (
+                <NodeDetail node={node} edges={resolved} nodes={nodes} detailId={`${rawId}-m-${node.id}`} />
+              ) : null}
             </div>
           )
         )}
@@ -393,6 +564,30 @@ export function ProcessDiagram({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function NodeFrame({
+  node,
+  edges,
+  nodes,
+  className,
+  children,
+}: {
+  node: GuideNode;
+  edges: GuideEdge[];
+  nodes: GuideNode[];
+  className?: string;
+  children: ReactNode;
+}) {
+  const expand = useContext(ExpandCtx);
+  if (!expand.expandable) return <>{children}</>;
+  const open = expand.open.has(node.id);
+  return (
+    <div className={`flex flex-col ${className ?? ''}`}>
+      {children}
+      {open ? <NodeDetail node={node} edges={edges} nodes={nodes} detailId={`flow-detail-${node.id}`} /> : null}
+    </div>
   );
 }
 
@@ -429,28 +624,30 @@ function MobileTimeline({
                   {incoming.map((edge) => edge.label).join(' · ')}
                 </p>
               ) : null}
-              {node.kind === 'decision' ? (
-                <Hit
-                  node={node}
-                  edges={edges}
-                  byId={byId}
-                  className={`sa-flow-node sa-flow-hit relative mx-auto block h-[124px] w-[124px] ${FOCUS}`}
-                  style={delay}
-                >
-                  <Diamond label={node.label} gradientId={gradientId} />
-                </Hit>
-              ) : (
-                <Hit
-                  node={node}
-                  number={numbers.get(node.id)}
-                  edges={edges}
-                  byId={byId}
-                  className={`${cardClass} sa-flow-node ${FOCUS}`}
-                  style={delay}
-                >
-                  <StepFace node={node} number={numbers.get(node.id)} />
-                </Hit>
-              )}
+              <NodeFrame node={node} edges={edges} nodes={ordered}>
+                {node.kind === 'decision' ? (
+                  <Hit
+                    node={node}
+                    edges={edges}
+                    byId={byId}
+                    className={`sa-flow-node sa-flow-hit relative mx-auto block h-[124px] w-[124px] ${FOCUS}`}
+                    style={delay}
+                  >
+                    <Diamond label={node.label} gradientId={gradientId} />
+                  </Hit>
+                ) : (
+                  <Hit
+                    node={node}
+                    number={numbers.get(node.id)}
+                    edges={edges}
+                    byId={byId}
+                    className={`${cardClass} sa-flow-node ${FOCUS}`}
+                    style={delay}
+                  >
+                    <StepFace node={node} number={numbers.get(node.id)} chevron />
+                  </Hit>
+                )}
+              </NodeFrame>
               {node.lane ? <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#0077b6]">{node.lane}</p> : null}
               {returns.map((edge) => (
                 <p key={`${edge.to}-${edge.label ?? ''}`} className="mt-1 text-[11px] font-semibold text-[#0077b6]">
@@ -539,27 +736,29 @@ function DesktopCanvas({
         const node = nodeOf.get(box.id);
         if (!node) return null;
         const delay = { animationDelay: `${Math.min(order.get(node.id) ?? 0, 16) * 35}ms` };
+        const tone =
+          node.lane && layout.laneNames[0] && node.lane !== layout.laneNames[0]
+            ? 'border-slate-200 bg-gradient-to-br from-white to-slate-50'
+            : 'border-cyan-200/90 bg-gradient-to-br from-white to-cyan-50';
         return (
           <div key={node.id} className="sa-flow-node absolute z-40" style={{ left: box.x, top: box.y, width: box.w, height: box.h, ...delay }}>
-            {node.kind === 'decision' ? (
-              <Hit node={node} edges={edges} byId={byId} className={`relative block h-full w-full ${FOCUS}`}>
-                <Diamond label={node.label} gradientId={gradientId} />
-              </Hit>
-            ) : (
-              <Hit
-                node={node}
-                number={numbers.get(node.id)}
-                edges={edges}
-                byId={byId}
-                className={`sa-flow-hit block h-full w-full rounded-2xl border text-left shadow-sm ${FOCUS} ${
-                  node.lane && layout.laneNames[0] && node.lane !== layout.laneNames[0]
-                    ? 'border-slate-200 bg-gradient-to-br from-white to-slate-50'
-                    : 'border-cyan-200/90 bg-gradient-to-br from-white to-cyan-50'
-                }`}
-              >
-                <StepFace node={node} number={numbers.get(node.id)} showLane={layout.showLanes} />
-              </Hit>
-            )}
+            <NodeFrame node={node} edges={edges} nodes={nodes} className="h-full">
+              {node.kind === 'decision' ? (
+                <Hit node={node} edges={edges} byId={byId} className={`relative mx-auto block h-[124px] w-[124px] ${FOCUS}`}>
+                  <Diamond label={node.label} gradientId={gradientId} />
+                </Hit>
+              ) : (
+                <Hit
+                  node={node}
+                  number={numbers.get(node.id)}
+                  edges={edges}
+                  byId={byId}
+                  className={`sa-flow-hit block w-full rounded-2xl border text-left shadow-sm ${FOCUS} ${tone}`}
+                >
+                  <StepFace node={node} number={numbers.get(node.id)} showLane={layout.showLanes} chevron />
+                </Hit>
+              )}
+            </NodeFrame>
           </div>
         );
       })}
@@ -576,12 +775,15 @@ const FLOW_CSS = `
 .sa-flow-hit:hover { border-color: #00b4d8; box-shadow: 0 10px 24px -16px rgba(0, 180, 216, 0.9); }
 .sa-flow-diamond { stroke: #00b4d8; }
 html.dark .sa-flow-diamond { fill: #121820; }
+.sa-flow-chevron { transition: transform 0.2s ease; }
+.sa-flow-detail { animation: saFlowIn 0.35s ease both; }
 @media (prefers-reduced-motion: reduce) {
-  .sa-flow-node, .sa-flow-hit:hover {
+  .sa-flow-node, .sa-flow-hit:hover, .sa-flow-detail {
     animation: none !important;
     transition: none !important;
     transform: none !important;
   }
+  .sa-flow-chevron { transition: none !important; }
 }
 @media print {
   .sa-flow-node, .sa-flow-hit:hover {
@@ -592,3 +794,120 @@ html.dark .sa-flow-diamond { fill: #121820; }
   .sa-flow-shell { box-shadow: none !important; background: #fff !important; }
 }
 `;
+
+export function ProcessDiagram({
+  title,
+  nodes,
+  edges,
+  initialOpenNodes = [],
+}: {
+  title?: string;
+  nodes: GuideNode[];
+  edges?: GuideEdge[];
+  /** Nodes expanded on the first paint. Used so the detail is in the server HTML. */
+  initialOpenNodes?: string[];
+}) {
+  const staged = needsFlowStages(nodes);
+  const stages = useMemo(() => flowStages(nodes), [nodes]);
+  const [openStages, setOpenStages] = useState<string[]>(() => initialOpenStages(stages));
+  const [openNodes, setOpenNodes] = useState<string[]>(initialOpenNodes);
+  const expand = useMemo<ExpandState>(
+    () => ({
+      expandable: staged,
+      open: new Set(openNodes),
+      toggle: (id: string) => setOpenNodes((prev) => toggleId(prev, id)),
+    }),
+    [staged, openNodes]
+  );
+  if (!staged) {
+    return (
+      <ExpandCtx.Provider value={expand}>
+        <DiagramCanvas title={title} nodes={nodes} edges={edges} />
+      </ExpandCtx.Provider>
+    );
+  }
+  return (
+    <ExpandCtx.Provider value={expand}>
+      <StagedDiagram title={title} nodes={nodes} edges={edges} stages={stages} openStages={openStages} setOpenStages={setOpenStages} />
+    </ExpandCtx.Provider>
+  );
+}
+
+function StagedDiagram({
+  title,
+  nodes,
+  edges,
+  stages,
+  openStages,
+  setOpenStages,
+}: {
+  title?: string;
+  nodes: GuideNode[];
+  edges?: GuideEdge[];
+  stages: FlowStageGroup[];
+  openStages: string[];
+  setOpenStages: (next: string[]) => void;
+}) {
+  const rawId = useId().replace(/:/g, '');
+  const resolved = useMemo(() => resolveEdges(nodes, edges), [nodes, edges]);
+  const ordered = useMemo(() => readingOrder(nodes, resolved), [nodes, resolved]);
+  const numbers = useMemo(() => stepNumbers(ordered), [ordered]);
+  const byId = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+  return (
+    <section
+      className="sa-flow-shell relative rounded-3xl border border-cyan-100/80 bg-gradient-to-br from-white via-white to-cyan-50/70 p-4 shadow-sm sm:p-5"
+      aria-labelledby={title ? `${rawId}-title` : undefined}
+      data-flow-diagram
+      data-flow-stages="1"
+    >
+      <style>{FLOW_CSS}</style>
+      {title ? (
+        <p id={`${rawId}-title`} className="mb-3 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">
+          {title}
+        </p>
+      ) : null}
+      <div className="mb-3 flex flex-wrap gap-2">
+        <button type="button" className={`rounded-full border border-cyan-200 bg-white px-3 py-1 text-[11px] font-bold text-[#0077b6] ${FOCUS}`} onClick={() => setOpenStages(expandAllStages(stages))}>
+          Expand all
+        </button>
+        <button type="button" className={`rounded-full border border-cyan-200 bg-white px-3 py-1 text-[11px] font-bold text-[#0077b6] ${FOCUS}`} onClick={() => setOpenStages(collapseAllStages())}>
+          Collapse all
+        </button>
+      </div>
+      <ol className="sr-only">
+        {ordered.map((node) => (
+          <li key={node.id}>{ariaLabel(node, numbers.get(node.id), resolved, byId)}</li>
+        ))}
+      </ol>
+      <div data-flow-mobile>
+        {stages.map((stage, index) => {
+          const open = openStages.includes(stage.id);
+          const panelId = `${rawId}-stage-${stage.id}`;
+          return (
+            <section key={stage.id} className="mb-3 overflow-hidden rounded-3xl border border-cyan-100 bg-white/70" data-stage={stage.id} data-open={open ? '1' : '0'}>
+              <button
+                type="button"
+                className={`flex w-full items-center gap-3 px-4 py-3 text-left ${FOCUS}`}
+                aria-expanded={open}
+                aria-controls={panelId}
+                onClick={() => setOpenStages(toggleId(openStages, stage.id))}
+              >
+                <ChevronDown className={`sa-flow-chevron h-4 w-4 shrink-0 text-[#00b4d8] ${open ? 'rotate-180' : ''}`} aria-hidden />
+                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">{String(index + 1).padStart(2, '0')}</span>
+                <span className="min-w-0 flex-1 text-sm font-black text-slate-900">{stage.title}</span>
+                <span className="rounded-full bg-[#00b4d8]/10 px-2 py-0.5 text-[10px] font-bold text-[#0077b6]">
+                  {stage.nodes.length} steps
+                </span>
+              </button>
+              {open ? (
+                <div id={panelId} className="sa-flow-detail border-t border-cyan-100 px-2 pb-3 sm:px-3">
+                  <DiagramCanvas embedded nodes={stage.nodes} edges={edgesWithin(stage.nodes, resolved)} />
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
+    </section>
+  );
+}

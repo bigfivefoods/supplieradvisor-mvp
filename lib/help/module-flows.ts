@@ -8,6 +8,14 @@ import { ACCOUNTING_EDGES, ACCOUNTING_FLOW } from '@/lib/help/guides/accounting'
 
 export type ModuleFlow = { flow: GuideNode[]; edges?: GuideEdge[] };
 
+function withStages(nodes: GuideNode[], groups: Record<string, string[]>): GuideNode[] {
+  const stageOf = new Map<string, string>();
+  for (const [title, ids] of Object.entries(groups)) {
+    for (const id of ids) stageOf.set(id, title);
+  }
+  return nodes.map((node) => ({ ...node, stage: stageOf.get(node.id) ?? node.stage }));
+}
+
 const OFFICE = 'Office';
 const CUSTOMER = 'Customer';
 const DESK = 'Desk';
@@ -16,7 +24,30 @@ const OWNER = 'Owner';
 const MEMBER = 'Member';
 
 export const MODULE_FLOWS: Record<string, ModuleFlow> = {
-  accounting: { flow: ACCOUNTING_FLOW, edges: ACCOUNTING_EDGES },
+  accounting: {
+    flow: withStages(
+      ACCOUNTING_FLOW.map((node) =>
+        node.id === 'post'
+          ? {
+              ...node,
+              does: 'Press Post entry when debits equal credits.',
+              who: 'Owner and Finance',
+              posts: 'Source manual.',
+              status: 'Status becomes posted. A locked period refuses the post.',
+            }
+          : node
+      ),
+      {
+        'Setup and journals': ['chart', 'draft', 'balanced', 'post'],
+        'Invoicing and settlement': ['invoice', 'receipt', 'settle', 'void-invoice'],
+        'Bills and costs': ['bill', 'po-allocated', 'skip-bill', 'recognise'],
+        'Bank and reconciliation': ['bank', 'auto-match', 'line', 'allocate', 'match', 'exclude'],
+        VAT201: ['vat', 'vat201', 'review', 'lock', 'submitted', 'settle-vat', 'settlement', 'nil'],
+        'Close and reporting': ['management', 'afs'],
+      }
+    ),
+    edges: ACCOUNTING_EDGES,
+  },
 
   home: {
     flow: [
@@ -77,7 +108,7 @@ export const MODULE_FLOWS: Record<string, ModuleFlow> = {
   },
 
   suppliers: {
-    flow: [
+    flow: withStages([
       { id: 'draft', label: 'Draft', hint: 'Save draft', icon: 'file-pen', anchor: 'po', books: 'Status draft. A draft is not an open order.' },
       { id: 'send-or-cancel', kind: 'decision', label: 'Send?', anchor: 'po' },
       { id: 'sent', label: 'Sent', hint: 'Save & email', icon: 'send', anchor: 'po', books: 'Status sent. Sent is an open order.' },
@@ -89,7 +120,11 @@ export const MODULE_FLOWS: Record<string, ModuleFlow> = {
       { id: 'paid', label: 'Paid', hint: 'Record payment', icon: 'wallet', anchor: 'po', books: 'The payment is recorded on the bill. It does not send the money.' },
       { id: 'complete', kind: 'decision', label: 'OTIFEF in?', anchor: 'after' },
       { id: 'completed', label: 'Completed', hint: 'Does not move', icon: 'circle-check', anchor: 'after', books: 'Completed needs a delivered quantity. A completed order cannot be cancelled.' },
-    ],
+    ], {
+      'Draft and send': ['draft', 'send-or-cancel', 'sent', 'cancelled'],
+      Accept: ['accept-or-cancel', 'accepted', 'receive'],
+      'Bill and complete': ['invoiced', 'paid', 'complete', 'completed'],
+    }),
     edges: [
       { from: 'draft', to: 'send-or-cancel' },
       { from: 'send-or-cancel', to: 'sent', label: 'Save & email' },
@@ -251,21 +286,25 @@ export const MODULE_FLOWS: Record<string, ModuleFlow> = {
   },
 
   constructiongraph: {
-    flow: [
+    flow: withStages([
       { id: 'client', label: 'Client', hint: 'Then a project', icon: 'user-round', lane: DESK, anchor: 'clients' },
       { id: 'quote', label: 'Draft quote', hint: 'No issue button', icon: 'file-pen', lane: DESK, anchor: 'quotes', books: 'Save quote stores status draft. There is no Issue control on this screen.' },
       { id: 'project', label: 'Project', hint: 'Starts tender', icon: 'hard-hat', lane: DESK, anchor: 'projects', books: 'Save project stores status tender. Update status moves it to on site, then practical completion.' },
       { id: 'build', label: 'Programme', hint: 'Task starts planned', icon: 'list-checks', lane: SITE, anchor: 'programme', books: 'Save task stores status planned. It does not post a journal.' },
       { id: 'diary', label: 'Diary', hint: 'The day', icon: 'notebook-pen', lane: SITE, anchor: 'diary', books: 'Progress stays editable until the day is signed off. The diary does not post a journal.' },
       { id: 'signed', kind: 'decision', label: 'Signed?', lane: SITE, anchor: 'diary' },
-      { id: 'addendum', label: 'Addendum only', hint: 'Progress locked', icon: 'lock', lane: SITE, anchor: 'diary', books: 'A signed day refuses a progress edit and a delete. The server keeps an addendum only if one is sent. This form does not send one.' },
+      { id: 'addendum', label: 'Addendum only', hint: 'Progress locked', icon: 'lock', lane: SITE, anchor: 'diary', books: 'A signed day refuses a progress edit and a delete. Add addendum appends a dated, attributed note. Owner, Admin, Member, and Operations can add one.' },
       { id: 'change', label: 'Variation', hint: 'Days, then price', icon: 'git-branch', lane: DESK, anchor: 'variations' },
       { id: 'claim', label: 'Claim', hint: 'Status planned', icon: 'receipt', lane: DESK, anchor: 'payments', books: 'Save claim stores status planned. It does not post Finance.' },
       { id: 'certify', label: 'Certify', hint: 'Certificate issued', icon: 'stamp', lane: OFFICE, anchor: 'payments', books: 'Status certified. Retention is 10%. An interim payment certificate is created. No journal.' },
       { id: 'pay', kind: 'decision', label: 'Record pay?', lane: OFFICE, anchor: 'payments' },
       { id: 'paid', label: 'Paid', hint: 'Certificate paid', icon: 'wallet', lane: OFFICE, anchor: 'certificates', books: 'The claim and the certificate become paid. Money is not sent and no journal is posted.' },
       { id: 'hand', label: 'Handover', hint: 'Close snags', icon: 'circle-check', lane: SITE, anchor: 'handover', books: 'Close sets the snag closed. It does not change the project status.' },
-    ],
+    ], {
+      'Client and programme': ['client', 'quote', 'project', 'build'],
+      Diary: ['diary', 'signed', 'addendum'],
+      'Claims and handover': ['change', 'claim', 'certify', 'pay', 'paid', 'hand'],
+    }),
     edges: [
       { from: 'client', to: 'quote' },
       { from: 'quote', to: 'project' },
@@ -291,12 +330,12 @@ export const MODULE_FLOWS: Record<string, ModuleFlow> = {
       { id: 'dates', label: 'Compliance', hint: 'Dates you enter', icon: 'calendar-days', anchor: 'compliance', books: 'Dates are whatever this company enters. The product does not supply a legal calendar.' },
       { id: 'job', label: 'Job', hint: 'Not an invoice', icon: 'clipboard-list', anchor: 'jobs', books: 'Save job does not create a sales order, a delivery note, or a finance invoice.' },
       { id: 'read', label: 'Odometer', hint: 'A reading', icon: 'clipboard-check', anchor: 'vehicles' },
-      { id: 'cpk', label: 'Per kilometre', hint: 'Needs readings', icon: 'receipt', anchor: 'cpk', books: 'A cost entry stays on the fleet book. It does not post a finance journal. Not enough data until readings and costs exist.' },
+      { id: 'cpk', label: 'Per kilometre', hint: 'From readings', icon: 'receipt', anchor: 'cpk', books: 'Distance uses completed trip readings when they exist, otherwise odometer pairs. FleetAdvisor® does not receive a position. A cost entry does not post a finance journal. Owner, Admin, and Finance can open it.' },
     ],
   },
 
   tradegraph: {
-    flow: [
+    flow: withStages([
       { id: 'enquiry', label: 'Enquiry', hint: 'New job', icon: 'user-round', lane: OFFICE, anchor: 'jobs', books: 'Status enquiry. Cancelled jobs stay off the board.' },
       { id: 'quoted', label: 'Quote', hint: 'Save draft', icon: 'file-pen', lane: OFFICE, anchor: 'quote', books: 'Status draft. VAT is 15% on top. The deposit is not collected yet.' },
       { id: 'sent', label: 'Sent', hint: 'Send to customer', icon: 'send', lane: OFFICE, anchor: 'quote', books: 'Send to customer moves draft to sent.' },
@@ -307,7 +346,10 @@ export const MODULE_FLOWS: Record<string, ModuleFlow> = {
       { id: 'invoiced', label: 'Invoiced', hint: 'Not the 1130 journal', icon: 'receipt', lane: OFFICE, anchor: 'invoices', books: 'A non-deposit invoice sets the job to invoiced unless it is already paid. It does not by itself post 1130.' },
       { id: 'covered', kind: 'decision', label: 'Covered?', lane: OFFICE, anchor: 'invoices' },
       { id: 'paid', label: 'Paid', hint: 'Balance cleared', icon: 'wallet', lane: OFFICE, anchor: 'invoices', books: 'When recorded payments cover every invoice that is not void, the job becomes paid.' },
-    ],
+    ], {
+      Quote: ['enquiry', 'quoted', 'sent', 'sign', 'scheduled', 'declined'],
+      'Site and payment': ['site', 'invoiced', 'covered', 'paid'],
+    }),
     edges: [
       { from: 'enquiry', to: 'quoted' },
       { from: 'quoted', to: 'sent' },
@@ -342,7 +384,7 @@ export const MODULE_FLOWS: Record<string, ModuleFlow> = {
   },
 
   fitgraph: {
-    flow: [
+    flow: withStages([
       { id: 'member', label: 'Member', hint: 'On the book', icon: 'user-round', lane: OWNER, anchor: 'members', books: 'Membership status is active, paused, expired, cancelled, trial, frozen, or merged.' },
       { id: 'mandate', label: 'Mandate', hint: 'Sign mandate', icon: 'notebook-pen', lane: OWNER, anchor: 'mandates', books: 'Status is pending, active, suspended, or cancelled. Validation is unchecked, valid, invalid, or error.' },
       { id: 'bank-ok', kind: 'decision', label: 'Bank valid?', lane: OWNER, anchor: 'mandates' },
@@ -353,7 +395,11 @@ export const MODULE_FLOWS: Record<string, ModuleFlow> = {
       { id: 'reconcile', label: 'Reconcile', hint: 'Fetch results', icon: 'scale', lane: OWNER, anchor: 'collections', books: 'A line is scheduled, submitted, paid, unpaid, reversed, skipped, or review.' },
       { id: 'debit', kind: 'decision', label: 'Debit paid?', lane: MEMBER, anchor: 'checkins' },
       { id: 'checkin', label: 'Check-in', hint: 'Visit logged', icon: 'dumbbell', lane: MEMBER, anchor: 'checkins', books: 'An unpaid debit warns: access stays open. The visit is still logged.' },
-    ],
+    ], {
+      'Member and mandate': ['member', 'mandate', 'bank-ok', 'active'],
+      'Billing run': ['invoice', 'preview', 'submit', 'reconcile'],
+      'Check-in': ['debit', 'checkin'],
+    }),
     edges: [
       { from: 'member', to: 'mandate' },
       { from: 'mandate', to: 'bank-ok' },
@@ -420,7 +466,7 @@ export const MODULE_FLOWS: Record<string, ModuleFlow> = {
   },
 
   recovergraph: {
-    flow: [
+    flow: withStages([
       { id: 'creditor', label: 'Creditor', hint: 'Starts active', icon: 'building-2', lane: 'Desk', anchor: 'creditors', books: 'A new creditor is active. Archive sets inactive. This desk gives no legal advice.' },
       { id: 'mandate', label: 'Draft mandate', hint: 'Not active yet', icon: 'file-pen', lane: 'Desk', anchor: 'mandates', books: 'The form stores a draft. It does not collect a signed date or an agreement reference, so it does not become active.' },
       { id: 'active', kind: 'decision', label: 'Mandate active?', lane: 'Desk', anchor: 'mandates' },
@@ -430,7 +476,10 @@ export const MODULE_FLOWS: Record<string, ModuleFlow> = {
       { id: 'work', label: 'Note or flag', hint: 'No letter', icon: 'flag', lane: 'Agent', anchor: 'accounts', books: 'A flag does not send or block a message. Adjustment is not a receipt.' },
       { id: 'recall-from', kind: 'decision', label: 'Active account?', lane: 'Agent', anchor: 'accounts' },
       { id: 'recall', label: 'Recall', hint: 'From active only', icon: 'undo-2', lane: 'Agent', anchor: 'accounts', books: 'Recall sets the state to recalled, and only from active. Paid, arrangement, and closed are not buttons.' },
-    ],
+    ], {
+      'Creditor and mandate': ['creditor', 'mandate', 'active', 'place', 'refused'],
+      'Queue and recall': ['queue', 'work', 'recall-from', 'recall'],
+    }),
     edges: [
       { from: 'creditor', to: 'mandate' },
       { from: 'mandate', to: 'active' },

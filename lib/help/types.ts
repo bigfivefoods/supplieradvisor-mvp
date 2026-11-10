@@ -74,8 +74,18 @@ export type GuideNode = {
    * Swimlanes render only when a flow uses two or more lanes.
    */
   lane?: string;
+  /** Named band for a long flow. Flows of more than eight nodes use these. */
+  stage?: string;
   /** What the books or the system do at this step. */
   books?: string;
+  /** What the person does. Shown when the node is expanded. */
+  does?: string;
+  /** Who can do it, when that is narrower than the lane. */
+  who?: string;
+  /** Journals and accounts posted at this step. */
+  posts?: string;
+  /** Status the step writes. */
+  status?: string;
   /** Feature id. The node scrolls to `#guide-{anchor}`. */
   anchor?: string;
   kind?: 'step' | 'decision';
