@@ -194,14 +194,22 @@ const features: GuideFeature[] = [
       'Press Sign off. The day then reads Signed off, and Progress is disabled.',
     ],
     behind: [
-      'Sign off stores the time and the name on that diary row. A second entry for the same project and day is not how this screen works.',
-      'The page text says later edits are addenda. There is no addendum button. After sign-off the Progress field stays disabled.',
-      'The diary does not post a journal and does not notify Finance.',
+      'Sign off stores the time and the name on that diary row. A second entry for the same project and day is refused with “One diary entry per project per date”.',
+      'The page text says later edits are addenda. This screen has no addendum field. After sign-off, Progress is disabled. A write that changes the signed day, or a delete of that day, is refused. The server will keep an addendum only if one is sent, and this form does not send one.',
+      'The diary does not post a journal and does not notify Finance. Photos and identity numbers are not stored.',
     ],
     errors: [
       {
         message: 'Not available for your role',
         fix: 'The office and a viewer can read the diary when the collection is visible. They cannot start or sign off a day.',
+      },
+      {
+        message: 'This day is signed off. Add an addendum.',
+        fix: 'Progress is already locked. This screen has no control that adds an addendum. Do not delete the day. The note for that day stays as it was signed.',
+      },
+      {
+        message: 'Photos and identity numbers are not stored',
+        fix: 'The diary row cannot carry a photo or an identity number.',
       },
     ],
     faqs: [

@@ -276,7 +276,8 @@ const features: GuideFeature[] = [
     ],
     behind: [
       'The rate uses the fleet book only. It does not read the finance ledger and it does not post one.',
-      'Office can read costs. Driver pay is removed from that view.',
+      'How this is calculated says distance can come from GPS. The book does not pass position fixes, and Fleet map says nothing is tracked. Distance comes from completed trip readings or odometer pairs. Planned kilometres are not used.',
+      'Office can read costs. Driver pay is removed from that view. The empty hint names an owner or an office role and leaves out the manager. Admin can open this screen.',
       'Not enough data, Partial, and Complete are the completeness states on the vehicle.',
     ],
     errors: [
