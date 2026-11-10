@@ -17,12 +17,18 @@ import {
   appendBillingLedger,
   readBillingLedger,
 } from '@/lib/billing/billing-ledger';
+import {
+  forwardBfgShopWebhook,
+  isBfgShopReference,
+} from '@/lib/billing/bfg-shop-webhook';
 
 export const runtime = 'nodejs';
 
 /**
  * POST /api/paystack/webhook
- * Verify Paystack signature; on charge.success run CIPC; always record pulse.
+ * Verify Paystack signature. A data.reference that starts with bfg-shop-
+ * is forwarded raw to the Big Five Group shop and not fulfilled here.
+ * Other charge.success events run CIPC. Accepted events record the ops pulse.
  *
  * Configure in Paystack Dashboard → Settings → Webhooks (canonical only):
  *   https://www.supplieradvisor.com/api/paystack/webhook
@@ -67,6 +73,26 @@ export async function POST(request: NextRequest) {
     }
     const eventName = String(event.event || '').toLowerCase();
     const data = event.data || {};
+
+    // Shop events (any type, including charge.success from charge_authorization)
+    // are relayed byte-for-byte. A failed relay returns 502 so Paystack retries.
+    if (isBfgShopReference(data.reference)) {
+      const forwarded = await forwardBfgShopWebhook(raw, signature, data.reference);
+      if (!forwarded.ok) {
+        return jsonNoStore(
+          {
+            error: 'Shop webhook forward failed',
+            code: 'BFG_SHOP_FORWARD_FAILED',
+          },
+          { status: 502, headers: { 'Retry-After': '30' } }
+        );
+      }
+      return jsonNoStore({
+        received: true,
+        forwarded: 'bfg_shop',
+        reference: data.reference,
+      });
+    }
 
     const reference = String(
       data.reference ||
