@@ -13,8 +13,8 @@ const TONES: Record<NonNullable<FlowNode['tone']>, string> = {
 };
 
 /**
- * Chip row kept for the training curriculum at /dashboard/guide.
- * How-to guides at /dashboard/help use ProcessDiagram.
+ * Chip row kept for the training handbook at /dashboard/guide.
+ * Module how-to guides on the same route use ProcessDiagram.
  */
 export { ProcessDiagram } from '@/components/guide/ProcessDiagram';
 

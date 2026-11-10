@@ -3,11 +3,11 @@ import { ArrowLeft, ArrowRight, CircleHelp, MapPin } from 'lucide-react';
 import { ProcessDiagram } from '@/components/guide/ProcessDiagram';
 import type { ModuleGuide } from '@/lib/help/types';
 
-export function HelpGuide({ guide }: { guide: ModuleGuide }) {
+export function HelpGuide({ guide, handbook }: { guide: ModuleGuide; handbook?: React.ReactNode }) {
   return (
     <div className="mx-auto max-w-5xl pb-16">
       <Link
-        href="/dashboard/help"
+        href="/dashboard/guide"
         className="mb-6 inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-[#0077b6]"
       >
         <ArrowLeft className="h-4 w-4 text-[#00b4d8]" />
@@ -41,7 +41,12 @@ export function HelpGuide({ guide }: { guide: ModuleGuide }) {
 
       <div className="mb-10" data-flow-section>
         <h2 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-neutral-400">Process flow</h2>
-        <ProcessDiagram title={`${guide.name} flow`} nodes={guide.flow} edges={guide.edges} />
+        <ProcessDiagram
+          title={`${guide.name} flow`}
+          nodes={guide.flow}
+          edges={guide.edges}
+          guideHref={`/dashboard/guide/${guide.id}`}
+        />
       </div>
 
       <h2 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-neutral-400">
@@ -162,6 +167,7 @@ export function HelpGuide({ guide }: { guide: ModuleGuide }) {
           </details>
         ))}
       </div>
+      {handbook}
     </div>
   );
 }

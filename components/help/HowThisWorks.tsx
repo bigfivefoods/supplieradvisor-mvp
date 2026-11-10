@@ -13,7 +13,7 @@ export function HowThisWorks() {
   return (
     <div className="mb-4 flex justify-end">
       <Link
-        href={`/dashboard/help/${id}`}
+        href={`/dashboard/guide/${id}`}
         className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-[#00b4d8]/30 bg-white px-3 text-xs font-bold text-[#0077b6] shadow-sm hover:border-[#00b4d8]"
       >
         <CircleHelp className="h-3.5 w-3.5 text-[#00b4d8]" aria-hidden />
