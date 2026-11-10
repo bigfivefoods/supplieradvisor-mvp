@@ -16,6 +16,11 @@ import { providerTxnId } from '../ingest';
 
 const DEFAULT_BASE = 'https://api.banklink.co.za/v1';
 
+/** Sample bank rows are for local and preview work. Production never writes them. */
+export function sandboxSamplesAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.VERCEL_ENV !== 'production';
+}
+
 export function banklinkConfig() {
   const apiKey = process.env.BANKLINK_API_KEY || '';
   const base = (process.env.BANKLINK_API_BASE || DEFAULT_BASE).replace(/\/$/, '');
@@ -164,6 +169,12 @@ export async function listBankLinkAccounts(): Promise<{
 }> {
   const cfg = banklinkConfig();
   if (cfg.mode === 'sandbox') {
+    if (!sandboxSamplesAllowed()) {
+      return {
+        accounts: [],
+        error: 'No live bank connection. SupplierAdvisor® does not show a sample bank on production.',
+      };
+    }
     return {
       sandbox: true,
       accounts: [
@@ -194,6 +205,12 @@ export async function fetchBankLinkTransactions(params: {
 }): Promise<{ txns: CanonicalTxn[]; error?: string; sandbox?: boolean }> {
   const cfg = banklinkConfig();
   if (cfg.mode === 'sandbox') {
+    if (!sandboxSamplesAllowed()) {
+      return {
+        txns: [],
+        error: 'No live bank connection. SupplierAdvisor® does not load sample transactions on production.',
+      };
+    }
     return { sandbox: true, txns: sandboxTransactions() };
   }
 

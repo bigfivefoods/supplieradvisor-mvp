@@ -78,7 +78,7 @@ async function loadBook(companyId: number): Promise<TradegraphStore> {
   const existing = await loadTradeStore(companyId);
   if (existing) return existing;
   const now = new Date().toISOString();
-  if (await companyLooksDemo(companyId)) {
+  if ((await companyLooksDemo(companyId)) && process.env.VERCEL_ENV !== 'production') {
     const demo = seedDemoTradegraph(now, `tg_demo_${companyId}`);
     await saveTradeStore(companyId, demo);
     return demo;
@@ -240,6 +240,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'seed_demo') {
+      if (process.env.VERCEL_ENV === 'production') {
+        return NextResponse.json(
+          { error: 'SupplierAdvisor® does not load a sample book on production.' },
+          { status: 409 }
+        );
+      }
       store = seedDemoTradegraph(now, store.settings.public_token || `tg_demo_${companyId}`);
       await saveTradeStore(companyId, store);
       return jsonStore(store, { message: 'Sample Cape Town book loaded' });

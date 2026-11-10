@@ -32,6 +32,12 @@ jobs:
         run: npm run typecheck
       - name: Route auth guard
         run: npm run check:route-auth
+      - name: Production fixture route gate
+        run: |
+          set -euo pipefail
+          npx --yes tsx lib/preview/production-gate.test.ts
+          npx --yes tsx lib/banking/sandbox-production.test.ts
+          npx --yes tsx lib/help/module-guides.test.ts
       - name: GymAdvisor delta save tests
         run: |
           set -euo pipefail

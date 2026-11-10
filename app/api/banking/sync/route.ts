@@ -11,6 +11,7 @@ import {
   ingestCanonicalTxns,
   startSyncRun,
   finishSyncRun,
+  sandboxSamplesAllowed,
   sandboxTransactions,
   triggerBankLinkSync,
 } from '@/lib/banking';
@@ -107,10 +108,20 @@ export async function POST(request: NextRequest) {
       await triggerBankLinkSync(externalAccountId);
     }
 
-    let txns =
-      conn.provider === 'sandbox' || cfg.mode === 'sandbox'
-        ? sandboxTransactions()
-        : [];
+    const sampleFeed =
+      conn.provider === 'sandbox' ||
+      (cfg.mode === 'sandbox' && conn.provider !== 'fnb');
+    if (sampleFeed && !sandboxSamplesAllowed()) {
+      return NextResponse.json(
+        {
+          error:
+            'SupplierAdvisor® does not load sample bank transactions on production. Connect a live bank or import a statement.',
+        },
+        { status: 409 }
+      );
+    }
+
+    let txns = sampleFeed ? sandboxTransactions() : [];
 
     if (conn.provider === 'fnb') {
       if (!isFnbIntegrationCompany(companyId)) {
@@ -178,11 +189,7 @@ export async function POST(request: NextRequest) {
       txns = pulled.txns;
     }
 
-    if (
-      !txns.length &&
-      conn.provider !== 'fnb' &&
-      (conn.provider === 'sandbox' || cfg.mode === 'sandbox')
-    ) {
+    if (!txns.length && sampleFeed && sandboxSamplesAllowed()) {
       txns = sandboxTransactions();
     }
 

@@ -473,20 +473,10 @@ export function vatNumberError(value: string): string | null {
 }
 
 export function defaultVatSettings(
-  profileId: number,
+  _profileId: number,
   profile?: { vat_number?: string | null }
 ): VatVendorSettings {
   const vatNumber = normaliseVatNumber(profile?.vat_number);
-  if (profileId === 102) {
-    return {
-      vatNumber: vatNumber || '4280321847',
-      basis: 'payment',
-      category: 'B',
-      effectiveFrom: '2025-05-29',
-      firstPeriodEnd: '2025-06-30',
-      filingChannel: 'efiling',
-    };
-  }
   return {
     vatNumber,
     basis: 'invoice',

@@ -462,7 +462,7 @@ export function resourceForPath(pathname: string | null | undefined): Permission
     return 'accounting';
   }
   if (pathname.startsWith('/dashboard/intelligence')) return 'intelligence';
-  if (pathname.startsWith('/dashboard/guide')) return 'dashboard';
+  if (pathname.startsWith('/dashboard/guide') || pathname.startsWith('/dashboard/help')) return 'dashboard';
   if (pathname.startsWith('/dashboard/quality')) return 'sheq';
   if (pathname.startsWith('/dashboard/sheq')) return 'sheq';
   if (pathname.startsWith('/dashboard/projects')) return 'projects';

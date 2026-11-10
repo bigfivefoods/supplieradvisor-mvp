@@ -127,6 +127,9 @@ export function applyStaffConstructionAction(opts: {
   const action = String(opts.action || 'merge');
 
   if (action === 'seed_demo') {
+    if (process.env.VERCEL_ENV === 'production') {
+      return { error: 'SupplierAdvisor® does not load a sample book on production.', status: 409 };
+    }
     if (constructionBookHasRows(current)) {
       return { error: 'The book already has data', status: 409 };
     }

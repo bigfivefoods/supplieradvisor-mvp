@@ -22,6 +22,7 @@ import {
 import { useAdvisorSkin } from '@/lib/brand/useAdvisorSkin';
 import { PortalBrandLogo } from '@/components/brand/PortalBrandLogo';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
+import { HowThisWorks } from '@/components/help/HowThisWorks';
 
 export default function AppShell({
   children,
@@ -115,6 +116,7 @@ function AppShellInner({
             <ModuleAccessGate>{children}</ModuleAccessGate>
           ) : (
             <div className="sa-page">
+              <HowThisWorks />
               <ModuleAccessGate>{children}</ModuleAccessGate>
             </div>
           )}

@@ -178,6 +178,12 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
 
     if (action === 'seed_demo') {
+      if (process.env.VERCEL_ENV === 'production') {
+        return NextResponse.json(
+          { error: 'SupplierAdvisor® does not load a sample book on production.' },
+          { status: 409 }
+        );
+      }
       const demo = seedDemoVetgraph(now, companyId);
       await saveStore(companyId, meta, demo);
       return NextResponse.json({

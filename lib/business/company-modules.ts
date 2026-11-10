@@ -1088,7 +1088,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname === '/dashboard' || pathname === '/dashboard/') return 'home';
   if (pathname.startsWith('/dashboard/select-company')) return null;
   if (pathname.startsWith('/dashboard/my-business')) return 'my-business';
-  if (pathname.startsWith('/dashboard/guide')) return 'guide';
+  if (pathname.startsWith('/dashboard/guide') || pathname.startsWith('/dashboard/help')) return 'guide';
   if (
     pathname.startsWith('/dashboard/connections') ||
     pathname.startsWith('/dashboard/network') ||
