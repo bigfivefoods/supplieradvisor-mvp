@@ -1,8 +1,10 @@
 import ComparePlatforms from '@/components/marketing/ComparePlatforms';
 import SocialProofStrip from '@/components/marketing/SocialProofStrip';
 import SuperCubeStory from '@/components/marketing/SuperCubeStory';
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
 
 export default function WhyPageSections() {
+  const demoHref = interactiveDemoHref();
   return (
     <>
       <section id="why-join" className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
@@ -13,7 +15,7 @@ export default function WhyPageSections() {
       </section>
       <ComparePlatforms />
       <SocialProofStrip />
-      <SuperCubeStory />
+      <SuperCubeStory demoHref={demoHref} />
     </>
   );
 }

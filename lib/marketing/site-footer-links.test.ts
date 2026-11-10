@@ -67,14 +67,14 @@ for (const link of industryEntries) {
 }
 
 const homeLanding = readFileSync(resolve(root, 'components/marketing/HomeLanding.tsx'), 'utf8');
-assert.match(homeLanding, /<SiteFooter/, 'home landing should render the footer in server HTML');
+assert.match(homeLanding, /<SiteFooter/, 'home landing should render the footer in server HTML');
 assert.doesNotMatch(homeLanding, /HomeBelowFoldLazy/, 'home landing should not use lazy below-fold island');
 
 const pricingPage = readFileSync(resolve(root, 'app/pricing/page.tsx'), 'utf8');
 assert.ok(!pricingPage.includes("'use client'"), '/pricing page must remain a server component');
 assert.match(
   pricingPage,
-  /<PricingContent/,
+  /<PricingContent/,
   '/pricing stays a server page and renders PricingContent, which owns SiteFooter'
 );
 

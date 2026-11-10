@@ -38,7 +38,6 @@ const ar: Dict = {
   'nav.pricing': 'الأسعار',
   'nav.roi': 'العائد',
   'nav.industries': 'القطاعات',
-  'nav.demo': 'عرض',
   'nav.more': 'المزيد',
   'nav.appearance': 'المظهر',
   'nav.logIn': 'تسجيل الدخول',

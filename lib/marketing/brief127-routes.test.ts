@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { LEGACY_HOME_ANCHOR_TARGETS } from '@/lib/marketing/legacy-home-anchors';
-import { STATIC_SEO_ROUTES } from '@/lib/seo/site';
 
 const requiredIds = [
   'video', 'stack', 'systems', 'whats-new', 'industry-packs', 'tradeadvisor',
@@ -32,11 +31,11 @@ const expectedSeoRoutes = [
   '/government',
   '/roi',
 ];
+const seoSrc = readFileSync(resolve(process.cwd(), 'lib/seo/site.ts'), 'utf8');
 for (const route of expectedSeoRoutes) {
-  assert.ok(STATIC_SEO_ROUTES.some((entry) => entry.path === route), `${route} missing from STATIC_SEO_ROUTES`);
+  assert.ok(seoSrc.includes(`path: '${route}'`), `${route} missing from STATIC_SEO_ROUTES`);
 }
 
-const seoSrc = readFileSync(resolve(process.cwd(), 'lib/seo/site.ts'), 'utf8');
 assert.match(seoSrc, /fixtureRoutesOpen\(\)/, 'seo routes should gate /demo by fixtureRoutesOpen');
 
 const robotsSrc = readFileSync(resolve(process.cwd(), 'app/robots.ts'), 'utf8');

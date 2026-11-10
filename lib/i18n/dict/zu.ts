@@ -35,7 +35,6 @@ const zu: Dict = {
   'nav.pricing': 'Intengo',
   'nav.roi': 'ROI',
   'nav.industries': 'Izimboni',
-  'nav.demo': 'Idemo',
   'nav.more': 'Okunye',
   'nav.appearance': 'Ukubukeka',
   'nav.logIn': 'Ngena',

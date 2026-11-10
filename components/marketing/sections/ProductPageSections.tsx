@@ -6,8 +6,8 @@ import ReplaceStackDiagram from '@/components/marketing/ReplaceStackDiagram';
 export default function ProductPageSections({ tourHref }: { tourHref: string }) {
   return (
     <>
-      <ProductVideo />
-      <ReplaceStackDiagram />
+      <ProductVideo tourHref={tourHref} />
+      <ReplaceStackDiagram tourHref={tourHref} />
       <section id="systems" className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
         <h2 className="text-2xl font-black text-slate-900">Systems that work together</h2>
         <p className="mt-3 text-slate-600">

@@ -21,8 +21,8 @@ for (const rel of ['app/page.tsx', 'components/marketing/HomeLanding.tsx']) {
 }
 
 const nav = read('components/marketing/LandingNav.tsx');
-assert.match(nav, /nav\\.catalogues/);
-assert.doesNotMatch(nav, /href:\\s*'\\/#/);
+assert.match(nav, /nav\.catalogues/);
+assert.doesNotMatch(nav, /href:\s*'\/#/);
 
 const route = read('app/catalogues/[id]/download/route.ts');
 assert.doesNotMatch(route, /searchParams/);

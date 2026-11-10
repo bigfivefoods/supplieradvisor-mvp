@@ -35,7 +35,6 @@ const sw: Dict = {
   'nav.pricing': 'Bei',
   'nav.roi': 'ROI',
   'nav.industries': 'Sekta',
-  'nav.demo': 'Onyesho',
   'nav.more': 'Zaidi',
   'nav.appearance': 'Mwonekano',
   'nav.logIn': 'Ingia',

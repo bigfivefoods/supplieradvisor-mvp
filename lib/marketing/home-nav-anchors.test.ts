@@ -11,13 +11,14 @@ function src(rel: string) {
 
 const nav = src('components/marketing/LandingNav.tsx');
 
-const primaryHrefs = [...nav.matchAll(/PRIMARY_LINKS:[\s\S]*?\[(.*?)\]/g)][0]?.[1] ?? '';
-assert.match(primaryHrefs, /\/product/);
-assert.match(primaryHrefs, /\/modules/);
-assert.match(primaryHrefs, /\/industries/);
-assert.match(primaryHrefs, /\/pricing/);
-assert.match(primaryHrefs, /\/roi/);
-assert.equal((primaryHrefs.match(/href:/g) ?? []).length, 5, 'primary nav should expose exactly 5 links');
+assert.match(nav, /const PRIMARY_LINKS/);
+assert.match(nav, /href: '\/product'/);
+assert.match(nav, /href: '\/modules'/);
+assert.match(nav, /href: '\/industries'/);
+assert.match(nav, /href: '\/pricing'/);
+assert.match(nav, /href: '\/roi'/);
+const primaryBlock = nav.split('const PRIMARY_LINKS')[1]?.split('const MORE_LINKS')[0] ?? '';
+assert.equal((primaryBlock.match(/href:/g) ?? []).length, 5, 'primary nav should expose exactly 5 links');
 assert.doesNotMatch(nav, /href:\s*'\/#/);
 assert.doesNotMatch(nav, /revealAndScroll|scrollToHashIfPresent|SPY_SECTIONS/);
 assert.match(nav, /legacyHomeAnchorTarget/);

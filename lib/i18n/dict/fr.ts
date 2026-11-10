@@ -35,7 +35,6 @@ const fr: Dict = {
   'nav.pricing': 'Tarifs',
   'nav.roi': 'ROI',
   'nav.industries': 'Secteurs',
-  'nav.demo': 'Démo',
   'nav.more': 'Plus',
   'nav.appearance': 'Apparence',
   'nav.logIn': 'Se connecter',
