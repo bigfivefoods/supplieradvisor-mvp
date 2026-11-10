@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, CircleHelp, MapPin } from 'lucide-react';
-import { ProcessFlow } from '@/components/guide/ProcessFlow';
+import { ProcessDiagram } from '@/components/guide/ProcessDiagram';
 import type { ModuleGuide } from '@/lib/help/types';
 
 export function HelpGuide({ guide }: { guide: ModuleGuide }) {
@@ -39,17 +39,9 @@ export function HelpGuide({ guide }: { guide: ModuleGuide }) {
         <p className="mt-4 text-sm leading-relaxed text-slate-700">{guide.outcome}</p>
       </section>
 
-      <h2 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-neutral-400">Process flow</h2>
-      <div className="mb-10">
-        <ProcessFlow
-          title={`${guide.name} flow`}
-          nodes={guide.flow.map((node) => ({
-            id: node.id,
-            label: node.label,
-            hint: node.hint,
-            tone: 'cyan' as const,
-          }))}
-        />
+      <div className="mb-10" data-flow-section>
+        <h2 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-neutral-400">Process flow</h2>
+        <ProcessDiagram title={`${guide.name} flow`} nodes={guide.flow} edges={guide.edges} />
       </div>
 
       <h2 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-neutral-400">
@@ -60,7 +52,8 @@ export function HelpGuide({ guide }: { guide: ModuleGuide }) {
           <article
             key={feature.id}
             id={`guide-${feature.id}`}
-            className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm"
+            tabIndex={-1}
+            className="scroll-mt-28 overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm outline-none"
           >
             <div className="flex flex-col gap-2 border-b border-neutral-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>

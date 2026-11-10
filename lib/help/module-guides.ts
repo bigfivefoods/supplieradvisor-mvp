@@ -35,9 +35,10 @@ import { SCHOOLS_GUIDE } from '@/lib/help/guides/schools';
 import { SHEQ_GUIDE } from '@/lib/help/guides/sheq';
 import { SUPPLIERS_GUIDE } from '@/lib/help/guides/suppliers';
 import { TRADE_GUIDE } from '@/lib/help/guides/trade';
-import type { GuideError, GuideFaq, GuideFeature, GuideNode, ModuleGuide } from '@/lib/help/types';
+import { flowFor } from '@/lib/help/module-flows';
+import type { GuideEdge, GuideError, GuideFaq, GuideFeature, GuideNode, ModuleGuide } from '@/lib/help/types';
 
-export type { GuideError, GuideFaq, GuideFeature, GuideNode, ModuleGuide };
+export type { GuideEdge, GuideError, GuideFaq, GuideFeature, GuideNode, ModuleGuide };
 
 const HAND: Record<string, ModuleGuide> = {
   home: HOME_GUIDE,
@@ -84,7 +85,9 @@ function buildOne(mod: ModuleNav): ModuleGuide {
   if (!guide) {
     throw new Error(`No how-to guide for ${mod.id}`);
   }
-  return guide;
+  const diagram = flowFor(mod.id);
+  if (!diagram) return guide;
+  return { ...guide, flow: diagram.flow, edges: diagram.edges };
 }
 
 export const MODULE_GUIDES: readonly ModuleGuide[] = MODULE_NAV.map(buildOne);

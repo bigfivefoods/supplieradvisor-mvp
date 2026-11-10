@@ -13,7 +13,13 @@ const TONES: Record<NonNullable<FlowNode['tone']>, string> = {
 };
 
 /**
- * Horizontal process flowchart — training-friendly, no external diagram lib.
+ * Chip row kept for the training curriculum at /dashboard/guide.
+ * How-to guides at /dashboard/help use ProcessDiagram.
+ */
+export { ProcessDiagram } from '@/components/guide/ProcessDiagram';
+
+/**
+ * Horizontal process flowchart — training curriculum only.
  */
 export function ProcessFlow({
   nodes,
