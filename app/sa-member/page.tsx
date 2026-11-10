@@ -22,7 +22,9 @@ export default function SaMemberPage() {
         sections={['markets', 'member-app', 'audiences']}
         audienceFilter={['b2c']}
       />
-      <Link href="/me" className="inline-flex rounded-full bg-[#00b4d8] px-6 py-3 font-bold text-[#0f172a]">Create free SA Member account</Link>
+      <div className="mx-auto w-full max-w-screen-2xl px-4 sm:px-6 lg:px-10">
+        <Link href="/me" className="inline-flex rounded-full bg-[#00b4d8] px-6 py-3 font-bold text-[#0f172a]">Create free SA Member account</Link>
+      </div>
     </MarketingPageShell>
   );
 }

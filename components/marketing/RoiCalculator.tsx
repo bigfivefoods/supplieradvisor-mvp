@@ -14,18 +14,20 @@ import {
 
 /**
  * Simple operator ROI model vs fragmented Excel / multi-tool stack.
- * Illustrative — not financial advice.
+ * Illustrative, not financial advice.
  */
 export default function RoiCalculator({
   id = 'roi',
   heading = true,
   startHref = '/join',
   reserveResultHeight = false,
+  embedded = false,
 }: {
   id?: string;
   heading?: boolean;
   startHref?: string;
   reserveResultHeight?: boolean;
+  embedded?: boolean;
 }) {
   const [people, setPeople] = useState(DEFAULT_ROI_INPUTS.people);
   const [hoursPerWeek, setHoursPerWeek] = useState(DEFAULT_ROI_INPUTS.hoursPerWeek);
@@ -41,7 +43,7 @@ export default function RoiCalculator({
   return (
     <section
       id={id}
-      className="sa-anchor border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28"
+      className={`sa-anchor bg-[#f8fafc] ${embedded ? 'py-8 sm:py-10' : 'border-t border-slate-200 py-20 sm:py-28'}`}
     >
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
         {heading ? (
@@ -127,7 +129,7 @@ export default function RoiCalculator({
                 sub={
                   result.monthlyGain >= 0
                     ? 'After SupplierAdvisor® plan'
-                    : 'Adjust inputs — still try the free trial'
+                    : 'Adjust inputs, still try the free trial'
                 }
                 tone="emerald"
               />
@@ -156,7 +158,7 @@ export default function RoiCalculator({
                 />
                 <Row
                   label="SupplierAdvisor® company plan"
-                  value={`− ${formatWholeZar(result.saCost)}`}
+                  value={`- ${formatWholeZar(result.saCost)}`}
                 />
                 <div className="border-t border-slate-100 pt-3 flex justify-between items-center">
                   <span className="font-black text-slate-900">

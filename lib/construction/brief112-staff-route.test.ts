@@ -365,7 +365,7 @@ const signedOut = await GET(
 assert.ok(signedOut.status === 401 || signedOut.status === 403);
 const signedOutBody = await signedOut.text();
 assert.equal(signedOutBody.includes('"store"'), false);
-assert.equal(hashPortalToken('cgp_staff') , hashPortalToken('cgp_staff'));
+assert.equal(hashPortalToken('cgp_staff'), hashPortalToken('cgp_staff'));
 
 console.log('brief112-staff-route.test.ts ok');
 }

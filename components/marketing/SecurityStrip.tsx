@@ -13,7 +13,7 @@ const ITEMS = [
   {
     icon: Users,
     title: 'Role-based access',
-    body: 'Owner, admin, finance, ops, viewer, sales contractor — module rights per person.',
+    body: 'Owner, admin, finance, ops, viewer, sales contractor, module rights per person.',
   },
   {
     icon: Lock,
@@ -33,7 +33,7 @@ const ITEMS = [
   {
     icon: KeyRound,
     title: 'Modern auth',
-    body: 'Privy-based sign-in with team invites — no shared hero passwords.',
+    body: 'Privy-based sign-in with team invites, no shared hero passwords.',
   },
   {
     icon: Shield,
@@ -57,7 +57,7 @@ export default function SecurityStrip() {
             Built for operators who get audited
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-slate-300 sm:text-base">
-            B2G buyers and serious B2B partners expect roles, trails, and holds —
+            B2G buyers and serious B2B partners expect roles, trails, and holds,
             not screenshots of a spreadsheet.
           </p>
         </div>

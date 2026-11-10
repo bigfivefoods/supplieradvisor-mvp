@@ -22,7 +22,7 @@ export default function SuperCubeStory({ demoHref }: { demoHref: string }) {
               </span>
             </h2>
             <p className="mt-5 text-base leading-relaxed text-slate-600 sm:text-lg">
-              Super-Cube® is a doctoral leadership model embedded in the product —
+              Super-Cube® is a doctoral leadership model embedded in the product,
               so teams grow decision quality alongside OTIFEF, cost centres, and
               compliance. Pair it with SAM (Grok) for in-app how-to.
             </p>
@@ -30,7 +30,7 @@ export default function SuperCubeStory({ demoHref }: { demoHref: string }) {
               {[
                 'Leadership development inside the same workspace as ops',
                 'Intelligence pulse across network, supply, demand, and finance',
-                'Guide curriculum for every module — ramp without a manual',
+                'Guide curriculum for every module, ramp without a manual',
               ].map((t) => (
                 <li key={t} className="flex gap-2 text-sm text-slate-700">
                   <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
@@ -69,7 +69,7 @@ export default function SuperCubeStory({ demoHref }: { demoHref: string }) {
               {
                 icon: Users2,
                 t: 'Team that can operate',
-                b: 'Roles, guide chapters, and SAM answers — fewer hero accounts, more bench strength.',
+                b: 'Roles, guide chapters, and SAM answers, fewer hero accounts, more bench strength.',
               },
               {
                 icon: Sparkles,

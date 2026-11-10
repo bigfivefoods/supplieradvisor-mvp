@@ -22,7 +22,9 @@ export default function BusinessPage() {
         sections={['markets', 'audiences']}
         audienceFilter={['b2b']}
       />
-      <Link href="/join" className="inline-flex rounded-full bg-[#00b4d8] px-6 py-3 font-bold text-[#0f172a]">Start free</Link>
+      <div className="mx-auto w-full max-w-screen-2xl px-4 sm:px-6 lg:px-10">
+        <Link href="/join" className="inline-flex rounded-full bg-[#00b4d8] px-6 py-3 font-bold text-[#0f172a]">Start free</Link>
+      </div>
     </MarketingPageShell>
   );
 }

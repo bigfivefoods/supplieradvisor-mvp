@@ -49,7 +49,7 @@ export default function ReplaceStackDiagram({ tourHref }: { tourHref: string }) 
         </div>
 
         <div className="grid items-center gap-6 lg:grid-cols-[1fr_auto_1fr] lg:gap-8">
-          {/* Before — rose accent border only; high-contrast slate/white type */}
+          {/* Before, rose accent border only; high-contrast slate/white type */}
           <div className="rounded-3xl border-2 border-rose-300 bg-white p-6 sm:p-8 shadow-sm dark:border-rose-500/50 dark:bg-gradient-to-br dark:from-rose-950 dark:via-[#1a0a10] dark:to-black dark:ring-1 dark:ring-rose-500/30">
             <div className="mb-1 flex items-center gap-2">
               <span
@@ -88,7 +88,7 @@ export default function ReplaceStackDiagram({ tourHref }: { tourHref: string }) 
             </div>
           </div>
 
-          {/* After — emerald accent border only; high-contrast slate/white type */}
+          {/* After, emerald accent border only; high-contrast slate/white type */}
           <div className="rounded-3xl border-2 border-emerald-400 bg-white p-6 sm:p-8 shadow-md ring-1 ring-emerald-100 dark:border-emerald-500/50 dark:bg-gradient-to-br dark:from-emerald-950 dark:via-[#0a1a14] dark:to-black dark:ring-1 dark:ring-emerald-500/30 dark:shadow-none">
             <div className="mb-1 flex items-center gap-2">
               <span
@@ -100,7 +100,7 @@ export default function ReplaceStackDiagram({ tourHref }: { tourHref: string }) 
               </div>
             </div>
             <p className="mb-4 text-sm font-medium text-slate-600 dark:text-white/85">
-              One workspace — trade, ops, finance, and people together.
+              One workspace, trade, ops, finance, and people together.
             </p>
             <div className="grid grid-cols-2 gap-2">
               {AFTER.map((t) => (

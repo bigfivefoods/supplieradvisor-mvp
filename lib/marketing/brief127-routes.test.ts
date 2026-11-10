@@ -101,4 +101,18 @@ for (const section of relocated) {
   );
 }
 
+const movedContentFiles = [
+  resolve(process.cwd(), 'components/marketing/HomeBelowFold.tsx'),
+  ...readdirSync(resolve(process.cwd(), 'components/marketing/sections'))
+    .filter((name) => name.endsWith('.ts') || name.endsWith('.tsx'))
+    .map((name) => resolve(process.cwd(), 'components/marketing/sections', name)),
+];
+for (const file of movedContentFiles) {
+  const src = readFileSync(file, 'utf8');
+  const badCommaSpacing = ` ${','}`;
+  assert.ok(!src.includes(badCommaSpacing), `found stray comma spacing in ${file}`);
+  assert.ok(!src.includes('—'), `found em dash in ${file}`);
+  assert.ok(!src.includes('–'), `found en dash in ${file}`);
+}
+
 console.log('brief127-routes.test.ts ok');

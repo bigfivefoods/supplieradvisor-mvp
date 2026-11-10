@@ -2173,7 +2173,7 @@ export function ensureCoachPortalToken(
   return issued;
 }
 
-/** Parse companyId from coach_* , member_* or fg_{companyId}_* tokens when present. */
+/** Parse companyId from coach_*, member_* or fg_{companyId}_* tokens when present. */
 export function parseCompanyIdFromToken(token: string): number | null {
   const coach = /^coach_(\d+)_/.exec(token);
   if (coach) return Number(coach[1]);

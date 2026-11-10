@@ -67,7 +67,7 @@ export function shareImageSrc(file: string): string {
 export const HOME_SHARE_CARD: ShareCardSpec = {
   id: 'home',
   file: 'share/home.png',
-  alt: 'SupplierAdvisor® — supply-chain OS with a verified trade and trust layer',
+  alt: 'SupplierAdvisor®, supply-chain OS with a verified trade and trust layer',
   eyebrow: 'Supply-chain OS',
   headline: ['Verified trade', 'and a trust layer'],
   sub: [
@@ -81,7 +81,7 @@ export const HOME_SHARE_CARD: ShareCardSpec = {
 export const PRICING_SHARE_CARD: ShareCardSpec = {
   id: 'pricing',
   file: 'share/pricing.png',
-  alt: `SupplierAdvisor® pricing — ${COMPANY_TRIAL_DAYS}-day trial, then from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month`,
+  alt: `SupplierAdvisor® pricing, ${COMPANY_TRIAL_DAYS}-day trial, then from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month`,
   eyebrow: 'Pricing',
   headline: [`${COMPANY_TRIAL_DAYS}-day trial, then`, `from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month`],
   sub: ['SupplierAdvisor® company plan.', 'Unlimited team users.'],
@@ -92,7 +92,7 @@ export const PRICING_SHARE_CARD: ShareCardSpec = {
 export const DEMO_SHARE_CARD: ShareCardSpec = {
   id: 'demo',
   file: 'share/demo.png',
-  alt: 'SupplierAdvisor® interactive demo — explore product flows without signing up',
+  alt: 'SupplierAdvisor® interactive demo, explore product flows without signing up',
   eyebrow: 'Interactive demo',
   headline: ['Explore the product', 'without signing up'],
   sub: ['SupplierAdvisor® flows for operations,', 'suppliers, finance, quality, and trade.'],
@@ -102,7 +102,7 @@ export const DEMO_SHARE_CARD: ShareCardSpec = {
 export const INDUSTRIES_SHARE_CARD: ShareCardSpec = {
   id: 'industries',
   file: 'share/industries.png',
-  alt: 'SupplierAdvisor® industries — sector workflows on one supply-chain OS',
+  alt: 'SupplierAdvisor® industries, sector workflows on one supply-chain OS',
   eyebrow: 'Industries',
   headline: ['Sector-ready depth', 'on one OS'],
   sub: ['SupplierAdvisor® for agri, construction,', 'apparel, clinics, gyms, and public programmes.'],

@@ -128,7 +128,7 @@ const MODULE_BAND_META: Record<
   core: {
     title: 'Core OS',
     blurb:
-      'The shared operating system every company gets , trade, ops, assure, finance, and insight on one fabric.',
+      'The shared operating system every company gets, trade, ops, assure, finance, and insight on one fabric.',
     accent:
       'text-[#0077b6] border-[#00b4d8]/40 bg-cyan-50/80 dark:text-cyan-300 dark:border-cyan-500/40 dark:bg-cyan-500/10',
     step: '01',
@@ -137,7 +137,7 @@ const MODULE_BAND_META: Record<
   sector: {
     title: 'Sector',
     blurb:
-      'Shape the workspace for how you produce and move goods , secondary manufacturing, logistics, and last-mile outlets.',
+      'Shape the workspace for how you produce and move goods, secondary manufacturing, logistics, and last-mile outlets.',
     accent:
       'text-sky-800 border-sky-200 bg-sky-50/80 dark:text-sky-300 dark:border-sky-500/40 dark:bg-sky-500/10',
     step: '02',
@@ -146,7 +146,7 @@ const MODULE_BAND_META: Record<
   industry: {
     title: 'Industry',
     blurb:
-      'Vertical OS modules for agri, extractives, trades and services , CropAdvisor®, QuarryAdvisor®, TradeAdvisor®, GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor® and clinic Advisors including VetAdvisor®, with diaries, waitlists, industry PWAs, rooms, marketplace, and in-app care.',
+      'Vertical OS modules for agri, extractives, trades and services, CropAdvisor®, QuarryAdvisor®, TradeAdvisor®, GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor® and clinic Advisors including VetAdvisor®, with diaries, waitlists, industry PWAs, rooms, marketplace, and in-app care.',
     accent:
       'text-emerald-800 border-emerald-200 bg-emerald-50/80 dark:text-emerald-300 dark:border-emerald-500/40 dark:bg-emerald-500/10',
     step: '03',
@@ -155,7 +155,7 @@ const MODULE_BAND_META: Record<
   government: {
     title: 'Government',
     blurb:
-      'Public-sector programmes only , SchoolAdvisor® (DBE / NSNP: department · school kitchen · SP) and HealthAdvisor® (DoH facilities). National → Provincial → Municipal → Local packaging, not private company modules.',
+      'Public-sector programmes only, SchoolAdvisor® (DBE / NSNP: department · school kitchen · SP) and HealthAdvisor® (DoH facilities). National → Provincial → Municipal → Local packaging, not private company modules.',
     accent:
       'text-violet-800 border-violet-200 bg-violet-50/80 dark:text-violet-300 dark:border-violet-500/40 dark:bg-violet-500/10',
     step: '04',
@@ -184,7 +184,7 @@ const MODULE_OPTIONS: Array<{
     title: 'Core OS',
     price: `R${CORE_OS_MONTHLY_ZAR}/mo`,
     eyebrow: 'Always included',
-    body: 'Trade, ops, finance, assure, and insight on one fabric , the foundation every company starts with.',
+    body: 'Trade, ops, finance, assure, and insight on one fabric, the foundation every company starts with.',
     tone: 'border-slate-200 bg-[#f8fafc] dark:border-neutral-800 dark:bg-neutral-950',
     iconTone: 'bg-[#00b4d8]/15 text-[#0077b6] dark:bg-[#00b4d8]/20 dark:text-[#00b4d8]',
     bullets: [
@@ -214,7 +214,7 @@ const MODULE_OPTIONS: Array<{
     title: 'Industry',
     price: `+R${INDUSTRY_PACK_MONTHLY_ZAR}/mo each`,
     eyebrow: 'Vertical depth',
-    body: 'Industry hubs for primary production and tertiary services , without removing Core process trees.',
+    body: 'Industry hubs for primary production and tertiary services, without removing Core process trees.',
     tone: 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 to-white dark:border-emerald-500/30 dark:from-emerald-500/10 dark:to-black',
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
     bullets: [
@@ -232,7 +232,7 @@ const MODULE_OPTIONS: Array<{
     title: 'Government',
     price: 'Specialist setup',
     eyebrow: 'Public programmes',
-    body: 'National → Provincial → Municipal → Local programme workspaces , SchoolAdvisor® (DBE / NSNP), HealthAdvisor® (DoH), multi-entity roles. Schools always run the public-sector government process.',
+    body: 'National → Provincial → Municipal → Local programme workspaces, SchoolAdvisor® (DBE / NSNP), HealthAdvisor® (DoH), multi-entity roles. Schools always run the public-sector government process.',
     tone: 'border-violet-200 bg-gradient-to-br from-violet-50/80 to-white dark:border-violet-500/30 dark:from-violet-500/10 dark:to-black',
     iconTone: 'bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300',
     bullets: [
@@ -272,7 +272,7 @@ const MODULES = [
     title: 'Navigation',
     short: 'Nav',
     tagline: 'Core · Sector · Industry in one sidebar',
-    body: 'Your company workspace groups modules the way you buy them , Core OS always on, sector modules for how you make and move, industry hubs when vertical depth matters.',
+    body: 'Your company workspace groups modules the way you buy them, Core OS always on, sector modules for how you make and move, industry hubs when vertical depth matters.',
     bullets: [
       'Core foundations first',
       'Sector make · ship · outlets',
@@ -288,7 +288,7 @@ const MODULES = [
     title: 'Operations',
     short: 'Ops',
     tagline: 'End-to-end control tower',
-    body: 'Procure, receive, store, make, ship, and fulfill on one live tower , exceptions surface first so throughput never goes dark.',
+    body: 'Procure, receive, store, make, ship, and fulfill on one live tower, exceptions surface first so throughput never goes dark.',
     bullets: ['Supplier POs → inbound', 'Warehouse & production WIP', 'Outbound + customer fulfill'],
     Mock: OpsMock,
     icon: Workflow,
@@ -312,7 +312,7 @@ const MODULES = [
     title: 'Customers (CRM)',
     short: 'Customers',
     tagline: 'Lead → loyalty in one flow',
-    body: 'Pipeline, quotes, sales orders, invoices, and loyalty , plus platform invites that turn buyers into live trading edges.',
+    body: 'Pipeline, quotes, sales orders, invoices, and loyalty, plus platform invites that turn buyers into live trading edges.',
     bullets: ['Leads & opportunities', 'Quotes → orders → AR', 'Buyer portal & reviews'],
     Mock: CrmMock,
     icon: ShoppingCart,
@@ -336,7 +336,7 @@ const MODULES = [
     title: 'Network',
     short: 'Network',
     tagline: 'Verified trading graph',
-    body: 'Company-to-company connections, pricing edges, marketplace reach, and invites , so every PO rides a trusted relationship, not a cold email.',
+    body: 'Company-to-company connections, pricing edges, marketplace reach, and invites, so every PO rides a trusted relationship, not a cold email.',
     bullets: ['Connection graph', 'Pricing & marketplace', 'Invite businesses'],
     Mock: NetworkMock,
     icon: Network,
@@ -348,7 +348,7 @@ const MODULES = [
     title: 'SHEQ',
     short: 'SHEQ',
     tagline: 'ISO 45001-ready control tower',
-    body: 'Incidents, hazard risk scores, NCRs and CAPAs in one hub , failed QA inspections auto-raise nonconformances so people, product, and process risk never live in separate silos.',
+    body: 'Incidents, hazard risk scores, NCRs and CAPAs in one hub, failed QA inspections auto-raise nonconformances so people, product, and process risk never live in separate silos.',
     bullets: ['Incidents & near-misses', 'HIRARC hazard register', 'NCR + CAPA loop'],
     Mock: SheqMock,
     icon: HardHat,
@@ -360,7 +360,7 @@ const MODULES = [
     title: 'Quality & food safety',
     short: 'Quality',
     tagline: 'Inspect · hold · trace · recall',
-    body: 'Live inspections that block shipping on hold, HACCP plans with CCPs, lot pedigree graphs, recall drills, and auditor export packs , built for real release gates, not paperwork theatre.',
+    body: 'Live inspections that block shipping on hold, HACCP plans with CCPs, lot pedigree graphs, recall drills, and auditor export packs, built for real release gates, not paperwork theatre.',
     bullets: ['QA holds block ship', 'HACCP monitoring', 'Traceability + recall packs'],
     Mock: QualityMock,
     icon: ClipboardCheck,
@@ -372,7 +372,7 @@ const MODULES = [
     title: 'Finance',
     short: 'Finance',
     tagline: 'One ledger of truth',
-    body: 'Double-entry CoA, journals, AR/AP, payments, bank import, VAT, fixed assets, and management accounts , membership-scoped to your company.',
+    body: 'Double-entry CoA, journals, AR/AP, payments, bank import, VAT, fixed assets, and management accounts, membership-scoped to your company.',
     bullets: ['Journals & GL', 'Bank allocation', 'Management accounts'],
     Mock: AccountingMock,
     icon: Wallet,
@@ -384,7 +384,7 @@ const MODULES = [
     title: 'Projects',
     short: 'Projects',
     tagline: 'Portfolio that ships',
-    body: 'Portfolio overview, kanban boards, milestone gates, timesheets, and risk registers , so improvement work and capex land with the same discipline as ops.',
+    body: 'Portfolio overview, kanban boards, milestone gates, timesheets, and risk registers, so improvement work and capex land with the same discipline as ops.',
     bullets: ['Portfolio & boards', 'Milestones & gates', 'Timesheets & risk'],
     Mock: ProjectsMock,
     icon: FolderKanban,
@@ -396,7 +396,7 @@ const MODULES = [
     title: 'Impact (ESG)',
     short: 'Impact',
     tagline: 'Carbon you can act on',
-    body: 'Scope 1,3 style carbon tracking and report packs wired to the same inventory and logistics reality , not a disconnected ESG spreadsheet.',
+    body: 'Scope 1,3 style carbon tracking and report packs wired to the same inventory and logistics reality, not a disconnected ESG spreadsheet.',
     bullets: ['Carbon tracking', 'ESG report packs', 'Tied to real ops data'],
     Mock: SustainabilityMock,
     icon: Leaf,
@@ -408,7 +408,7 @@ const MODULES = [
     title: 'Intelligence',
     short: 'Insights',
     tagline: 'Signal over noise',
-    body: 'Live pulse across network, supply, demand, finance, and ops , plus Super-Cube® leadership development for the humans who run the system.',
+    body: 'Live pulse across network, supply, demand, finance, and ops, plus Super-Cube® leadership development for the humans who run the system.',
     bullets: ['Enterprise health', 'Insights & forecasts', 'Super-Cube® leadership'],
     Mock: IntelligenceMock,
     icon: Brain,
@@ -420,7 +420,7 @@ const MODULES = [
     title: 'Manufacturing',
     short: 'Make',
     tagline: 'Secondary sector · factory physics',
-    body: 'BOMs, master production schedules, MRP explosion, work centers, and work orders with OEE-style throughput , how secondary-sector producers run make.',
+    body: 'BOMs, master production schedules, MRP explosion, work centers, and work orders with OEE-style throughput, how secondary-sector producers run make.',
     bullets: ['BOM & work cells', 'MPS / MRP', 'Work order execution'],
     Mock: ManufacturingMock,
     icon: Factory,
@@ -444,7 +444,7 @@ const MODULES = [
     title: 'Containers',
     short: 'Containers',
     tagline: 'Last-mile outlet network',
-    body: 'Deploy container retail outlets, contractors and resellers, live stock, impact (jobs & meals), and feasibility models , one command centre for the last mile.',
+    body: 'Deploy container retail outlets, contractors and resellers, live stock, impact (jobs & meals), and feasibility models, one command centre for the last mile.',
     bullets: ['Map, stock & resellers', 'Food security & jobs impact', 'Deploy feasibility model'],
     Mock: ContainersMock,
     icon: Container,
@@ -456,7 +456,7 @@ const MODULES = [
     title: 'CropAdvisor®',
     short: 'CropAdvisor',
     tagline: 'Agri production OS',
-    body: 'Multi-crop fields, estimates, harvest plans, inputs, fleet fuel (L/h · L/km · R/km), labour, regen metrics, and farm-to-buyer trade , primary production without the spreadsheet sprawl.',
+    body: 'Multi-crop fields, estimates, harvest plans, inputs, fleet fuel (L/h · L/km · R/km), labour, regen metrics, and farm-to-buyer trade, primary production without the spreadsheet sprawl.',
     bullets: ['Fields · estimates · harvest', 'Inputs, fleet & labour', 'Regen metrics · trade handoff'],
     Mock: FieldgraphMock,
     icon: Sprout,
@@ -480,7 +480,7 @@ const MODULES = [
     title: 'ApparelAdvisor®',
     short: 'ApparelAdvisor',
     tagline: 'Apparel OS for factory and brand',
-    body: 'Seasons and line plan, style/colour/size, landed-duty BOM, critical path, sample gates, CMT roll ownership, floor tickets, QA holds that stop ship, wholesale ATS and a buyer line-sheet PWA , invoices stay on Customers Trade.',
+    body: 'Seasons and line plan, style/colour/size, landed-duty BOM, critical path, sample gates, CMT roll ownership, floor tickets, QA holds that stop ship, wholesale ATS and a buyer line-sheet PWA, invoices stay on Customers Trade.',
     bullets: [
       'Range · styles · landed costing',
       'Critical path · floor · QA holds',
@@ -496,7 +496,7 @@ const MODULES = [
     title: 'ConstructionAdvisor®',
     short: 'ConstructionAdvisor',
     tagline: 'Contractor OS for building',
-    body: 'One customer, many projects. Quote from the BOQ, run a dated programme with plan vs actuals, allocate costs against BOQ lines, date progress payments (contractor claim → certify IPC → client pay), then roll every project into a contractor programme , with a client and contractor PWA. Invoices stay on Customers Trade.',
+    body: 'One customer, many projects. Quote from the BOQ, run a dated programme with plan vs actuals, allocate costs against BOQ lines, date progress payments (contractor claim → certify IPC → client pay), then roll every project into a contractor programme, with a client and contractor PWA. Invoices stay on Customers Trade.',
     bullets: [
       'Clients · many projects · BOQ quotes',
       'Dated plan vs actuals · costs on BOQ',
@@ -529,7 +529,7 @@ const MODULES = [
     title: 'GymAdvisor®',
     short: 'GymAdvisor',
     tagline: 'Gym & fitness services OS',
-    body: 'Coaches (People dual-write, contracts), members with invites & family booking, memberships (freeze & packs), rooms on the calendar, waitlists, 24h reminders, outcomes & recalls, in-app messaging by system user ID, staff Today PWA, website embed and marketplace listing , fees stay off-platform; SA bills the gym subscription only.',
+    body: 'Coaches (People dual-write, contracts), members with invites & family booking, memberships (freeze & packs), rooms on the calendar, waitlists, 24h reminders, outcomes & recalls, in-app messaging by system user ID, staff Today PWA, website embed and marketplace listing, fees stay off-platform; SA bills the gym subscription only.',
     bullets: [
       'Portal book / waitlist · family · .ics',
       'Rooms · concurrent coaches · plan vs actual',
@@ -545,7 +545,7 @@ const MODULES = [
     title: 'PhysioAdvisor®',
     short: 'PhysioAdvisor',
     tagline: 'Physio & allied health OS',
-    body: 'Practitioners, POPIA-aware patients, rehab packs & treatment plans (one-click book next), exclusive clinician diaries with rooms, waitlist desk, medical chart (aid, docs, scripts), in-app care messaging, marketplace listing, and clinic website , physio, OT, biokinetics and allied practices.',
+    body: 'Practitioners, POPIA-aware patients, rehab packs & treatment plans (one-click book next), exclusive clinician diaries with rooms, waitlist desk, medical chart (aid, docs, scripts), in-app care messaging, marketplace listing, and clinic website, physio, OT, biokinetics and allied practices.',
     bullets: [
       'Waitlist desk · other clinician · family',
       'Treatment plans · book next · recalls',
@@ -625,7 +625,7 @@ const MODULES = [
     title: 'HireAdvisor®',
     short: 'HireAdvisor',
     tagline: 'Hire / rental marketplace · members free',
-    body: 'Suppliers list plant, vehicles, tools, kids party gear (jumping castles, soft play, slides), events kit and more; people rent B2C for free on SA Member. Categories enforce different requirements , castles need flat ground, power, adult supervision and age/weight limits. The listing business pays a 2.5% take-rate on hire GMV. Members pay rental + refundable deposit only , no platform fee.',
+    body: 'Suppliers list plant, vehicles, tools, kids party gear (jumping castles, soft play, slides), events kit and more; people rent B2C for free on SA Member. Categories enforce different requirements, castles need flat ground, power, adult supervision and age/weight limits. The listing business pays a 2.5% take-rate on hire GMV. Members pay rental + refundable deposit only, no platform fee.',
     bullets: [
       'Kids party · jumping castles · soft play',
       'Categories · catalogue · B2C bookings',
@@ -641,7 +641,7 @@ const MODULES = [
     title: 'RetailAdvisor®',
     short: 'RetailAdvisor',
     tagline: 'B2C till · QR / NFC pay',
-    body: 'Retailers ring up SKUs and take cash, or present a QR / NFC so the customer pays on SA Member. The same till can open their gym, clinic and hire bills , they tap or scan and pay the merchant they owe. GymAdvisor and clinic desks use the same present-to-pay path.',
+    body: 'Retailers ring up SKUs and take cash, or present a QR / NFC so the customer pays on SA Member. The same till can open their gym, clinic and hire bills, they tap or scan and pay the merchant they owe. GymAdvisor and clinic desks use the same present-to-pay path.',
     bullets: [
       'Till basket · cash or phone pay',
       'QR + NFC (Android Chrome) · iPhone scans QR',
@@ -657,7 +657,7 @@ const MODULES = [
     title: 'SchoolAdvisor®',
     short: 'SchoolAdvisor',
     tagline: 'Public sector · NSNP programme OS',
-    body: 'SchoolAdvisor® runs only on the government / public-sector pathway: DBE & PEU govern catalogue, menus and compliance; schools run kitchen, learners, approved brands and serve day; SPs deliver against school POs. Not a private industry pack , National → Provincial → Municipal → Local packaging with role-filtered hubs.',
+    body: 'SchoolAdvisor® runs only on the government / public-sector pathway: DBE & PEU govern catalogue, menus and compliance; schools run kitchen, learners, approved brands and serve day; SPs deliver against school POs. Not a private industry pack, National → Provincial → Municipal → Local packaging with role-filtered hubs.',
     bullets: [
       'DBE / PEU: catalogue · menus · PEU visits · claims',
       'School kitchen: stock · orders · serve day · prizes',
@@ -676,28 +676,28 @@ const MODULE_SECTION_BANDS: Array<{
   {
     id: 'core',
     title: 'Core OS',
-    blurb: 'Platform foundations , trade, ops, finance, people assurance, and insight.',
+    blurb: 'Platform foundations, trade, ops, finance, people assurance, and insight.',
   },
   {
     id: 'sector',
     title: 'Sector',
-    blurb: 'How you make and move , manufacturing, distribution, and container outlets.',
+    blurb: 'How you make and move, manufacturing, distribution, and container outlets.',
   },
   {
     id: 'industry',
     title: 'Industry',
     blurb:
-      'Vertical depth , CropAdvisor®, QuarryAdvisor®, ApparelAdvisor® (range, landed costing, wholesale ATS, buyer PWA), ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor®, and clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet) with diaries, waitlist desks, industry PWAs, rooms, marketplace listings, and in-app care messages , not brochure modules.',
+      'Vertical depth, CropAdvisor®, QuarryAdvisor®, ApparelAdvisor® (range, landed costing, wholesale ATS, buyer PWA), ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor®, and clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet) with diaries, waitlist desks, industry PWAs, rooms, marketplace listings, and in-app care messages, not brochure modules.',
   },
   {
     id: 'government',
     title: 'Government',
     blurb:
-      'Public programmes , SchoolAdvisor® (DBE · school kitchen · SP · NSNP) and HealthAdvisor® (DoH). Always Public Sector packaging: National → Provincial → Municipal → Local. Specialist-led setup for agencies; self-serve local school kitchens.',
+      'Public programmes, SchoolAdvisor® (DBE · school kitchen · SP · NSNP) and HealthAdvisor® (DoH). Always Public Sector packaging: National → Provincial → Municipal → Local. Specialist-led setup for agencies; self-serve local school kitchens.',
   },
 ];
 
-/** Every major platform surface , called out in the systems grid */
+/** Every major platform surface, called out in the systems grid */
 const SYSTEMS = [
   {
     icon: Building2,
@@ -747,7 +747,7 @@ const SYSTEMS = [
   {
     icon: Workflow,
     title: 'Operations tower',
-    body: 'One spine from PO to ship , exceptions first.',
+    body: 'One spine from PO to ship, exceptions first.',
   },
   {
     icon: Container,
@@ -757,7 +757,7 @@ const SYSTEMS = [
   {
     icon: HardHat,
     title: 'SHEQ',
-    body: 'Incidents, HIRARC, NCR/CAPA , ISO 45001-style control.',
+    body: 'Incidents, HIRARC, NCR/CAPA, ISO 45001-style control.',
   },
   {
     icon: ClipboardCheck,
@@ -923,6 +923,87 @@ export default function HomeBelowFold({
   const FeaturedMock = featured.Mock;
   const show = (id: NonNullable<typeof sections>[number]) => !sections || sections.includes(id);
   const showLane = (lane: 'b2b' | 'b2g' | 'b2c') => !audienceFilter || audienceFilter.includes(lane);
+  const marketCards = [
+    {
+      lane: 'b2b' as const,
+      code: 'B2B',
+      title: 'Business to business',
+      body: 'Manufacturers, distributors, traders, and brands run the full OS, network, buy/sell, inventory, make, ship, finance, SHEQ, and quality, with counterparties you can score and prove.',
+      points: [
+        'Verified company graph & OTIFEF ratings',
+        'POs, quotes, orders, invoices on the same books',
+        'Lot holds that stop the ship when QA fails',
+      ],
+      href: '/onboarding?lane=b2b',
+      cta: 'Register your company',
+      icon: Factory,
+    },
+    {
+      lane: 'b2g' as const,
+      code: 'B2G',
+      title: 'Business to government',
+      body: 'Public entities and suppliers need transparent procurement, accountable spend, and audit-ready trails, not email chains and disconnected spreadsheets.',
+      points: [
+        'Transparent supplier discovery & handshakes',
+        'Documented trade and performance scores',
+        'SHEQ, NCR/CAPA, and export packs for scrutiny',
+      ],
+      href: '/onboarding?lane=b2g',
+      cta: 'Request government access',
+      icon: Landmark,
+    },
+    {
+      lane: 'b2c' as const,
+      code: 'B2C',
+      title: 'Business to consumer',
+      body: 'One free personal wallet. Link any business on this platform to manage that account, shop, subscriptions, bookings, check-in, family, waitlist and medical records. No company. If you also run a business, that workspace stays separate.',
+      points: [
+        'Free PWA, shop, book, check in, hire and subscriptions',
+        'Family book, waitlist, .ics calendar and gym door QR',
+        'Shared medical notes, consent-to-share, pay & proof of payment',
+      ],
+      href: '/me',
+      cta: 'Create free SA Member account',
+      icon: Users2,
+    },
+  ].filter((m) => showLane(m.lane));
+  const audienceCards = [
+    {
+      lane: 'b2c' as const,
+      icon: Leaf,
+      t: 'B2C · Member account',
+      b: 'Free personal wallet. Link any business to shop, book, check in, family-book, join a waitlist, pay or send proof, and share care notes after you consent. Same login if you later register a company.',
+      href: '/me',
+      cta: 'Create free account',
+    },
+    {
+      lane: 'b2b' as const,
+      icon: Factory,
+      t: 'B2B · Business',
+      b: 'Company workspace. Next you choose organisation type, private, public, NPO or association, then sector, industry and role.',
+      href: '/onboarding?lane=b2b',
+      cta: 'Register business',
+    },
+    {
+      lane: 'b2g' as const,
+      icon: Landmark,
+      t: 'B2G · Government',
+      b: 'National, provincial or municipal offices. Not self-serve, a SupplierAdvisor® admin must approve before the workspace opens.',
+      href: '/onboarding?lane=b2g',
+      cta: 'Request access',
+    },
+  ].filter((a) => showLane(a.lane));
+  const focusedLane = audienceFilter?.length === 1 ? audienceFilter[0] : null;
+  const marketHeadingByLane = {
+    b2b: { label: 'Built for operators', body: 'Run trade, stock, quality, and finance with one trusted operating record.' },
+    b2g: { label: 'Built for public programmes', body: 'Support transparent procurement, accountable spend, and audit-ready execution.' },
+    b2c: { label: 'One free account for everyone', body: 'Use one personal wallet across gyms, clinics, hire desks, and shops on the network.' },
+  } as const;
+  const audienceHeadingByLane = {
+    b2b: { title: 'Business path', body: 'Choose your organisation setup and start operating in one company workspace.' },
+    b2g: { title: 'Government path', body: 'Request access for national, provincial, or municipal programme workspaces.' },
+    b2c: { title: 'Member path', body: 'Create a free SA Member account and connect it to businesses on the platform.' },
+  } as const;
 
   return (
     <>
@@ -937,63 +1018,22 @@ export default function HomeBelowFold({
           <div className="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
             <SectionLabel>Who the network serves</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
-              B2B. B2G. B2C.
-              <span className="mt-2 block text-slate-600">One trusted fabric.</span>
+              {focusedLane ? marketHeadingByLane[focusedLane].label : 'B2B. B2G. B2C.'}
+              <span className="mt-2 block text-slate-600">{focusedLane ? marketHeadingByLane[focusedLane].body : 'One trusted fabric.'}</span>
             </h2>
-            <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
-              SupplierAdvisor® is the supply-chain OS. Private companies, public buyers,
-              and a free member account share one verified trade and trust layer , the
-              same company checks, traceability, and operating record.
-            </p>
+            {focusedLane ? null : (
+              <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
+                SupplierAdvisor® is the supply-chain OS. Private companies, public buyers,
+                and a free member account share one verified trade and trust layer, the
+                same company checks, traceability, and operating record.
+              </p>
+            )}
           </div>
-          <div className="grid gap-5 lg:grid-cols-3">
-            {[
-              {
-                lane: 'b2b' as const,
-                code: 'B2B',
-                title: 'Business to business',
-                body: 'Manufacturers, distributors, traders, and brands run the full OS , network, buy/sell, inventory, make, ship, finance, SHEQ, and quality , with counterparties you can score and prove.',
-                points: [
-                  'Verified company graph & OTIFEF ratings',
-                  'POs, quotes, orders, invoices on the same books',
-                  'Lot holds that stop the ship when QA fails',
-                ],
-                href: '/onboarding?lane=b2b',
-                cta: 'Register your company',
-                icon: Factory,
-              },
-              {
-                lane: 'b2g' as const,
-                code: 'B2G',
-                title: 'Business to government',
-                body: 'Public entities and suppliers need transparent procurement, accountable spend, and audit-ready trails , not email chains and disconnected spreadsheets.',
-                points: [
-                  'Transparent supplier discovery & handshakes',
-                  'Documented trade and performance scores',
-                  'SHEQ, NCR/CAPA, and export packs for scrutiny',
-                ],
-                href: '/onboarding?lane=b2g',
-                cta: 'Request government access',
-                icon: Landmark,
-              },
-              {
-                lane: 'b2c' as const,
-                code: 'B2C',
-                title: 'Business to consumer',
-                body: 'One free personal wallet. Link any business on this platform to manage that account , shop, subscriptions, bookings, check-in, family, waitlist and medical records. No company. If you also run a business, that workspace stays separate.',
-                points: [
-                  'Free PWA , shop, book, check in, hire and subscriptions',
-                  'Family book, waitlist, .ics calendar and gym door QR',
-                  'Shared medical notes, consent-to-share, pay & proof of payment',
-                ],
-                href: '/me',
-                cta: 'Create free SA Member account',
-                icon: Users2,
-              },
-            ].filter((m) => showLane(m.lane)).map((m) => (
+          <div className={marketCards.length === 1 ? 'mx-auto grid max-w-3xl gap-5' : 'grid gap-5 lg:grid-cols-3'}>
+            {marketCards.map((m) => (
               <div
                 key={m.code}
-                className="group flex min-h-[22rem] flex-col rounded-[1.75rem] border border-slate-200 bg-gradient-to-b from-white to-sky-50/40 p-7 sm:p-8 shadow-sm transition-all hover:border-[#00b4d8]/45 hover:shadow-lg hover:shadow-sky-100/80 lg:min-h-[28rem]"
+                className="group flex flex-col rounded-[1.75rem] border border-slate-200 bg-gradient-to-b from-white to-sky-50/40 p-7 sm:p-8 shadow-sm transition-all hover:border-[#00b4d8]/45 hover:shadow-lg hover:shadow-sky-100/80"
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-mono text-xs font-black tracking-[0.2em] sa-text-brand-on-light">
@@ -1004,8 +1044,8 @@ export default function HomeBelowFold({
                 <h3 className="mt-4 text-2xl font-black tracking-tight text-slate-900">
                   {m.title}
                 </h3>
-                <p className="mt-3 flex-1 text-sm leading-relaxed text-slate-600">{m.body}</p>
-                <ul className="mt-5 space-y-2">
+                <p className="mt-3 text-sm leading-relaxed text-slate-600">{m.body}</p>
+                <ul className={`mt-5 gap-2 ${m.points.length > 3 ? 'grid sm:grid-cols-2' : 'space-y-2'}`}>
                   {m.points.map((pt) => (
                     <li key={pt} className="flex gap-2 text-sm text-slate-700">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
@@ -1039,7 +1079,7 @@ export default function HomeBelowFold({
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
               Create one free SA Member profile. Link it to any gym, clinic,
-              hire desk or shop on SupplierAdvisor® , then manage that account:
+              hire desk or shop on SupplierAdvisor®, then manage that account:
               book, buy, check in, family, waitlist, subscriptions, medical
               records, pay & proof, and push alerts. Desks can still print a QR
               or send WhatsApp. You never pay us.
@@ -1065,7 +1105,7 @@ export default function HomeBelowFold({
               {
                 icon: ShoppingCart,
                 t: 'Shop sale & hire',
-                b: 'Browse what brands are selling or hiring out, and listed gyms and clinics , in the same app.',
+                b: 'Browse what brands are selling or hiring out, and listed gyms and clinics, in the same app.',
               },
               {
                 icon: QrCode,
@@ -1075,17 +1115,17 @@ export default function HomeBelowFold({
               {
                 icon: Stethoscope,
                 t: 'Book your Advisor',
-                b: 'Medical, dental, physio, psychiatry and gym , open diary slots on your phone. Same path the desk uses.',
+                b: 'Medical, dental, physio, psychiatry and gym, open diary slots on your phone. Same path the desk uses.',
               },
               {
                 icon: Heart,
                 t: 'Your medical information',
-                b: 'Allergies, scripts, medical aid and care notes your practice shares , on the phone, not only at reception.',
+                b: 'Allergies, scripts, medical aid and care notes your practice shares, on the phone, not only at reception.',
               },
               {
                 icon: Bell,
                 t: 'Push notifications',
-                b: 'Appointment reminders, waitlist offers and hire updates on the device , even when the app is closed.',
+                b: 'Appointment reminders, waitlist offers and hire updates on the device, even when the app is closed.',
               },
               {
                 icon: QrCode,
@@ -1105,7 +1145,7 @@ export default function HomeBelowFold({
               {
                 icon: CreditCard,
                 t: 'Pay & proof of payment',
-                b: 'See charges from the gym or clinic, pay in-app, or upload proof , on your personal wallet.',
+                b: 'See charges from the gym or clinic, pay in-app, or upload proof, on your personal wallet.',
               },
               {
                 icon: Share2,
@@ -1115,7 +1155,7 @@ export default function HomeBelowFold({
               {
                 icon: Fingerprint,
                 t: 'Free for members',
-                b: 'No subscription, no platform take-rate. Brands charge their own gym, clinic or hire prices. You pay them , not us.',
+                b: 'No subscription, no platform take-rate. Brands charge their own gym, clinic or hire prices. You pay them, not us.',
               },
             ].map((f) => (
               <div
@@ -1160,7 +1200,7 @@ export default function HomeBelowFold({
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
               One operating system for the trade loop. Verification, ratings, lots, and
-              safety sit with the order , not in a separate brochure.
+              safety sit with the order, not in a separate brochure.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1168,7 +1208,7 @@ export default function HomeBelowFold({
               {
                 icon: ShieldCheck,
                 t: 'Trust is a control, not a brochure',
-                b: 'Verification, peer stars, OTIFEF, and RIAD risk live where you buy and sell , so bad counterparties show up before the next PO.',
+                b: 'Verification, peer stars, OTIFEF, and RIAD risk live where you buy and sell, so bad counterparties show up before the next PO.',
               },
               {
                 icon: Link2,
@@ -1178,12 +1218,12 @@ export default function HomeBelowFold({
               {
                 icon: Network,
                 t: 'One graph for B2B, B2G & B2C',
-                b: 'Invite suppliers and customers, connect public buyers, and give consumers a path into verified brands , same fabric of trust.',
+                b: 'Invite suppliers and customers, connect public buyers, and give consumers a path into verified brands, same fabric of trust.',
               },
               {
                 icon: Workflow,
                 t: 'Full stack, zero silos',
-                b: 'Network, SRM, CRM, inventory, manufacturing, distribution, finance, SHEQ, projects, ESG, intelligence , plus industry packs for agri, quarry, apparel, construction, gyms, and clinical practices , share one workspace.',
+                b: 'Network, SRM, CRM, inventory, manufacturing, distribution, finance, SHEQ, projects, ESG, intelligence, plus industry packs for agri, quarry, apparel, construction, gyms, and clinical practices, share one workspace.',
               },
               {
                 icon: Stethoscope,
@@ -1193,17 +1233,17 @@ export default function HomeBelowFold({
               {
                 icon: Fingerprint,
                 t: 'On-chain when capital must prove',
-                b: 'Optional product passports and PO escrow when authenticity or settlement need stronger proof , without forcing crypto on every workflow.',
+                b: 'Optional product passports and PO escrow when authenticity or settlement need stronger proof, without forcing crypto on every workflow.',
               },
               {
                 icon: Building2,
                 t: 'Built for multi-entity groups',
-                b: 'Separate company workspaces, team roles, and membership-scoped data , groups and brands stay clean, not tangled in one login.',
+                b: 'Separate company workspaces, team roles, and membership-scoped data, groups and brands stay clean, not tangled in one login.',
               },
               {
                 icon: HardHat,
                 t: 'SHEQ operators actually use',
-                b: 'Incidents, hazards, NCR/CAPA wired to stock and quality , ISO-minded control without a second system for safety.',
+                b: 'Incidents, hazards, NCR/CAPA wired to stock and quality, ISO-minded control without a second system for safety.',
               },
               {
                 icon: Gift,
@@ -1213,22 +1253,22 @@ export default function HomeBelowFold({
               {
                 icon: CreditCard,
                 t: 'Simple ZAR economics',
-                b: `${COMPANY_TRIAL_DAYS}-day free trial, then from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo , or save up to 30% prepaid.`,
+                b: `${COMPANY_TRIAL_DAYS}-day free trial, then from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo, or save up to 30% prepaid.`,
               },
               {
                 icon: Container,
                 t: 'Last-mile that feeds people',
-                b: 'Container outlets, contractors, resellers, and impact metrics , food security and jobs on the same command centre as inventory.',
+                b: 'Container outlets, contractors, resellers, and impact metrics, food security and jobs on the same command centre as inventory.',
               },
               {
                 icon: Brain,
                 t: 'Intelligence + human help',
-                b: 'Live pulse across the enterprise, Super-Cube® leadership development, and SAM (Grok) for in-app how-to , ramp without a manual.',
+                b: 'Live pulse across the enterprise, Super-Cube® leadership development, and SAM (Grok) for in-app how-to, ramp without a manual.',
               },
               {
                 icon: Globe,
                 t: 'Africa-ready, world-class',
-                b: 'Paystack ZAR billing, local verification patterns, and the discipline global buyers expect , so African trade scales with proof.',
+                b: 'Paystack ZAR billing, local verification patterns, and the discipline global buyers expect, so African trade scales with proof.',
               },
             ].map((r) => (
               <div
@@ -1310,7 +1350,7 @@ export default function HomeBelowFold({
                 <span className="mt-1 block sa-text-brand-on-light">Run like a business.</span>
               </h2>
               <p className="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
-                Every module shares the same command chrome , telemetry, workbenches,
+                Every module shares the same command chrome, telemetry, workbenches,
                 and clear process steps. Switch systems without relearning the UI.
                 Pictures on this page are sample screens, not live network results.
               </p>
@@ -1349,7 +1389,7 @@ export default function HomeBelowFold({
         </div>
       </section> : null}
 
-      {/* ═══════════ MODULES , Core · Sector · Industry · Bespoke ═══════════ */}
+      {/* ═══════════ MODULES, Core · Sector · Industry · Bespoke ═══════════ */}
       {show('modules') ? <section
         id="modules"
         className="sa-anchor border-t border-slate-200 bg-white py-20 dark:border-neutral-800 dark:bg-black sm:py-28"
@@ -1364,13 +1404,13 @@ export default function HomeBelowFold({
               </span>
             </h2>
             <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-neutral-400 sm:text-lg">
-              Same packaging stack as setup , pick the layer that matches how you trade,
+              Same packaging stack as setup, pick the layer that matches how you trade,
               then dive into the modules inside each band. Public programmes and fully
               custom process design are specialist-led.
             </p>
           </div>
 
-          {/* Stack strip , mirrors Setup section (5 steps) */}
+          {/* Stack strip, mirrors Setup section (5 steps) */}
           <div className="mx-auto mb-10 max-w-5xl sm:mb-12">
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50/60 shadow-sm dark:border-neutral-800 dark:from-neutral-950 dark:via-black dark:to-neutral-950">
               <div className="grid divide-y divide-slate-100 dark:divide-neutral-800 sm:grid-cols-5 sm:divide-x sm:divide-y-0">
@@ -1618,7 +1658,7 @@ export default function HomeBelowFold({
               href="/onboarding?type=business"
               className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-slate-950 shadow-md shadow-cyan-200/50 hover:bg-[#22d3ee] dark:shadow-cyan-900/30"
             >
-              Start free trial , unlock all modules
+              Start free trial, unlock all modules
               <ArrowRight className="h-4 w-4" />
             </Link>
             <a
@@ -1648,7 +1688,7 @@ export default function HomeBelowFold({
             <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
               Every company starts with the same Core operating system, then layers
               sector and industry packs for how you actually trade. Public-sector
-              programmes and fully custom process design are specialist-led ,
+              programmes and fully custom process design are specialist-led,
               contact us to get set up.
             </p>
           </div>
@@ -1724,7 +1764,7 @@ export default function HomeBelowFold({
                 The shared operating system every company gets: Control Tower,
                 Company (identity, modules, billing), Network, Suppliers,
                 Customers, Inventory, Operations, Quality, Finance, Intelligence,
-                and Guide , one workspace, one trust fabric.
+                and Guide, one workspace, one trust fabric.
               </p>
               <ul className="mt-4 space-y-2 text-sm text-slate-700 dark:text-neutral-300">
                 {[
@@ -1761,7 +1801,7 @@ export default function HomeBelowFold({
                 Pick your economic sector, then one or more industries. Industry
                 Packs unlock CropAdvisor®, QuarryAdvisor®, TradeAdvisor®, GymAdvisor®, HireAdvisor® and clinic
                 Advisors. Choose <strong>Public Sector</strong> for SchoolAdvisor®
-                (NSNP / DBE) and government programmes , at +R
+                (NSNP / DBE) and government programmes, at +R
                 {INDUSTRY_PACK_MONTHLY_ZAR}/mo each for industry packs.
               </p>
               <div className="mt-4 flex flex-wrap gap-1.5">
@@ -1812,9 +1852,9 @@ export default function HomeBelowFold({
                 Government &amp; bespoke design
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                National, provincial, municipal, and local programme workspaces ,
+                National, provincial, municipal, and local programme workspaces,
                 SchoolAdvisor® (DBE / PEU, school kitchens, NSNP SPs) and DoH
-                facilities , plus fully custom process design for complex groups.
+                facilities, plus fully custom process design for complex groups.
               </p>
               <div className="mt-4 space-y-3">
                 <div className="rounded-2xl border border-violet-100 bg-white/90 px-3.5 py-3">
@@ -1824,7 +1864,7 @@ export default function HomeBelowFold({
                   </div>
                   <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
                     Public Sector packaging only: National → Provincial → Municipal →
-                    Local. SchoolAdvisor® kitchen, catalogue, PEU and SP roles ,
+                    Local. SchoolAdvisor® kitchen, catalogue, PEU and SP roles,
                     never private-company packaging.
                   </p>
                 </div>
@@ -1959,7 +1999,7 @@ export default function HomeBelowFold({
               {
                 n: '03',
                 t: 'Operate the chain',
-                b: 'Inventory, manufacturing, distribution, finance , one membership-scoped OS.',
+                b: 'Inventory, manufacturing, distribution, finance, one membership-scoped OS.',
               },
               {
                 n: '04',
@@ -1999,48 +2039,25 @@ export default function HomeBelowFold({
           <div className="mb-12 text-center">
             <SectionLabel>Get started</SectionLabel>
             <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-5xl">
-              Why are you joining us?
-              <span className="mt-1 block sa-text-brand-on-light">Member, business, or government.</span>
+              {focusedLane ? audienceHeadingByLane[focusedLane].title : 'Why are you joining us?'}
+              <span className="mt-1 block sa-text-brand-on-light">{focusedLane ? audienceHeadingByLane[focusedLane].body : 'Member, business, or government.'}</span>
             </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-slate-600">
-              Three paths only. B2C is a free personal wallet. B2B then picks
-              private, public or NPO. B2G waits for platform admin approval.
-            </p>
+            {focusedLane ? null : (
+              <p className="mx-auto mt-4 max-w-2xl text-slate-600">
+                Three paths only. B2C is a free personal wallet. B2B then picks
+                private, public or NPO. B2G waits for platform admin approval.
+              </p>
+            )}
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              {
-                lane: 'b2c' as const,
-                icon: Leaf,
-                t: 'B2C · Member account',
-                b: 'Free personal wallet. Link any business to shop, book, check in, family-book, join a waitlist, pay or send proof, and share care notes after you consent. Same login if you later register a company.',
-                href: '/me',
-                cta: 'Create free account',
-              },
-              {
-                lane: 'b2b' as const,
-                icon: Factory,
-                t: 'B2B · Business',
-                b: 'Company workspace. Next you choose organisation type , private, public, NPO or association , then sector, industry and role.',
-                href: '/onboarding?lane=b2b',
-                cta: 'Register business',
-              },
-              {
-                lane: 'b2g' as const,
-                icon: Landmark,
-                t: 'B2G · Government',
-                b: 'National, provincial or municipal offices. Not self-serve , a SupplierAdvisor® admin must approve before the workspace opens.',
-                href: '/onboarding?lane=b2g',
-                cta: 'Request access',
-              },
-            ].filter((a) => showLane(a.lane)).map((a) => (
+          <div className={audienceCards.length === 1 ? 'mx-auto grid max-w-3xl gap-4' : 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'}>
+            {audienceCards.map((a) => (
               <div
                 key={a.t}
                 className="flex flex-col rounded-3xl border border-slate-200 bg-white p-6 transition-all hover:border-slate-300"
               >
                 <a.icon className="mb-4 h-7 w-7 sa-text-brand-on-light" />
                 <h3 className="text-lg font-bold text-slate-900">{a.t}</h3>
-                <p className="mb-5 mt-2 flex-1 text-sm leading-relaxed text-slate-600">{a.b}</p>
+                <p className="mb-5 mt-2 text-sm leading-relaxed text-slate-600">{a.b}</p>
                 <Link
                   href={a.href}
                   className="inline-flex items-center gap-1 text-sm font-bold sa-text-brand-on-light hover:text-[#0077b6] dark:hover:text-[#0077b6]"
@@ -2061,7 +2078,7 @@ export default function HomeBelowFold({
               {
                 icon: Award,
                 t: 'Super-Cube® leadership',
-                b: 'Doctoral Super-Cube® model , develop leaders who compound better decisions.',
+                b: 'Doctoral Super-Cube® model, develop leaders who compound better decisions.',
               },
               {
                 icon: Heart,

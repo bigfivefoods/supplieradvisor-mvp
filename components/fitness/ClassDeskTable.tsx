@@ -827,8 +827,7 @@ export function ClassDeskTable({
             className="font-bold text-yellow-700 underline dark:text-yellow-300"
           >
             Coaches
-          </a>
-          , then assign here.
+          </a>, then assign here.
         </p>
       ) : null}
 
@@ -957,5 +956,3 @@ export function ClassDeskTable({
     </div>
   );
 }
-
-

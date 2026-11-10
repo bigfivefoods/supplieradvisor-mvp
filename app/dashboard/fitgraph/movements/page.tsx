@@ -147,8 +147,7 @@ export default function MovementsPage() {
               className="font-bold text-yellow-700 underline"
             >
               programme
-            </Link>
-            , then allocate it to a class or personal training. Catalog items
+            </Link>, then allocate it to a class or personal training. Catalog items
             stay in the library — add your own instead of deleting them.
           </p>
 
