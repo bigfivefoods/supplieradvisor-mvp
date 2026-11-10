@@ -106,7 +106,7 @@ export const FOOTER_RESOURCE_GROUPS: FooterLinkGroup[] = [
   {
     label: 'Group',
     links: [
-      { label: 'Big Five Group™', href: 'https://bigfivegroup.africa' },
+      { label: 'Big Five Group', href: 'https://bigfivegroup.africa' },
       { label: 'Super-Cube®', href: 'https://super-cube.me' },
     ],
   },

@@ -14,7 +14,7 @@ export const en = {
   'brand.supplierAdvisor': 'SupplierAdvisor®',
   'brand.schoolAdvisor': 'SchoolAdvisor®',
   'brand.superCube': 'Super-Cube®',
-  'brand.bigFiveGroup': 'Big Five Group™',
+  'brand.bigFiveGroup': 'Big Five Group',
 
   'nav.ariaPrimary': 'Primary',
   'nav.ariaOpenMenu': 'Open menu',
@@ -127,9 +127,9 @@ export const en = {
   'footer.foundingTitle': 'Founding list',
   'footer.foundingBlurb': 'Founding-member updates and new-slot alerts from SupplierAdvisor®.',
   'footer.rights': 'All rights reserved.',
-  'footer.bigFiveCompany': 'SupplierAdvisor® is a Big Five Group™ company',
+  'footer.bigFiveCompany': 'SupplierAdvisor® is a Big Five Group company',
   'footer.bigFiveLead': 'SupplierAdvisor® is ',
-  'footer.bigFiveLink': 'a Big Five Group™ company',
+  'footer.bigFiveLink': 'a Big Five Group company',
 
   'footer.contact.whatsapp': 'WhatsApp',
   'footer.contact.country': 'South Africa',
