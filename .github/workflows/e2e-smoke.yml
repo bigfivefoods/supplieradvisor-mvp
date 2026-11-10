@@ -110,18 +110,7 @@ jobs:
           BASE="${ENVIRONMENT_URL:-${TARGET_URL:-}}"
           ENV_LOWER="$(printf '%s' "${ENVIRONMENT:-}" | tr '[:upper:]' '[:lower:]')"
 
-          if [ "$HAS_BYPASS" != "true" ] && [ "$ENV_LOWER" = "preview" ]; then
-            if [ -n "$BASE" ]; then
-              reject_base_url "$BASE"
-              echo "Unauth smoke base URL: $BASE"
-            fi
-            echo "::warning::Set VERCEL_AUTOMATION_BYPASS_SECRET to smoke previews"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "is_preview=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ "$HAS_BYPASS" != "true" ] && [ "$ENV_LOWER" = "production" ]; then
+          if [ "$ENV_LOWER" = "production" ]; then
             BASE="https://www.supplieradvisor.com"
             SHORT="$(printf '%s' "$DEPLOY_SHA" | tr '[:upper:]' '[:lower:]' | cut -c1-7)"
             if ! printf '%s' "$SHORT" | grep -Eq '^[0-9a-f]{7}$'; then
@@ -147,6 +136,17 @@ jobs:
               sleep 10
             done
             write_target "$BASE" production
+            exit 0
+          fi
+
+          if [ "$HAS_BYPASS" != "true" ] && [ "$ENV_LOWER" = "preview" ]; then
+            if [ -n "$BASE" ]; then
+              reject_base_url "$BASE"
+              echo "Unauth smoke base URL: $BASE"
+            fi
+            echo "::warning::Set VERCEL_AUTOMATION_BYPASS_SECRET to smoke previews"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "is_preview=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
