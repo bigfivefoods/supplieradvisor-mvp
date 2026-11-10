@@ -4,69 +4,64 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Calculator, Clock, Coins } from 'lucide-react';
 import {
-  COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
   COMPANY_TRIAL_DAYS,
   formatZar,
 } from '@/lib/billing/company-subscription';
+import {
+  calculateRoiModel,
+  DEFAULT_ROI_INPUTS,
+} from '@/lib/marketing/roi-model';
 
 /**
  * Simple operator ROI model vs fragmented Excel / multi-tool stack.
- * Illustrative — not financial advice.
+ * Illustrative, not financial advice.
  */
-export default function RoiCalculator() {
-  const [people, setPeople] = useState(8);
-  const [hoursPerWeek, setHoursPerWeek] = useState(6);
-  const [hourlyRate, setHourlyRate] = useState(350);
-  const [tools, setTools] = useState(5);
-  const [toolCost, setToolCost] = useState(1200);
+export default function RoiCalculator({
+  id = 'roi',
+  heading = true,
+  startHref = '/join',
+  reserveResultHeight = false,
+  embedded = false,
+}: {
+  id?: string;
+  heading?: boolean;
+  startHref?: string;
+  reserveResultHeight?: boolean;
+  embedded?: boolean;
+}) {
+  const [people, setPeople] = useState(DEFAULT_ROI_INPUTS.people);
+  const [hoursPerWeek, setHoursPerWeek] = useState(DEFAULT_ROI_INPUTS.hoursPerWeek);
+  const [hourlyRate, setHourlyRate] = useState(DEFAULT_ROI_INPUTS.hourlyRate);
+  const [tools, setTools] = useState(DEFAULT_ROI_INPUTS.tools);
+  const [toolCost, setToolCost] = useState(DEFAULT_ROI_INPUTS.toolCost);
 
   const result = useMemo(() => {
-    const labourMonth = people * hoursPerWeek * 4.33 * hourlyRate;
-    const toolsMonth = tools * toolCost;
-    const wasteMonth = labourMonth + toolsMonth;
-    const saCost = COMPANY_SUBSCRIPTION_MONTHLY_ZAR;
-    // Assume OS reclaims ~65% of rework / rekey / reconciliation time
-    const reclaimed = labourMonth * 0.65;
-    // Assume consolidating 60% of tool spend over time
-    const toolsSaved = toolsMonth * 0.55;
-    const monthlyGain = reclaimed + toolsSaved - saCost;
-    const annualGain = monthlyGain * 12;
-    const hoursReclaimed = people * hoursPerWeek * 4.33 * 0.65;
-    return {
-      labourMonth,
-      toolsMonth,
-      wasteMonth,
-      reclaimed,
-      toolsSaved,
-      monthlyGain,
-      annualGain,
-      hoursReclaimed,
-      saCost,
-    };
+    return calculateRoiModel({ people, hoursPerWeek, hourlyRate, tools, toolCost });
   }, [people, hoursPerWeek, hourlyRate, tools, toolCost]);
+  const formatWholeZar = (value: number) => formatZar(Math.round(value));
 
   return (
     <section
-      id="roi"
-      className="sa-anchor border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28"
+      id={id}
+      className={`sa-anchor bg-[#f8fafc] ${embedded ? 'py-8 sm:py-10' : 'border-t border-slate-200 py-20 sm:py-28'}`}
     >
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-        <div className="mx-auto mb-12 max-w-3xl text-center">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#00b4d8]">
-            ROI
-          </p>
-          <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
-            What does spreadsheet chaos
-            <span className="mt-2 block text-[#00b4d8]">actually cost you?</span>
-          </h2>
-          <p className="mt-4 text-base text-slate-600 sm:text-lg">
-            Model hours lost to rekeying, reconciliations, and tool sprawl — then
-            compare to one company plan from {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}
-            /mo.
-          </p>
-        </div>
+        {heading ? (
+          <div className="mx-auto mb-12 max-w-3xl text-center">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#00b4d8]">
+              ROI
+            </p>
+            <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
+              What does spreadsheet chaos
+              <span className="mt-2 block text-[#00b4d8]">actually cost you?</span>
+            </h2>
+            <p className="mt-4 text-base text-slate-600 sm:text-lg">
+              Model hours lost to rekeying, reconciliations, and tool sprawl, then compare to one company plan.
+            </p>
+          </div>
+        ) : null}
 
-        <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
+        <div className="grid items-start gap-8 lg:grid-cols-12 lg:gap-10">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:col-span-5">
             <div className="mb-5 flex items-center gap-2 text-sm font-bold text-slate-900">
               <Calculator className="h-4 w-4 text-[#00b4d8]" />
@@ -130,40 +125,40 @@ export default function RoiCalculator() {
               <ResultCard
                 icon={Coins}
                 label="Est. monthly value"
-                value={formatZar(Math.max(0, result.monthlyGain))}
+                value={formatWholeZar(Math.max(0, result.monthlyGain))}
                 sub={
                   result.monthlyGain >= 0
                     ? 'After SupplierAdvisor® plan'
-                    : 'Adjust inputs — still try the free trial'
+                    : 'Adjust inputs, still try the free trial'
                 }
                 tone="emerald"
               />
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+            <div className={`rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm ${reserveResultHeight ? 'min-h-[30rem]' : ''}`}>
               <h3 className="font-bold text-slate-900 mb-4">Monthly breakdown</h3>
               <dl className="space-y-3 text-sm">
                 <Row
                   label="Labour cost of rework (Excel / email)"
-                  value={formatZar(result.labourMonth)}
+                  value={formatWholeZar(result.labourMonth)}
                 />
                 <Row
                   label="Tool sprawl (approx.)"
-                  value={formatZar(result.toolsMonth)}
+                  value={formatWholeZar(result.toolsMonth)}
                 />
                 <Row
                   label="Reclaimed labour value"
-                  value={formatZar(result.reclaimed)}
+                  value={formatWholeZar(result.reclaimed)}
                   positive
                 />
                 <Row
                   label="Consolidated tool savings"
-                  value={formatZar(result.toolsSaved)}
+                  value={formatWholeZar(result.toolsSaved)}
                   positive
                 />
                 <Row
                   label="SupplierAdvisor® company plan"
-                  value={`− ${formatZar(result.saCost)}`}
+                  value={`- ${formatWholeZar(result.saCost)}`}
                 />
                 <div className="border-t border-slate-100 pt-3 flex justify-between items-center">
                   <span className="font-black text-slate-900">
@@ -176,26 +171,24 @@ export default function RoiCalculator() {
                         : 'text-amber-700'
                     }`}
                   >
-                    {formatZar(result.monthlyGain)}
+                    {formatWholeZar(result.monthlyGain)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs text-slate-500">
                   <span>Annualised</span>
                   <span className="font-bold tabular-nums">
-                    {formatZar(result.annualGain)}
+                    {formatWholeZar(result.annualGain)}
                   </span>
                 </div>
               </dl>
               <p className="mt-4 text-[11px] leading-relaxed text-slate-400">
-                Illustrative model only — your recovery rate depends on process
-                maturity. {COMPANY_TRIAL_DAYS}-day free trial lets you measure
-                real time saved.
+                Illustrative, not financial advice. Your recovery rate depends on process maturity. {COMPANY_TRIAL_DAYS}-day free trial lets you measure real time saved.
               </p>
               <Link
-                href="/onboarding?type=business"
-                className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-white hover:bg-[#0099b8]"
+                href={startHref}
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-[#0f172a] hover:brightness-95"
               >
-                Start free trial <ArrowRight className="h-4 w-4" />
+                Start free <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>

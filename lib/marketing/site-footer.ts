@@ -9,7 +9,7 @@ export type FooterLinkGroup = {
 };
 
 export const FOOTER_TAGLINE =
-  'The supply-chain OS with a verified trade and trust layer — B2B, B2G, and B2C on one company workspace.';
+  'The supply-chain OS with a verified trade and trust layer, B2B, B2G, and B2C on one company workspace.';
 export const FOOTER_MOTTO = 'Built for operators who measure trust.';
 
 export const FOOTER_SOCIALS = [
@@ -41,23 +41,23 @@ export const FOOTER_EXPLORE_GROUPS: FooterLinkGroup[] = [
   {
     label: 'Product',
     links: [
-      { label: 'Product', href: '/#video' },
-      { label: 'SA Member', href: '/#member-app' },
-      { label: 'Why SA', href: '/#why-join' },
-      { label: 'Modules', href: '/#modules' },
+      { label: 'Product', href: '/product' },
+      { label: 'SA Member', href: '/sa-member' },
+      { label: 'Why SA', href: '/why-supplieradvisor' },
+      { label: 'Modules', href: '/modules' },
       { label: 'Catalogues', href: '/catalogues' },
-      { label: 'How it fits', href: '/#packaging' },
-      { label: 'Compare platforms', href: '/#compare' },
-      { label: 'Security', href: '/#security' },
+      { label: 'How it fits', href: '/how-it-fits' },
+      { label: 'Compare platforms', href: '/why-supplieradvisor#compare' },
+      { label: 'Security', href: '/trust#security' },
     ],
   },
   {
     label: 'Get started',
     links: [
       { label: 'Pricing', href: '/pricing' },
-      { label: 'ROI calculator', href: '/#roi' },
+      { label: 'ROI calculator', href: '/roi' },
       { label: 'Interactive demo', href: '/join#interactive-demo' },
-      { label: 'Start free trial', href: '/onboarding?lane=b2b' },
+      { label: 'Start free trial', href: '/join' },
       { label: 'Join as business', href: '/join' },
       { label: 'Log in', href: '/login' },
     ],
@@ -106,7 +106,7 @@ export const FOOTER_RESOURCE_GROUPS: FooterLinkGroup[] = [
   {
     label: 'Group',
     links: [
-      { label: 'Big Five Group™', href: 'https://bigfivegroup.africa' },
+      { label: 'Big Five Group', href: 'https://bigfivegroup.africa' },
       { label: 'Super-Cube®', href: 'https://super-cube.me' },
     ],
   },

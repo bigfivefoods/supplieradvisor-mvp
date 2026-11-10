@@ -6,7 +6,7 @@ import {
   COMPANY_TRIAL_DAYS,
 } from '@/lib/billing/company-subscription';
 
-/** Operating contexts — not customer logos, and not a claim that these sectors are signed. */
+/** Operating contexts, not customer logos, and not a claim that these sectors are signed. */
 const SEGMENTS = [
   { name: 'Food & beverage', icon: ShoppingBag },
   { name: 'Agri & inputs', icon: Leaf },

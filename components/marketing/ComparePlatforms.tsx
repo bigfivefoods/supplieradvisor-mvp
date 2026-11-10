@@ -34,7 +34,7 @@ type Section = {
 };
 
 /**
- * Capability matrix — ordered like a real operating system:
+ * Capability matrix, ordered like a real operating system:
  * network → trade → ops → finance → people/quality → trust → economics.
  */
 const SECTIONS: Section[] = [
@@ -59,7 +59,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Peer ratings, trust score & OTIFEF',
-        hint: 'Bilateral stars after trade — not vanity reviews',
+        hint: 'Bilateral stars after trade, not vanity reviews',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -67,7 +67,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'In-app messaging · internal (colleagues)',
-        hint: 'Company team inbox — desk, owners, and staff threads without leaving the OS',
+        hint: 'Company team inbox, desk, owners, and staff threads without leaving the OS',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -75,7 +75,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'In-app messaging · external (trade partners)',
-        hint: 'Connected suppliers & customers on the same thread model — not email silos',
+        hint: 'Connected suppliers & customers on the same thread model, not email silos',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -170,7 +170,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Live bank feeds (selected banks)',
-        hint: 'FNB Integration Channel and BankLink open-banking — PDF/CSV still land in the same reconciliation',
+        hint: 'FNB Integration Channel and BankLink open-banking, PDF/CSV still land in the same reconciliation',
         excel: 'no',
         xero: 'strong',
         erp: 'yes',
@@ -348,7 +348,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'ContainerAdvisor® · last-mile container outlets',
-        hint: 'Container sites, resellers, contractors, GPS, jobs/meals impact — not a second ERP',
+        hint: 'Container sites, resellers, contractors, GPS, jobs/meals impact, not a second ERP',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -380,7 +380,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'HireAdvisor® · hire / rental marketplace',
-        hint: 'List gear, B2C rent on SA Member, category KYC, golden path, 2.5% on the listing business — members pay no platform fee',
+        hint: 'List gear, B2C rent on SA Member, category KYC, golden path, 2.5% on the listing business, members pay no platform fee',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -404,7 +404,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Industry-branded member / client PWA',
-        hint: 'Installable phone app per practice — Gym, Physio, Dental, Psychiatry, Medical, Vet, Hire, Retail with that industry’s language',
+        hint: 'Installable phone app per practice, Gym, Physio, Dental, Psychiatry, Medical, Vet, Hire, Retail with that industry’s language',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -412,7 +412,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Member / patient / client self-serve portals',
-        hint: 'Tokenised PWAs — book, waitlist, household, identity, feedback, shared care summary; POPIA notice',
+        hint: 'Tokenised PWAs, book, waitlist, household, identity, feedback, shared care summary; POPIA notice',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -428,7 +428,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Platform subscription only (members free)',
-        hint: 'SA bills the operating company. Members, patients and hire customers use SA Member at R0 — no platform take-rate',
+        hint: 'SA bills the operating company. Members, patients and hire customers use SA Member at R0, no platform take-rate',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -436,7 +436,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'SchoolAdvisor® + HealthAdvisor® (government)',
-        hint: 'NSNP / DBE school kitchens and HealthAdvisor® DoH facility pathways — admin-set-up programmes, not private packs',
+        hint: 'NSNP / DBE school kitchens and HealthAdvisor® DoH facility pathways, admin-set-up programmes, not private packs',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -449,7 +449,7 @@ const SECTIONS: Section[] = [
     rows: [
       {
         capability: 'Free personal PWA (SA Member)',
-        hint: 'Install on the phone — one personal wallet you link to any business on the platform. Not a company workspace',
+        hint: 'Install on the phone, one personal wallet you link to any business on the platform. Not a company workspace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -481,7 +481,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Link any business to the wallet',
-        hint: 'Search a company, scan a desk QR, or tap Add to wallet on their public page — then shop, book and manage that account',
+        hint: 'Search a company, scan a desk QR, or tap Add to wallet on their public page, then shop, book and manage that account',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -489,7 +489,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Book Advisor appointments',
-        hint: 'Gym, physio, dental, psychiatry, medical and vet diaries — members book from SA Member or the practice PWA',
+        hint: 'Gym, physio, dental, psychiatry, medical and vet diaries, members book from SA Member or the practice PWA',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -497,7 +497,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Shared medical summary on the phone',
-        hint: 'Allergies, scripts, medical aid and care notes the practice shares — full charts stay at the desk',
+        hint: 'Allergies, scripts, medical aid and care notes the practice shares, full charts stay at the desk',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -513,7 +513,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Pay at till · QR / NFC',
-        hint: 'Desk presents an amount; customer scans QR or taps NFC (Android Chrome) and pays on SA Member — retail, gym, clinic, hire',
+        hint: 'Desk presents an amount; customer scans QR or taps NFC (Android Chrome) and pays on SA Member, retail, gym, clinic, hire',
         excel: 'no',
         xero: 'partial',
         erp: 'partial',
@@ -521,7 +521,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Gym door QR check-in',
-        hint: 'Members scan the studio QR from SA Member — no paper clipboard',
+        hint: 'Members scan the studio QR from SA Member, no paper clipboard',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -545,7 +545,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Member account · pay & proof of payment',
-        hint: 'See charges from the gym or clinic, pay, or upload proof — on the personal wallet',
+        hint: 'See charges from the gym or clinic, pay, or upload proof, on the personal wallet',
         excel: 'no',
         xero: 'partial',
         erp: 'partial',
@@ -569,7 +569,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Reviews after visit or hire',
-        hint: 'Members rate the gym, clinic or hire after the visit — not vanity store reviews',
+        hint: 'Members rate the gym, clinic or hire after the visit, not vanity store reviews',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -577,7 +577,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Dual-life identity',
-        hint: 'Same login can run a B2B/B2G company and keep a personal wallet — they never mix',
+        hint: 'Same login can run a B2B/B2G company and keep a personal wallet, they never mix',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -618,7 +618,7 @@ const SECTIONS: Section[] = [
     title: 'Time to value & economics',
     rows: [
       {
-        capability: 'Go-live in days (not 12–24 months)',
+        capability: 'Go-live in days (not 12-24 months)',
         hint: 'SaaS onboarding vs multi-year ERP programme',
         excel: 'yes',
         xero: 'yes',
@@ -627,7 +627,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Transparent ZAR SaaS pricing',
-        hint: `No 7-figure licence — from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo after trial`,
+        hint: `No 7-figure licence, from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo after trial`,
         excel: 'yes',
         xero: 'yes',
         erp: 'no',
@@ -644,7 +644,7 @@ const SECTIONS: Section[] = [
       {
         capability: 'Supply-chain referral earnings',
         hint:
-          'Onboard partners into the OS — earn back up to 10% of their subscription (L1 6% · L2 3% · L3 1%)',
+          'Onboard partners into the OS, earn back up to 10% of their subscription (L1 6% · L2 3% · L3 1%)',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -652,7 +652,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Fully responsive · phone · tablet · desktop',
-        hint: 'Command centre, finance cards, and ops built for mobile and tablet — not desktop-only ERP',
+        hint: 'Command centre, finance cards, and ops built for mobile and tablet, not desktop-only ERP',
         excel: 'partial',
         xero: 'yes',
         erp: 'partial',
@@ -863,16 +863,15 @@ export default function ComparePlatforms() {
           <p className="mt-5 text-base leading-relaxed text-slate-600 dark:text-neutral-400 sm:text-lg">
             Spreadsheets fragment truth. Accounting clouds stop at the books.
             Major ERPs take years and seven figures. SupplierAdvisor® is the
-            supply-chain OS — network with{' '}
+            supply-chain OS, network with{' '}
             <strong className="font-semibold text-slate-800 dark:text-neutral-200">
               internal and external in-app messaging
-            </strong>
-            , ops, finance (budgets &amp; group hierarchy), quality, people,
+            </strong>, ops, finance (budgets &amp; group hierarchy), quality, people,
             trust, and Industry Advisors (CropAdvisor®, QuarryAdvisor®,
             GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®,
             MedicalAdvisor®, VetAdvisor®, HireAdvisor®, RetailAdvisor®,
             ContainerAdvisor®) with waitlist desks, treatment plans, rooms,
-            industry PWAs, and marketplace listings — plus SchoolAdvisor® and
+            industry PWAs, and marketplace listings, plus SchoolAdvisor® and
             HealthAdvisor® for government, a free SA Member B2C app (check-in,
             household book, waitlist, .ics, pay &amp; proof, consent-to-share
             records) and referral earnings when you onboard your chain (up to
@@ -892,13 +891,13 @@ export default function ComparePlatforms() {
             {
               name: 'Xero-class accounting',
               who: 'Brilliant for books',
-              body: 'World-class ledgers and bank feeds — but not a full supply-chain, multi-entity group OS, or trading graph.',
+              body: 'World-class ledgers and bank feeds, but not a full supply-chain, multi-entity group OS, or trading graph.',
               icon: BookOpen,
             },
             {
               name: 'Major ERP',
               who: 'Power at a price',
-              body: 'SAP, Oracle, Dynamics — deep modules and hierarchy, 12–24 month projects, enterprise licence gravity.',
+              body: 'SAP, Oracle, Dynamics, deep modules and hierarchy, 12-24 month projects, enterprise licence gravity.',
               icon: Building2,
             },
             {
@@ -1067,7 +1066,7 @@ export default function ComparePlatforms() {
         <p className="mx-auto mt-6 max-w-3xl text-center text-[12px] leading-relaxed text-slate-600 dark:text-neutral-500">
           Comparison is illustrative of typical capability classes (spreadsheets,
           cloud accounting, enterprise ERP suites). Individual products and
-          add-ons vary. SupplierAdvisor® is a unified operating system — not a
+          add-ons vary. SupplierAdvisor® is a unified operating system, not a
           spreadsheet, not accounting-only, and not a multi-year ERP programme.
         </p>
       </div>

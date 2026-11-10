@@ -150,8 +150,7 @@ export function SchemaHint({ message }: { message?: string }) {
       <code className="font-mono bg-white/80 px-1 rounded">
         supabase/migrations/
       </code>{' '}
-      (e.g. <code className="font-mono bg-white/80 px-1 rounded">20260710_manufacturing_module.sql</code>
-      ,{' '}
+      (e.g. <code className="font-mono bg-white/80 px-1 rounded">20260710_manufacturing_module.sql</code>,{' '}
       <code className="font-mono bg-white/80 px-1 rounded">
         20260720_manufacturing_cost_structure.sql
       </code>

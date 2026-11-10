@@ -192,7 +192,7 @@ export default async function IndustryDetailPage({ params }: Props) {
           ) : null}
           <div className="mt-4 flex flex-wrap gap-3">
             <Link
-              href="/#modules-industry"
+              href="/modules#modules-industry"
               className="text-sm font-bold text-[#0077b6] hover:underline"
             >
               See Industry modules on the home page →

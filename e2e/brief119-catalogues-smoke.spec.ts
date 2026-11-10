@@ -46,10 +46,7 @@ for (const width of [1280, 768, 375]) {
     expect(cataloguesFit).toBe(true);
 
     await page.goto('/');
-    const sentinel = page.locator('[data-home-below-fold]');
-    await sentinel.scrollIntoViewIfNeeded();
-    await expect(page.locator('#catalogues')).toBeVisible({ timeout: 20_000 });
-    await page.locator('#catalogues').scrollIntoViewIfNeeded();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     const homeFit = await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth
     );

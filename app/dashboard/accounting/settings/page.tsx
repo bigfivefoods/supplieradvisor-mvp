@@ -626,8 +626,7 @@ function Inner() {
             Need a different header? Create it on the{' '}
             <Link href="/dashboard/accounting/chart-of-accounts" className="font-bold text-[#0077b6] underline">
               chart of accounts
-            </Link>
-            , then pick it here. Changing the parent applies to new parties; existing unique
+            </Link>, then pick it here. Changing the parent applies to new parties; existing unique
             accounts stay put so history is not rewritten.
           </p>
           <div className="flex flex-wrap justify-end gap-2">

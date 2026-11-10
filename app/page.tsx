@@ -13,10 +13,6 @@ export const metadata: Metadata = marketingMetadata({
   image: HOME_SHARE_CARD,
 });
 
-/**
- * Brief 10 — first HTML is hero + compact CTA + nav only.
- * Product mocks load in a client island (HomeBelowFoldLazy) with ssr: false.
- */
 export default function LandingPage() {
   return <HomeLanding />;
 }

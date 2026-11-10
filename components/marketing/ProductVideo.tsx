@@ -2,12 +2,18 @@
 
 import Link from 'next/link';
 import { Play, ArrowRight } from 'lucide-react';
+import { fixtureRoutesOpen } from '@/lib/preview/production-gate';
 
 /**
- * Product story block — animated “video” panel until a real host is added.
+ * Product story block, animated “video” panel until a real host is added.
  * CTA deep-links to interactive demo.
  */
 export default function ProductVideo({ tourHref }: { tourHref: string }) {
+  const fixturesOpen = fixtureRoutesOpen();
+  const primaryCtaLabel = fixturesOpen ? 'Take the guided tour' : 'Start free';
+  const storyBody = fixturesOpen
+    ? 'Take the guided tour of the sample screens: the supply-chain OS and the verified trade and trust layer. No signup. When you want a look at your own chain, book a demo.'
+    : 'See how the supply-chain OS and verified trade and trust layer fit together. Start free to map your own chain in a live workspace.';
   return (
     <section
       id="video"
@@ -26,9 +32,7 @@ export default function ProductVideo({ tourHref }: { tourHref: string }) {
             See how the OS fits together
           </h2>
           <p className="mt-4 text-base leading-relaxed text-slate-300 sm:text-lg">
-            Take the guided tour of the sample screens: the supply-chain OS
-            and the verified trade and trust layer. No signup. When you want
-            a look at your own chain, book a demo.
+            {storyBody}
           </p>
         </div>
 
@@ -73,16 +77,16 @@ export default function ProductVideo({ tourHref }: { tourHref: string }) {
             className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-[#0f172a] hover:brightness-95"
           >
             <Play className="h-4 w-4 fill-current" />
-            Take the guided tour
+            {primaryCtaLabel}
           </Link>
           <a
-            href="#book-demo"
+            href="/#book-demo"
             className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white px-6 py-3 text-sm font-bold text-slate-950"
           >
             Book a demo <ArrowRight className="h-4 w-4" />
           </a>
           <a
-            href="#modules"
+            href="/modules"
             className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-6 py-3 text-sm font-bold text-white"
           >
             Browse modules <ArrowRight className="h-4 w-4" />

@@ -1,5 +1,4 @@
 /**
- * Homepage recent showcase stays lazy, priced like /pricing, and marketing-only.
  * Run: npx --yes tsx lib/marketing/home-recent.test.ts
  */
 import assert from 'node:assert/strict';
@@ -14,16 +13,8 @@ function src(rel: string) {
 assert.equal(CORE_OS_MONTHLY_ZAR, 299);
 assert.equal(INDUSTRY_PACK_MONTHLY_ZAR, 199);
 
-const page = src('app/page.tsx');
-assert.doesNotMatch(page, /HomeRecent/);
-assert.doesNotMatch(page, /next\/dynamic/);
-
-const lazy = src('components/marketing/HomeBelowFoldLazy.tsx');
-assert.match(lazy, /ssr:\s*false/);
-assert.match(lazy, /import\('@\/components\/marketing\/HomeRecent'\)/);
-assert.match(lazy, /import\('@\/components\/marketing\/HomeBelowFold'\)/);
-assert.match(lazy, /notice\.englishOnlySection/);
-assert.doesNotMatch(lazy, /setTimeout\(\(\) => \{\s*void import\('@\/components\/marketing\/HomeRecent'\)/);
+const page = src('app/product/page.tsx');
+assert.match(page, /ProductPageSections/);
 
 const recent = src('components/marketing/HomeRecent.tsx');
 assert.match(recent, /from 'next\/image'/);
@@ -50,11 +41,5 @@ assert.ok(image.size > 0 && image.size < 80_000, `customer app image should stay
 
 const nextConfig = src('next.config.js');
 assert.match(nextConfig, /qualities:\s*\[60,\s*75\]/);
-
-const en = src('lib/i18n/dict/en.ts');
-assert.match(en, /SupplierAdvisor®/);
-assert.match(en, /TradeAdvisor® is the van operating system/);
-assert.match(en, /\+R\{pack\}\/month on top of core/);
-assert.match(en, /VerifyNow is already on SupplierAdvisor®/);
 
 console.log('home-recent.test.ts ok');

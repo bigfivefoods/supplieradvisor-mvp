@@ -337,8 +337,7 @@ function ContractorsInner() {
               className="text-[#00b4d8] font-medium hover:underline inline-flex items-center gap-1"
             >
               VerifyNow <ExternalLink className="w-3 h-3" />
-            </a>
-            , then invite them to their allocated container portal.
+            </a>, then invite them to their allocated container portal.
           </>
         }
       />

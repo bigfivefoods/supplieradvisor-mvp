@@ -76,7 +76,6 @@ assert.doesNotMatch(src('lib/billing/lifetime.ts'), /getSupabaseServer/);
 assert.match(src('lib/billing/lifetime-server.ts'), /getSupabaseServer/);
 assert.match(src('lib/advisors/member-pwa.ts'), /gym-join-path/);
 assert.doesNotMatch(src('components/b2c/B2cHireJourney.tsx'), /hire-journeys/);
-assert.match(src('components/marketing/HomeBelowFoldLazy.tsx'), /ssr:\s*false/);
 assert.match(src('components/marketing/HeroAudienceStage.tsx'), /mountedScenes/);
 
 console.log('member-app-bundle.test.ts ok');

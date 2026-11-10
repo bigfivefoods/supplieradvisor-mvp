@@ -571,8 +571,7 @@ function Inner() {
           onClick={() => downloadTemplateA('xlsx')}
         >
           NSNP_Learners_Template_A.xlsx
-        </button>
-        , fill one row per learner, import, then select rows and mark{' '}
+        </button>, fill one row per learner, import, then select rows and mark{' '}
         <em>school-verified</em> then <em>attested</em>. Or use{' '}
         <button
           type="button"
