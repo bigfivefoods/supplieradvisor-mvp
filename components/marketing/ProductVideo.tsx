@@ -76,7 +76,7 @@ export default function ProductVideo({ tourHref }: { tourHref: string }) {
             Take the guided tour
           </Link>
           <a
-            href="#book-demo"
+            href="/#book-demo"
             className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white px-6 py-3 text-sm font-bold text-slate-950"
           >
             Book a demo <ArrowRight className="h-4 w-4" />

@@ -1,7 +1,7 @@
 /** MACHINE-DRAFTED: Brief 102 i18n dictionary */
 
 export const en = {
-  'meta.home.title': 'SupplierAdvisor® — The supply-chain OS with a verified trade and trust layer',
+  'meta.home.title': 'SupplierAdvisor®: The supply-chain OS with a verified trade and trust layer',
   'meta.home.description':
     'SupplierAdvisor® is the supply-chain OS with a verified trade and trust layer. A 30-day company trial and a free SA Member account.',
   'meta.pricing.title': 'Pricing',
@@ -53,7 +53,7 @@ export const en = {
   'home.startTrial': 'Start free trial',
   'home.bookTitle': 'Book a demo',
   'home.bookBody':
-    'In 20 minutes we map your supply chain onto SupplierAdvisor® — trade, stock, quality, and finance — and show what is already in the product.',
+    'In 20 minutes we map your supply chain onto SupplierAdvisor®, trade, stock, quality, and finance, and show what is already in the product.',
   'home.bookEmail': 'Email for a demo',
   'home.bookWhatsapp': 'WhatsApp',
   'home.bookSample': 'Prefer to look first?',
@@ -75,7 +75,7 @@ export const en = {
 
   'hero.scene.b2b.title': 'Business to business',
   'hero.scene.b2b.short': 'Run the full OS with counterparties you can score and prove.',
-  'hero.scene.b2b.body': 'Manufacturers, distributors and brands run the full OS — network, buy and sell, inventory, make, ship, finance, SHEQ and quality — with counterparties you can score and prove.',
+  'hero.scene.b2b.body': 'Manufacturers, distributors and brands run the full OS, network, buy and sell, inventory, make, ship, finance, SHEQ and quality, with counterparties you can score and prove.',
   'hero.scene.b2b.point1': 'Verified company graph and OTIFEF ratings',
   'hero.scene.b2b.point2': 'POs, invoices and lot holds on the same books',
   'hero.scene.b2b.point3': 'One workspace for the whole trade loop',
@@ -83,21 +83,21 @@ export const en = {
 
   'hero.scene.b2g.title': 'Business to government',
   'hero.scene.b2g.short': 'Transparent procurement and audit-ready trails for public trade.',
-  'hero.scene.b2g.body': 'Public entities and their suppliers need transparent procurement, accountable spend and audit-ready trails — not email chains and disconnected spreadsheets.',
+  'hero.scene.b2g.body': 'Public entities and their suppliers need transparent procurement, accountable spend and audit-ready trails, not email chains and disconnected spreadsheets.',
   'hero.scene.b2g.point1': 'Transparent supplier discovery and handshakes',
   'hero.scene.b2g.point2': 'Documented trade and performance scores',
   'hero.scene.b2g.point3': 'SHEQ, NCR/CAPA and export packs for scrutiny',
   'hero.scene.b2g.cta': 'Request government access',
 
   'hero.scene.b2c.title': 'Business to consumer',
-  'hero.scene.b2c.short': 'A free personal wallet for gym, clinic and hire — no company needed.',
-  'hero.scene.b2c.body': 'One free personal wallet. Link any gym, clinic, hire desk or shop on this platform and manage that account — book, buy, check in, family, waitlist, pay & proof, records and push alerts. No company required.',
+  'hero.scene.b2c.short': 'A free personal wallet for gym, clinic and hire, no company needed.',
+  'hero.scene.b2c.body': 'One free personal wallet. Link any gym, clinic, hire desk or shop on this platform and manage that account, book, buy, check in, family, waitlist, pay and proof, records and push alerts. No company required.',
   'hero.scene.b2c.point1': 'Free SA Member app on your phone',
   'hero.scene.b2c.point2': 'Book, check in, family, waitlist, .ics and shared medical notes',
-  'hero.scene.b2c.point3': 'Pay or send proof — same login if you later run a business',
+  'hero.scene.b2c.point3': 'Pay or send proof, same login if you later run a business',
   'hero.scene.b2c.cta': 'Create free SA Member account',
 
-  'footer.tagline': 'The supply-chain OS with a verified trade and trust layer — B2B, B2G, and B2C on one company workspace.',
+  'footer.tagline': 'The supply-chain OS with a verified trade and trust layer, B2B, B2G, and B2C on one company workspace.',
   'footer.motto': 'Built for operators who measure trust.',
   'footer.explore': 'Explore',
   'footer.industries': 'Industries',
@@ -139,7 +139,7 @@ export const en = {
   'footer.form.consentLead': 'I agree to the',
   'footer.form.privacy': 'Privacy Policy',
   'footer.form.join': 'Join',
-  'footer.form.success': 'Thanks — you are on the founding list.',
+  'footer.form.success': 'Thanks, you are on the founding list.',
   'footer.form.error': 'Unable to join right now. Please try again.',
 
   'pricing.kicker': 'Pricing',
@@ -270,7 +270,7 @@ export const en = {
   'home.packs.pricing': 'See pricing',
   'home.packs.industries': 'All industries',
   'home.trade.kicker': 'TradeAdvisor®',
-  'home.trade.title': 'Quote, job, invoice — and a customer app',
+  'home.trade.title': 'Quote, job, invoice, and a customer app',
   'home.trade.body':
     'TradeAdvisor® is the van operating system for electricians, plumbers, builders, painters, HVAC and handymen. It runs on SupplierAdvisor®, so materials come from suppliers already on the platform.',
   'home.trade.point1': 'Quotes, jobs and invoices in rand',

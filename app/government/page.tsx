@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import MarketingPageShell from '@/components/marketing/sections/MarketingPageShell';
-import AudienceDetailSection from '@/components/marketing/sections/AudienceDetailSection';
+import HomeBelowFold from '@/components/marketing/HomeBelowFold';
 import { marketingMetadata } from '@/lib/seo/metadata';
 import { HOME_SHARE_CARD } from '@/lib/seo/share-cards';
 
@@ -16,14 +16,11 @@ export const metadata: Metadata = marketingMetadata({
 export default function GovernmentPage() {
   return (
     <MarketingPageShell title="Government" intro="Support public programmes with transparent procurement and traceable execution.">
-      <AudienceDetailSection
-        title="Public-sector workflows"
-        body="Government teams and suppliers can run procurement and programme workflows with a shared record of delivery. SupplierAdvisor® helps teams publish trust signals and maintain auditable trade records."
-        bullets={[
-          'Transparent procurement records',
-          'Supplier verification and trust signals',
-          'Accountable execution trails for programme teams',
-        ]}
+      <HomeBelowFold
+        tourHref="/join"
+        demoHref="/join"
+        sections={['markets', 'audiences']}
+        audienceFilter={['b2g']}
       />
       <Link href="/join" className="inline-flex rounded-full bg-[#00b4d8] px-6 py-3 font-bold text-[#0f172a]">Start free</Link>
     </MarketingPageShell>

@@ -19,7 +19,7 @@ const SCENES = [
     id: 'b2b',
     code: 'B2B',
     title: 'Business to business',
-    body: 'Manufacturers, distributors and brands run the full OS — network, buy and sell, inventory, make, ship, finance, SHEQ and quality — with counterparties you can score and prove.',
+    body: 'Manufacturers, distributors and brands run the full OS, network, buy and sell, inventory, make, ship, finance, SHEQ and quality, with counterparties you can score and prove.',
     short: 'Run the full OS with counterparties you can score and prove.',
     points: [
       'Verified company graph and OTIFEF ratings',
@@ -35,7 +35,7 @@ const SCENES = [
     id: 'b2g',
     code: 'B2G',
     title: 'Business to government',
-    body: 'Public entities and their suppliers need transparent procurement, accountable spend and audit-ready trails — not email chains and disconnected spreadsheets.',
+    body: 'Public entities and suppliers need transparent procurement, accountable spend and audit-ready trails, not email chains and disconnected spreadsheets.',
     short: 'Transparent procurement and audit-ready trails for public trade.',
     points: [
       'Transparent supplier discovery and handshakes',
@@ -51,8 +51,8 @@ const SCENES = [
     id: 'b2c',
     code: 'B2C',
     title: 'Business to consumer',
-    body: 'One free personal wallet. Link any gym, clinic, hire desk or shop on this platform and manage that account — book, buy, check in, family, waitlist, pay & proof, records and push alerts. No company required.',
-    short: 'A free personal wallet for gym, clinic and hire — no company needed.',
+    body: 'One free personal wallet. Link any gym, clinic, hire desk or shop on this platform and manage that account, book, buy, check in, family, waitlist, pay and proof, records and push alerts. No company required.',
+    short: 'A free personal wallet for gym, clinic and hire, no company needed.',
     points: [
       'Free SA Member app on your phone',
       'Book, check in, family, waitlist, .ics and shared medical notes',
@@ -428,7 +428,7 @@ export default function HeroAudienceStage() {
             <ul className="mt-3 hidden space-y-1.5 xl:block">
               {scenePoints.map((pt) => (
                 <li key={pt} className="text-sm font-medium text-slate-200">
-                  <span className="me-2 text-cyan-300">—</span>
+                  <span className="me-2 text-cyan-300">•</span>
                   {pt}
                 </li>
               ))}

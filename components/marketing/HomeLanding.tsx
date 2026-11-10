@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CheckCircle2 } from 'lucide-react';
 import LandingNav from '@/components/marketing/LandingNav';
 import HeroAudienceStage from '@/components/marketing/HeroAudienceStage';
 import SiteFooter from '@/components/marketing/SiteFooter';
@@ -12,21 +13,21 @@ import { fixturePublicHref, interactiveDemoHref } from '@/lib/preview/production
 const AUDIENCES = [
   {
     title: 'Business',
-    body: 'Run buying, selling, inventory, operations, quality, and finance in one verified workspace. SupplierAdvisor® links your teams and counterparties on one operating model.',
-    bullets: ['Verified company graph and trust layer', 'Shared process data across trade and operations', 'Built for daily operator execution'],
+    body: 'Run buying, selling, inventory, operations, quality, and finance in one workspace. SupplierAdvisor® links teams and counterparties on one operating model.',
+    bullets: ['Verified company graph and trust layer', 'Shared process data across trade and operations', 'Built for operator execution'],
     href: '/business',
     cta: 'Explore business',
   },
   {
     title: 'Consumer, SA Member',
-    body: 'Create one free SA Member account for bookings, check-ins, family profiles, and payment proof. Use the same identity across every SupplierAdvisor® service business.',
-    bullets: ['Free personal account', 'One login across connected businesses', 'Book and pay with proof in one flow'],
+    body: 'Create one free SA Member account for bookings, check-ins, family profiles, and payment proof. Use one identity across SupplierAdvisor® service businesses.',
+    bullets: ['Free personal account', 'One login across connected businesses', 'Book and pay with proof'],
     href: '/sa-member',
     cta: 'Explore SA Member',
   },
   {
     title: 'Government',
-    body: 'Support public procurement and programme delivery with traceable workflows and verified suppliers. Keep accountable records for every stage of trade and fulfilment.',
+    body: 'Support public procurement and programme delivery with traceable workflows and verified suppliers. Keep accountable records for each stage of fulfilment.',
     bullets: ['Transparent procurement and scoring records', 'Audit-ready workflows for public programmes', 'Shared execution view for departments and suppliers'],
     href: '/government',
     cta: 'Explore government',
@@ -53,10 +54,10 @@ export default function HomeLanding({ locale = DEFAULT_LOCALE, dict = en }: { lo
         <section className="border-t border-slate-200 bg-white px-4 py-6 dark:border-neutral-800 dark:bg-neutral-950 sm:px-6 sm:py-8 lg:px-10">
           <div className="mx-auto max-w-screen-2xl rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-neutral-700 dark:bg-neutral-900 sm:px-6">
             <div className="grid gap-3 text-sm font-semibold text-slate-700 dark:text-neutral-200 sm:grid-cols-2 lg:grid-cols-4">
-              <p>{format(t(dict, 'home.trialStrip'), { days: COMPANY_TRIAL_DAYS })}</p>
-              <p>Verified trade and trust layer</p>
-              <p>Published pricing from R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month</p>
-              <p>South African built</p>
+              <p className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-emerald-600" />30-day free trial</p>
+              <p className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-emerald-600" />Verified trade and trust layer</p>
+              <p className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-emerald-600" />Published pricing from R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month</p>
+              <p className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-emerald-600" />South African built</p>
             </div>
           </div>
         </section>

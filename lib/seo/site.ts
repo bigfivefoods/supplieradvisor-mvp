@@ -15,7 +15,7 @@ export const SITE_NAME = 'SupplierAdvisor®';
 export const SITE_NAME_PLAIN = 'SupplierAdvisor';
 
 export const DEFAULT_TITLE =
-  'SupplierAdvisor® — The supply-chain OS with a verified trade and trust layer';
+  'SupplierAdvisor®: The supply-chain OS with a verified trade and trust layer';
 
 export const DEFAULT_DESCRIPTION =
   'SupplierAdvisor® supply-chain OS with a verified trade and trust layer. 30-day trial, then from R299/month.';

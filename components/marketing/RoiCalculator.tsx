@@ -36,6 +36,7 @@ export default function RoiCalculator({
   const result = useMemo(() => {
     return calculateRoiModel({ people, hoursPerWeek, hourlyRate, tools, toolCost });
   }, [people, hoursPerWeek, hourlyRate, tools, toolCost]);
+  const formatWholeZar = (value: number) => formatZar(Math.round(value));
 
   return (
     <section
@@ -58,7 +59,7 @@ export default function RoiCalculator({
           </div>
         ) : null}
 
-        <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
+        <div className="grid items-start gap-8 lg:grid-cols-12 lg:gap-10">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:col-span-5">
             <div className="mb-5 flex items-center gap-2 text-sm font-bold text-slate-900">
               <Calculator className="h-4 w-4 text-[#00b4d8]" />
@@ -122,7 +123,7 @@ export default function RoiCalculator({
               <ResultCard
                 icon={Coins}
                 label="Est. monthly value"
-                value={formatZar(Math.max(0, result.monthlyGain))}
+                value={formatWholeZar(Math.max(0, result.monthlyGain))}
                 sub={
                   result.monthlyGain >= 0
                     ? 'After SupplierAdvisor® plan'
@@ -137,25 +138,25 @@ export default function RoiCalculator({
               <dl className="space-y-3 text-sm">
                 <Row
                   label="Labour cost of rework (Excel / email)"
-                  value={formatZar(result.labourMonth)}
+                  value={formatWholeZar(result.labourMonth)}
                 />
                 <Row
                   label="Tool sprawl (approx.)"
-                  value={formatZar(result.toolsMonth)}
+                  value={formatWholeZar(result.toolsMonth)}
                 />
                 <Row
                   label="Reclaimed labour value"
-                  value={formatZar(result.reclaimed)}
+                  value={formatWholeZar(result.reclaimed)}
                   positive
                 />
                 <Row
                   label="Consolidated tool savings"
-                  value={formatZar(result.toolsSaved)}
+                  value={formatWholeZar(result.toolsSaved)}
                   positive
                 />
                 <Row
                   label="SupplierAdvisor® company plan"
-                  value={`− ${formatZar(result.saCost)}`}
+                  value={`− ${formatWholeZar(result.saCost)}`}
                 />
                 <div className="border-t border-slate-100 pt-3 flex justify-between items-center">
                   <span className="font-black text-slate-900">
@@ -168,13 +169,13 @@ export default function RoiCalculator({
                         : 'text-amber-700'
                     }`}
                   >
-                    {formatZar(result.monthlyGain)}
+                    {formatWholeZar(result.monthlyGain)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs text-slate-500">
                   <span>Annualised</span>
                   <span className="font-bold tabular-nums">
-                    {formatZar(result.annualGain)}
+                    {formatWholeZar(result.annualGain)}
                   </span>
                 </div>
               </dl>

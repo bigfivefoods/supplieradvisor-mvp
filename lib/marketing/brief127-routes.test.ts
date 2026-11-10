@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { LEGACY_HOME_ANCHOR_TARGETS } from '@/lib/marketing/legacy-home-anchors';
 
@@ -57,6 +57,40 @@ const newPages = [
 for (const rel of newPages) {
   const src = readFileSync(resolve(process.cwd(), rel), 'utf8');
   assert.doesNotMatch(src, /Providers|@privy-io\/react-auth|\bviem\b|\bwagmi\b|\bundici\b/);
+}
+
+const scanRoots = [
+  resolve(process.cwd(), 'app'),
+  resolve(process.cwd(), 'components/marketing/sections'),
+  resolve(process.cwd(), 'components/marketing'),
+];
+const corpus: string[] = [];
+const walk = (dir: string) => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = resolve(dir, entry.name);
+    if (entry.isDirectory()) walk(full);
+    if (entry.isFile() && (full.endsWith('.ts') || full.endsWith('.tsx'))) {
+      corpus.push(readFileSync(full, 'utf8'));
+    }
+  }
+};
+for (const root of scanRoots) walk(root);
+const allSource = corpus.join('\n');
+const relocated = [
+  ['video', 'Product story'],
+  ['markets', 'Who the network serves'],
+  ['member-app', 'Your personal wallet'],
+  ['why-join', 'Compelling reasons to run'],
+  ['systems', 'Every critical system.'],
+  ['modules', 'Core OS · Sector · Industry'],
+  ['packaging', 'Setup SupplierAdvisor®'],
+  ['trust', 'When a lot fails,'],
+  ['how-it-works', 'Four steps to live ops'],
+  ['audiences', 'Why are you joining us?'],
+] as const;
+for (const [id, heading] of relocated) {
+  assert.ok(allSource.includes(`id="${id}"`) || allSource.includes(`id={'${id}'}`), `missing relocated id ${id}`);
+  assert.ok(allSource.includes(heading), `missing relocated heading text for ${id}`);
 }
 
 console.log('brief127-routes.test.ts ok');

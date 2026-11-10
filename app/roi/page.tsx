@@ -24,7 +24,9 @@ export default function RoiPage() {
           <li>We subtract the SupplierAdvisor® company plan from R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month.</li>
         </ul>
       </section>
-      <RoiCalculator heading={false} reserveResultHeight startHref="/join" />
+      <div className="-mt-6 sm:-mt-8">
+        <RoiCalculator heading={false} reserveResultHeight startHref="/join" />
+      </div>
     </MarketingPageShell>
   );
 }
