@@ -1,0 +1,158 @@
+import type { GuideFeature, ModuleGuide } from '@/lib/help/types';
+
+const WHO =
+  'Projects opens for anyone who can view Projects. On the default matrix that is Owner, Admin, Member, Viewer, Finance, Operations, and Sales. The gate says “Your role (…) cannot access Projects.” Saves check membership, not a separate projects write role. A view role that can open the page can post. No project save posts a ledger journal.';
+
+function feat(row: GuideFeature): GuideFeature {
+  return row;
+}
+
+export const PROJECTS_GUIDE: ModuleGuide = {
+  id: 'projects',
+  name: 'Projects',
+  href: '/dashboard/projects',
+  purpose:
+    'Projects in SupplierAdvisor® is the portfolio, the programme, DMAIC, the SDG goal, the task board, the waterfall, the RIAD log, and timesheets. The DMAIC checklist does not block a move. Kanban is not dragged.',
+  roles: ['Owner', 'Admin', 'Member', 'Viewer', 'Finance', 'Operations', 'Sales'],
+  outcome: 'A project can be created, moved through DMAIC without a checklist gate, and given tasks, risks, and hours.',
+  flow: [
+    { id: 'programme', label: 'Programme', hint: 'Create only' },
+    { id: 'project', label: 'Project', hint: 'Starts planning' },
+    { id: 'gate', label: 'DMAIC', hint: 'Checklist does not block' },
+    { id: 'task', label: 'Task', hint: 'One click' },
+    { id: 'time', label: 'Hours', hint: 'Append only' },
+  ],
+  faqs: [
+    {
+      q: 'The hub says the DMAIC checklist and an audit trail are included. Do they block the move?',
+      a: 'No. The checklist is reference text. Drag or the letter button moves the card. The project API does not write an audit log for that move.',
+    },
+  ],
+  features: [
+    feat({
+      id: 'overview',
+      name: 'Overview',
+      href: '/dashboard/projects',
+      summary: 'Overview counts projects, DMAIC, SDG, and programmes, and opens the other screens.',
+      who: WHO,
+      prerequisites: ['A company is selected.'],
+      steps: ['Open Overview. The title is Projects PMO.', 'Open Portfolio, Programmes, DMAIC board, SDG portfolio, Kanban, Milestones, RIAD register, Timesheets, or Reporting.'],
+      behind: ['The counts are the summary. A failed read shows zero. No journal is posted. Milestones and Reporting are hub cards. They are not sidebar items.'],
+      errors: [{ message: 'Your role (…) cannot access Projects.', fix: 'Ask an owner for a role that can view Projects.' }],
+      faqs: [{ q: 'The counts are zero. Is a sample project hiding?', a: 'No. Create a project on Portfolio. The sidebar does not load a fixed example list.' }],
+    }),
+    feat({
+      id: 'portfolio',
+      name: 'Portfolio',
+      href: '/dashboard/projects/portfolio',
+      summary: 'Portfolio creates a project and can change its status, its programme, and its customer link.',
+      who: WHO,
+      prerequisites: ['Name is required. A warning names the migration when the tables are missing.'],
+      steps: [
+        'Open Portfolio. Press New project.',
+        'Enter Name. Set the methodology and the type. DMAIC can take a problem statement and a goal. Press save.',
+        'On the card set status: planning, active, on hold, completed, or cancelled. Set the programme or No programme. Set the customer portal link or No customer portal link.',
+      ],
+      behind: ['A new project is planning. Changing the programme toasts Programme updated. Linking a customer toasts Linked to customer portal. No journal is posted.'],
+      errors: [
+        { message: 'Name required', fix: 'Enter the name. The API says name required.' },
+        { message: 'Invalid DMAIC gate (define|measure|analyze|improve|control)', fix: 'The gate must be one of those five words.' },
+      ],
+      faqs: [{ q: 'No projects yet. Which kind can I create?', a: 'The empty line says a standard, DMAIC, or SDG initiative. Press New project.' }],
+    }),
+    feat({
+      id: 'programmes',
+      name: 'Programmes',
+      href: '/dashboard/projects/programmes',
+      summary: 'Programmes creates a programme. This screen does not edit it after you save.',
+      who: WHO,
+      prerequisites: ['Name is required.'],
+      steps: ['Open Programmes. Press New programme or Create first programme.', 'Enter Name. Code, description, theme, owner, sponsor, and budget are on the form. Create it.', 'Open a project from the card. Change the project’s programme on Portfolio, not here.'],
+      behind: ['The page only creates. Status and health are badges. The API could patch. This screen does not call it. No journal is posted.'],
+      errors: [{ message: 'Name required', fix: 'Enter the programme name.' }],
+      faqs: [{ q: 'I need to rename a programme. Where?', a: 'Not on this screen. It has no edit after save.' }],
+    }),
+    feat({
+      id: 'dmaic',
+      name: 'DMAIC',
+      href: '/dashboard/projects/dmaic',
+      summary: 'DMAIC charters a project in Define and moves it by drag or by a letter button. The gate checklist does not block.',
+      who: WHO,
+      prerequisites: ['Name is required. The how-to says to drag when the checklist is met. The move does not check the list.'],
+      steps: [
+        'Open DMAIC. Press Charter DMAIC. Enter Project name, the problem, the goal, and the owner. Press Create.',
+        'Drag the card or press the letter for Define, Measure, Analyze, Improve, or Control.',
+        'Open Gate checklist to read the text. It is not a set of checkboxes.',
+      ],
+      behind: ['The move stores the gate. There is no audit row. No journal is posted. An empty column says Drop projects here.'],
+      errors: [
+        { message: 'Name required', fix: 'Enter the project name. The success line is DMAIC project chartered in Define.' },
+        { message: 'Gate move failed', fix: 'Reload and move it again. The gate must be one of the five.' },
+      ],
+      faqs: [{ q: 'I have not ticked the checklist. Can I still move the card?', a: 'Yes. The checklist is reference text. The button and the drop do not read it.' }],
+    }),
+    feat({
+      id: 'sdg',
+      name: 'SDG',
+      href: '/dashboard/projects/sdg',
+      summary: 'SDG creates a project against one of the 17 goals. It does not edit an existing project.',
+      who: WHO,
+      prerequisites: ['Pick a goal from 1 to 17 and enter a name.'],
+      steps: ['Open SDG. Pick a goal. Press New SDG project. Enter the name and the outcome. Create it.'],
+      behind: ['The project is stored with the SDG methodology. There is no edit form on this page. No journal is posted.'],
+      errors: [
+        { message: 'Select an SDG goal (1–17)', fix: 'Pick a goal before you create.' },
+        { message: 'Name required', fix: 'Enter the project name.' },
+      ],
+      faqs: [{ q: 'No projects on this goal. Can I attach an old one?', a: 'Not here. Create a new SDG project, or change the project on Portfolio.' }],
+    }),
+    feat({
+      id: 'kanban',
+      name: 'Kanban',
+      href: '/dashboard/projects/kanban-boards',
+      summary: 'Kanban moves a task with a column choice. It is not a drag board. DMAIC is the screen you drag.',
+      who: WHO,
+      prerequisites: ['A project exists. The selector says No projects when the list is empty. A blank title does nothing and does not toast.'],
+      steps: ['Open Kanban. Choose Project. Enter New task title. Press Add.', 'On the card choose the column: Backlog, To do, In progress, Review, or Done.'],
+      behind: ['A new task is backlog. The select patches the column. There is no drag handler. No journal is posted.'],
+      errors: [{ message: 'project_id and title required', fix: 'Pick a project and type a title. A blank add is ignored on the page.' }],
+      faqs: [{ q: 'The hub says drag. The page says drag-free. Which is it?', a: 'This board is the select. Drag is the DMAIC board.' }],
+    }),
+    feat({
+      id: 'gantt',
+      name: 'Gantt',
+      href: '/dashboard/projects/gantt',
+      summary: 'Gantt reads the waterfall for the period. It does not add or drag a bar.',
+      who: WHO,
+      prerequisites: ['A project exists in the slice. Otherwise the chart says to create one.'],
+      steps: ['Open Gantt. The title is Waterfall Gantt.', 'Change the period. Read the bars. Done, in progress, and the other states use different colours. There is no add button.'],
+      behind: ['The chart reads projects and tasks. A failed read can look empty. There is no migration banner and no journal.'],
+      errors: [{ message: 'No projects in this slice. Create one to see the waterfall.', fix: 'Create the project on Portfolio, or widen the period.' }],
+      faqs: [{ q: 'Can I move a bar?', a: 'No. Change the task on Kanban or the project on Portfolio. This chart only reads.' }],
+    }),
+    feat({
+      id: 'riad',
+      name: 'RIAD',
+      href: '/dashboard/projects/risk-register',
+      summary: 'RIAD logs a risk, an issue, an action, or a decision against a project.',
+      who: WHO,
+      prerequisites: ['A project and a title are required.'],
+      steps: ['Open RIAD. Choose Project and the type: Risk, Issue, Action, or Decision.', 'Enter Title. Severity, RPN, owner, date, and the description are on the form. Press Add.', 'Press Close or Reopen. Close stores closed. Reopen stores open.'],
+      behind: ['Open on the count includes open, active, and in progress. No journal and no audit log are written.'],
+      errors: [{ message: 'Project and title required', fix: 'Choose the project and enter the title. The API says project_id and title required.' }],
+      faqs: [{ q: 'No RIAD items. Is this the company risk book?', a: 'No. This log is project-scoped. The company slice is Company → Risks, and it does not create rows.' }],
+    }),
+    feat({
+      id: 'time',
+      name: 'Time',
+      href: '/dashboard/projects/timesheets',
+      summary: 'Time appends hours. This screen does not change or remove an entry.',
+      who: WHO,
+      prerequisites: ['A work date and hours are required. The project is optional. Hours step by a quarter and start at 1.'],
+      steps: ['Open Time. Set the date, Hours, and Person. Press Log hours.'],
+      behind: ['The row is appended. There is no edit and no delete. No journal is posted. A failed load shows zero hours and No entries yet.'],
+      errors: [{ message: 'work_date and hours required', fix: 'Set the date and the hours. The toast on failure is Failed.' }],
+      faqs: [{ q: 'Can I correct an entry?', a: 'Not on this screen. Log another row. The page does not patch or delete.' }],
+    }),
+  ],
+};

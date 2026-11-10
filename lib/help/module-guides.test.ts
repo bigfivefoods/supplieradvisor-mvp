@@ -64,4 +64,31 @@ assert.equal(getModuleGuide('hiregraph')?.name, 'HireAdvisor®');
 assert.equal(getModuleGuide('schools')?.name, 'SchoolAdvisor®');
 assert.match(JSON.stringify(getModuleGuide('intelligence')), /Super-Cube®/);
 
+const SHALLOW =
+  /The screen reads and saves this company’s own records|Saving writes this company’s record for|This step is live on/;
+
+for (const guide of MODULE_GUIDES) {
+  assert.equal(SHALLOW.test(JSON.stringify(guide)), false, `${guide.id} still uses the generated shell`);
+  for (const feature of guide.features) {
+    const depth = feature.steps.length > 0 && feature.behind.length > 0 && feature.errors.length > 0;
+    assert.equal(depth, true, `${guide.id}:${feature.id} needs steps, behind-the-scenes notes, and errors`);
+  }
+}
+
+const construction = getModuleGuide('constructiongraph');
+assert.match(JSON.stringify(construction), /no Issue/i);
+assert.match(JSON.stringify(construction), /does not post/);
+
+const fleet = getModuleGuide('fleetgraph');
+assert.match(JSON.stringify(fleet), /nothing is tracked/i);
+assert.match(JSON.stringify(fleet), /not switched on/i);
+
+const recover = getModuleGuide('recovergraph');
+assert.match(JSON.stringify(recover), /draft/);
+assert.match(JSON.stringify(recover), /no legal advice/i);
+assert.equal(JSON.stringify(recover).includes('Harbour'), false);
+
+const schools = getModuleGuide('schools');
+assert.match(JSON.stringify(schools), /does not post the ledger|does not insert an accounting journal|does not post a journal/i);
+
 console.log(`module-guides.test.ts ok (${MODULE_GUIDES.length} modules)`);
