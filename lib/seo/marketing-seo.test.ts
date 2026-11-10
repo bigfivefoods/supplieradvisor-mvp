@@ -63,6 +63,8 @@ const graph = JSON.stringify(siteJsonLd());
 assert.match(graph, /"@type":"Organization"/);
 assert.match(graph, /"@type":"SoftwareApplication"/);
 assert.match(graph, /SupplierAdvisor®/);
+assert.match(graph, /"url":"https:\/\/www\.supplieradvisor\.com\/join"/);
+assert.doesNotMatch(graph, /"url":"https:\/\/www\.supplieradvisor\.com\/demo"/);
 assert.doesNotMatch(graph, /lowPrice":0/);
 assert.doesNotMatch(graph, /Kwaden/i);
 for (const locale of LOCALES) {

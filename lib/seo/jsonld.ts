@@ -102,7 +102,7 @@ export function organizationNode() {
     contactPoint: {
       '@type': 'ContactPoint',
       contactType: 'customer support',
-      url: `${SITE_URL}/demo`,
+      url: `${SITE_URL}/join`,
       availableLanguage: LOCALES.map((locale) => LANGUAGE_NAMES[locale]),
     },
   };
