@@ -66,7 +66,8 @@ assert.ok(routes.some((file) => file === 'app/preview/delivery-note/pdf/route.ts
 assert.ok(routes.some((file) => file === 'app/demo/page.tsx'));
 assert.ok(routes.length >= 30, `expected the preview tree, saw ${routes.length}`);
 
-const hrefLiteralPattern = /href\s*[:=]\s*['"]\/(?:demo|preview\/)/;
+const hrefOrUrlFixtureLiteralPattern =
+  /(href|url)\s*[:=]\s*['"`](?:\$\{SITE_URL\})?\/(?:demo(?:[/?#'"`]|$)|preview\/)|["']url["']\s*:\s*["']https?:\/\/www\.supplieradvisor\.com\/(?:demo(?:[/?#"]|$)|preview\/)/;
 const hrefGuardAllowPrefixes = [
   'app/preview/',
   'app/demo/',
@@ -80,9 +81,9 @@ for (const tree of hrefGuardScannedRoots) {
     if (hrefGuardAllowPrefixes.some((prefix) => rel.startsWith(prefix))) continue;
     const src = readFileSync(file, 'utf8');
     assert.equal(
-      hrefLiteralPattern.test(src),
+      hrefOrUrlFixtureLiteralPattern.test(src),
       false,
-      `${rel} contains a literal href to /demo or /preview/ outside allowed trees`
+      `${rel} contains a literal href/url to /demo or /preview/ outside allowed trees`
     );
   }
 }
