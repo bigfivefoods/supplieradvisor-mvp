@@ -244,6 +244,7 @@ export async function POST(request: NextRequest) {
           portalId: body.portalId || body.id,
           confirm: body.confirm,
           actorId: gate.userId,
+          actorName: membership.name || undefined,
           moduleRole,
           extra: body as unknown as Record<string, unknown>,
         });

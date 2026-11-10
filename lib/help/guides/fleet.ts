@@ -266,18 +266,19 @@ const features: GuideFeature[] = [
     name: 'Cost per kilometre',
     href: '/dashboard/fleetgraph/cpk',
     summary: 'Cost per kilometre is built from this company’s readings and costs. It says Not enough data until those exist.',
-    who: `${WHO} The owner, the manager, and the office can open the costs. A dispatcher sees “Cost per kilometre is hidden for this role.” Driver pay stays with the owner and the manager.`,
+    who: `${WHO} The owner, the manager, and the office can open the costs. On the company team that is Owner, Admin, and Finance. A dispatcher sees “Cost per kilometre is hidden for this role.” The empty hint says “Owner, Admin, and Finance can open cost per kilometre. You can still work with vehicles, drivers and jobs.” Driver pay stays with the owner and the manager.`,
     prerequisites: ['Vehicles, odometer readings, and cost entries exist. Otherwise the rate cannot be calculated.'],
     steps: [
       'Open CPK.',
       'Read the layers Running, Standing, Capital, and Overhead.',
       'Set Target scope to Whole fleet or Vehicle class. Enter the target in rand per kilometre. Targets are this company’s own figures.',
       'Record an overhead pool for the month when you have one, and save it from that form.',
+      'Open How this is calculated. Distance uses completed trip readings when they exist, otherwise odometer pairs. Planned kilometres are never used.',
     ],
     behind: [
       'The rate uses the fleet book only. It does not read the finance ledger and it does not post one.',
-      'How this is calculated says distance can come from GPS. The book does not pass position fixes, and Fleet map says nothing is tracked. Distance comes from completed trip readings or odometer pairs. Planned kilometres are not used.',
-      'Office can read costs. Driver pay is removed from that view. The empty hint names an owner or an office role and leaves out the manager. Admin can open this screen.',
+      'How this is calculated uses completed trip readings when they exist, otherwise odometer pairs. FleetAdvisor® does not receive a position for this calculation. Planned kilometres are not used.',
+      'Office can read costs. Driver pay is removed from that view. The empty hint names Owner, Admin, and Finance.',
       'Not enough data, Partial, and Complete are the completeness states on the vehicle.',
     ],
     errors: [
@@ -290,6 +291,10 @@ const features: GuideFeature[] = [
       {
         q: 'Can I type a cost per kilometre?',
         a: 'You can set a target in rand per kilometre. The actual rate is calculated from readings and costs. It is not a number you type over the result.',
+      },
+      {
+        q: 'Does cost per kilometre use a GPS position?',
+        a: 'No. FleetAdvisor® uses completed trip readings when they exist, otherwise odometer pairs. It does not receive a position.',
       },
     ],
   }),

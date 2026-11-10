@@ -184,28 +184,30 @@ const features: GuideFeature[] = [
     id: 'diary',
     name: 'Site diary',
     href: '/dashboard/constructiongraph/diary',
-    summary: 'One diary entry per project per day. Sign off locks that day.',
-    who: `${WHO} Start today’s diary and Sign off need the desk owner or the site manager.`,
+    summary: 'One diary entry per project per day. Sign off locks that day. Later notes are addenda.',
+    who: `${WHO} Start today’s diary, Sign off, and Add addendum use the same role check. That is the desk owner or the site manager: Owner, Admin, Member, and Operations.`,
     prerequisites: ['A project is on the book.'],
     steps: [
       'Open Diary. Choose Day or Month, then Project.',
       'Press Start today’s diary when the day is empty.',
       'Set the weather with Clear, Cloudy, Rain, or Wind. Write Progress.',
-      'Press Sign off. The day then reads Signed off, and Progress is disabled.',
+      'Press Sign off. The day then reads Signed off, and Progress stays disabled. The signed note does not change.',
+      'On a signed-off day, press Add addendum, write the note, and save it. The note is dated and named, and it is listed under that day.',
     ],
     behind: [
       'Sign off stores the time and the name on that diary row. A second entry for the same project and day is refused with “One diary entry per project per date”.',
-      'The page text says later edits are addenda. This screen has no addendum field. After sign-off, Progress is disabled. A write that changes the signed day, or a delete of that day, is refused. The server will keep an addendum only if one is sent, and this form does not send one.',
+      'Progress stays locked after sign-off on purpose. The signed progress note, the weather, and the rest of that day do not change. A write that changes the signed day, or a delete of that day, is refused.',
+      'Add addendum appends a dated, attributed note on that diary row. Owner, Admin, Member, and Operations can add one. The list under the day shows the date, the name, and the note. Addenda are stored on the diary row. ConstructionAdvisor® does not need another table for them.',
       'The diary does not post a journal and does not notify Finance. Photos and identity numbers are not stored.',
     ],
     errors: [
       {
         message: 'Not available for your role',
-        fix: 'The office and a viewer can read the diary when the collection is visible. They cannot start or sign off a day.',
+        fix: 'The office and a viewer can read the diary when the collection is visible. They cannot start a day, sign it off, or add an addendum.',
       },
       {
         message: 'This day is signed off. Add an addendum.',
-        fix: 'Progress is already locked. This screen has no control that adds an addendum. Do not delete the day. The note for that day stays as it was signed.',
+        fix: 'Progress is already locked. Press Add addendum and save a note. Do not delete the day. The signed note stays as it was signed.',
       },
       {
         message: 'Photos and identity numbers are not stored',
@@ -215,7 +217,7 @@ const features: GuideFeature[] = [
     faqs: [
       {
         q: 'Can I change Progress after Sign off?',
-        a: 'No. The field is disabled once the day is signed off.',
+        a: 'No. Progress stays locked after sign-off. The signed note does not change. Press Add addendum for anything that happened later.',
       },
     ],
   }),

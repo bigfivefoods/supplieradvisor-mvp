@@ -21,6 +21,7 @@ import {
   type ConstructiongraphStore,
 } from './constructiongraph';
 import { applyConstructionAction } from './actions';
+import { attributeNewAddenda, reduceDiary, type DiaryEntry } from './diary-model';
 import { sastToday } from './format';
 import {
   issueConstructionPortal,
@@ -118,6 +119,8 @@ export function applyStaffConstructionAction(opts: {
   portalId?: string;
   confirm?: string;
   actorId: string;
+  /** Member name stamped on a new addendum. The client cannot choose it. */
+  actorName?: string;
   now?: string;
   moduleRole?: ConstructionRole;
   extra?: Record<string, unknown>;
@@ -312,10 +315,16 @@ export function applyStaffConstructionAction(opts: {
     if (!guarded.ok) return { error: guarded.error, status: guarded.status };
   }
 
-  const next = mergeConstructiongraphStore(
-    current,
-    stripPortalOwnedFields(opts.patch || {})
-  );
+  const patch = stripPortalOwnedFields(opts.patch || {});
+  let next = mergeConstructiongraphStore(current, patch);
+  if (Array.isArray(patch.diary)) {
+    const reduced = reduceDiary(
+      current.diary,
+      attributeNewAddenda(current.diary, patch.diary as DiaryEntry[], opts.actorName || '')
+    );
+    if (!reduced.ok) return { error: reduced.error, status: 400 };
+    next = { ...next, diary: reduced.diary };
+  }
   const metadata = writeConstructiongraphToMetadata(opts.meta, next);
   return pack(metadata, readConstructiongraphFromMetadata(metadata));
 }
