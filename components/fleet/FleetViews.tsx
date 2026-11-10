@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AlertTriangle, Check, ChevronRight, ClipboardList, Gauge, Truck, Users } from 'lucide-react';
 import { AdvisorProcessFlow } from '@/components/advisors/AdvisorProcessFlow';
 import { cpkForBook } from '@/lib/fleet/book-cpk';
+import { CPK_DISTANCE_NOTE, costPerKmHiddenHint } from '@/lib/fleet/cpk-copy';
 import { complianceLabel, complianceStatus } from '@/lib/fleet/compliance';
 import { addDays, fleetHeadline, requiredRate, type VehicleCpk } from '@/lib/fleet/cpk';
 import { signedPerKm } from '@/lib/fleet/cpk-fixtures';
@@ -1538,7 +1539,7 @@ function CpkView(props: FleetDeskProps) {
         <FleetPageHead title="CPK" detail="Cost per kilometre is hidden for this role." illustration={props.illustrate} />
         <FleetEmpty
           title="Nothing to show here"
-          hint="An owner or office role can open cost per kilometre. You can still work with vehicles, drivers and jobs."
+          hint={costPerKmHiddenHint()}
           action={<Link className={`${fleetBtn} ${fleetFocus}`} href={props.hrefBase}>Back to command</Link>}
         />
       </main>
@@ -1630,7 +1631,7 @@ function CpkView(props: FleetDeskProps) {
         <summary className="cursor-pointer text-sm font-black">How this is calculated</summary>
         <div className="mt-3 space-y-2 text-sm leading-relaxed text-slate-700">
           <p>Running costs come from the ledger on the day they happened: fuel, tolls, maintenance and tyres. Standing costs and capital accrue from the vehicle profile for each day the vehicle is in the fleet, including workshop days. Overhead is a monthly pool shared by vehicle-days, kilometres or revenue.</p>
-          <p>Distance uses completed trip readings when they exist, otherwise odometer pairs, otherwise GPS-derived distance. Planned kilometres are never used. A partial result names what is still missing. Targets are yours. There is no external benchmark.</p>
+          <p>{CPK_DISTANCE_NOTE}</p>
         </div>
       </details>
     </main>

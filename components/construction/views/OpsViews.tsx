@@ -21,11 +21,16 @@ import {
   type ConstructionProgrammeRow,
   type ConstructionVariation,
 } from '@/lib/construction/constructiongraph';
-import { sastToday } from '@/lib/construction/format';
+import {
+  addendumAuthor,
+  addendumText,
+  withDiaryAddendum,
+  type DiaryEntry,
+} from '@/lib/construction/diary-model';
+import { formatRand, formatSastDate, sastToday } from '@/lib/construction/format';
 import { forecastEnd, reviseEnd, shiftProgrammeRow } from '@/lib/construction/programme-model';
 import { variationTotal } from '@/lib/construction/variations-model';
 import { rowExpiry } from '@/lib/construction/safety-model';
-import { formatRand } from '@/lib/construction/format';
 
 export function ProgrammeView(props: DeskProps) {
   const [siteId, setSiteId] = useState(props.store.sites[0]?.id || '');
@@ -227,6 +232,79 @@ export function VariationsView(props: DeskProps) {
   );
 }
 
+function addendumStamp(value: string): string {
+  const date = formatSastDate(value);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return date;
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Johannesburg',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(parsed);
+  return `${date}, ${time}`;
+}
+
+function DiaryAddenda(props: {
+  entry: DiaryEntry;
+  editor: boolean;
+  onSave: (entry: DiaryEntry, text: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const rows = props.entry.addenda || [];
+  return (
+    <div className="mt-2 space-y-2 border-t border-slate-100 pt-2" data-testid="diary-addenda">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Addenda</p>
+      {rows.length === 0 ? <p className="text-sm text-slate-600">No addenda yet.</p> : (
+        <ol className="space-y-2">
+          {rows.map((item, index) => (
+            <li key={`${String((item as { at?: string }).at || index)}-${index}`} className="border-l-2 border-[#00b4d8] pl-3" data-testid="diary-addendum">
+              <p className="text-xs font-bold text-slate-500">{addendumStamp(String((item as { at?: string }).at || ''))} · {addendumAuthor(item)}</p>
+              <p className="text-sm text-slate-800">{addendumText(item)}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+      {props.editor ? (
+        open ? (
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-slate-700">Addendum note
+              <textarea data-testid="diary-addendum-note" className={constructionField} maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="What happened after sign-off" />
+            </label>
+            {error ? <p className="text-sm font-bold text-rose-700" role="alert">{error}</p> : null}
+            <div className="flex flex-wrap gap-2">
+              <ConstructionButton
+                data-testid="diary-addendum-save"
+                disabled={saving || !note.trim()}
+                onClick={() => {
+                  const text = note.trim();
+                  if (!text) return;
+                  setSaving(true);
+                  setError('');
+                  void props.onSave(props.entry, text).then(() => {
+                    setNote('');
+                    setOpen(false);
+                  }).catch((reason: unknown) => {
+                    setError(reason instanceof Error ? reason.message : 'Could not save the addendum');
+                  }).finally(() => setSaving(false));
+                }}
+              >
+                Save addendum
+              </ConstructionButton>
+              <ConstructionGhostButton onClick={() => { setOpen(false); setError(''); }}>Cancel</ConstructionGhostButton>
+            </div>
+          </div>
+        ) : (
+          <ConstructionButton data-testid="diary-addendum-open" onClick={() => setOpen(true)}>Add addendum</ConstructionButton>
+        )
+      ) : null}
+    </div>
+  );
+}
+
 export function DiaryView(props: DeskProps) {
   const today = sastToday();
   const [siteId, setSiteId] = useState(props.store.sites.find((site) => site.status === 'on_site')?.id || props.store.sites[0]?.id || '');
@@ -239,12 +317,20 @@ export function DiaryView(props: DeskProps) {
   }
   const empty = props.state === 'empty' || (props.store.diary || []).length === 0;
   const locked = Boolean(existing?.signed_off_at);
+  const canWrite = props.caps.canWriteDiary;
+  const shownWeather = locked ? existing?.weather || weather : weather;
+  async function saveAddendum(entry: DiaryEntry, text: string) {
+    const author = entry.signed_off_by || entry.author_name || 'Site';
+    await props.handlers.merge({
+      diary: [withDiaryAddendum(entry, { at: new Date().toISOString(), by: author, text })],
+    });
+  }
   return (
     <div className="space-y-4" data-testid="diary-view">
-      <ConstructionPageHead title="Site diary" badge={props.badge} detail="One entry per project per day. Sign-off locks the day; later edits are addenda." />
+      <ConstructionPageHead title="Site diary" badge={props.badge} detail="One entry per project per day. Sign-off locks the day. Later notes are addenda." />
       <ConstructionSegmented value={mode} onChange={setMode} label="Diary range" options={[{ id: 'day', label: 'Day' }, { id: 'month', label: 'Month' }]} />
       <label className="block text-xs font-bold text-slate-700">Project
-        <select className={constructionField} value={siteId} onChange={(event) => setSiteId(event.target.value)}>
+        <select className={constructionField} value={siteId} onChange={(event) => { setSiteId(event.target.value); setProgress(''); }}>
           {props.store.sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
         </select>
       </label>
@@ -256,29 +342,40 @@ export function DiaryView(props: DeskProps) {
         </ul>
       ) : null}
       {empty && !existing ? (
-        <ConstructionEmpty testId="diary-empty" icon={<BookOpen />} title="No diary entries yet. Start today's diary." hint="Weather, labour, plant, and the day’s note live here." action={props.caps.canWriteDiary ? <ConstructionButton data-testid="diary-start" onClick={() => void props.handlers.merge({ diary: [{ id: newConstructionId('diary'), site_id: siteId, date: today, weather, progress_note: '', author_name: 'Site' }] })}>Start today’s diary</ConstructionButton> : null} />
+        <ConstructionEmpty testId="diary-empty" icon={<BookOpen />} title="No diary entries yet. Start today's diary." hint="Weather, labour, plant, and the day’s note live here." action={canWrite ? <ConstructionButton data-testid="diary-start" onClick={() => void props.handlers.merge({ diary: [{ id: newConstructionId('diary'), site_id: siteId, date: today, weather, progress_note: '', author_name: 'Site' }] })}>Start today’s diary</ConstructionButton> : null} />
       ) : (
         <form className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="diary-form" onSubmit={(event) => event.preventDefault()}>
           <div className="flex flex-wrap gap-2">
             {['Clear', 'Cloudy', 'Rain', 'Wind'].map((item) => (
-              <button key={item} type="button" className={weather === item ? 'rounded-2xl bg-[#00b4d8] px-3 py-2 text-xs font-black text-[#0f172a]' : 'rounded-2xl border border-slate-200 px-3 py-2 text-xs font-bold'} onClick={() => setWeather(item)}>{item}</button>
+              <button key={item} type="button" disabled={locked || !canWrite} className={shownWeather === item ? 'rounded-2xl bg-[#00b4d8] px-3 py-2 text-xs font-black text-[#0f172a] disabled:opacity-60' : 'rounded-2xl border border-slate-200 px-3 py-2 text-xs font-bold disabled:opacity-60'} onClick={() => setWeather(item)}>{item}</button>
             ))}
           </div>
-          <label className="block text-xs font-bold text-slate-700">Progress<textarea data-testid="diary-progress" className={constructionField} value={progress || existing?.progress_note || ''} onChange={(event) => setProgress(event.target.value)} disabled={locked || !props.caps.canWriteDiary} /></label>
-          {locked ? <p data-testid="diary-locked" className="text-sm font-bold text-slate-800">Signed off <ConstructionDate value={existing?.signed_off_at} /> by {existing?.signed_off_by || 'the site'}.</p> : null}
-          {props.caps.canWriteDiary && existing && !locked ? (
-            <ConstructionButton data-testid="diary-signoff" onClick={() => void props.handlers.merge({ diary: [{ ...existing, weather, progress_note: progress || existing.progress_note, signed_off_at: new Date().toISOString(), signed_off_by: 'Site' }] })}>Sign off</ConstructionButton>
+          <label className="block text-xs font-bold text-slate-700">Progress
+            <textarea data-testid="diary-progress" aria-describedby={locked ? 'diary-progress-locked' : undefined} className={`${constructionField} disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-800`} value={locked ? existing?.progress_note || '' : (progress || existing?.progress_note || '')} onChange={(event) => setProgress(event.target.value)} disabled={locked || !canWrite} />
+          </label>
+          {locked ? (
+            <div className="space-y-1">
+              <p data-testid="diary-locked" className="text-sm font-bold text-slate-800">Signed off <ConstructionDate value={existing?.signed_off_at} /> by {existing?.signed_off_by || 'the site'}.</p>
+              <p id="diary-progress-locked" data-testid="diary-progress-locked" className="text-sm text-slate-700">Progress stays locked after sign-off. The signed note does not change.</p>
+            </div>
           ) : null}
-          {props.caps.canWriteDiary && !existing ? (
+          {canWrite && existing && !locked ? (
+            <ConstructionButton data-testid="diary-signoff" onClick={() => void props.handlers.merge({ diary: [{ ...existing, weather, progress_note: progress || existing.progress_note, signed_off_at: new Date().toISOString(), signed_off_by: existing.author_name || 'Site' }] })}>Sign off</ConstructionButton>
+          ) : null}
+          {canWrite && !existing ? (
             <ConstructionButton data-testid="diary-start" onClick={() => void props.handlers.merge({ diary: [{ id: newConstructionId('diary'), site_id: siteId, date: today, weather, progress_note: progress, author_name: 'Site' }] })}>Start today’s diary</ConstructionButton>
           ) : null}
+          {existing && locked ? <DiaryAddenda entry={existing} editor={canWrite} onSave={saveAddendum} /> : null}
           <div data-testid="diary-print" className="text-xs text-slate-600">Print this day from the browser. Photos are not stored.</div>
         </form>
       )}
       <ul className="space-y-2">
-        {(props.store.diary || []).map((row) => (
+        {(props.store.diary || []).filter((row) => row.site_id === siteId).map((row) => (
           <li key={row.id} data-row-id={row.id} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm">
-            <ConstructionDate value={row.date} /> · {row.progress_note || 'No note'} {row.signed_off_at ? '· Signed off' : ''}
+            <p><ConstructionDate value={row.date} /> · {row.progress_note || 'No note'} {row.signed_off_at ? '· Signed off' : ''}</p>
+            {row.signed_off_at && row.id !== existing?.id ? (
+              <DiaryAddenda entry={row} editor={canWrite} onSave={saveAddendum} />
+            ) : null}
           </li>
         ))}
       </ul>

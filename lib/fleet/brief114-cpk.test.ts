@@ -3,7 +3,9 @@
  * Run: npx --yes tsx lib/fleet/brief114-cpk.test.ts
  */
 import assert from 'node:assert/strict';
-import { cpkForBook } from './book-cpk';
+import { readFileSync } from 'node:fs';
+import { cpkForBook, cpkInputFromBook } from './book-cpk';
+import { CPK_DISTANCE_NOTE, costPerKmHiddenHint, costPerKmOpenerLabels } from './cpk-copy';
 import { periodFor } from './periods';
 import { filterFixes, freshness, pathKm } from './positions';
 import { sampleFleetBook } from './sample-book';
@@ -741,6 +743,20 @@ assert.equal(formatPerKm(preview.targetPerKm), 'R15.50');
 assert.equal(signedPerKm(preview.perKm != null && preview.targetPerKm != null ? preview.perKm - preview.targetPerKm : null), '+R0.45');
 assert.equal(formatPerKm(preview.breakevenPerLoadedKm), 'R21.27');
 assert.equal(formatPerKm(requiredRate(preview.breakevenPerLoadedKm, 0.1)), 'R23.63');
+
+assert.match(CPK_DISTANCE_NOTE, /completed trip readings/);
+assert.match(CPK_DISTANCE_NOTE, /odometer pairs/);
+assert.equal(/GPS-derived|GPS/.test(CPK_DISTANCE_NOTE), false);
+assert.deepEqual(costPerKmOpenerLabels(), ['Owner', 'Admin', 'Finance']);
+assert.match(costPerKmHiddenHint(), /Owner, Admin, and Finance/);
+assert.match(costPerKmHiddenHint(), /can open cost per kilometre/);
+const cpkView = readFileSync('components/fleet/FleetViews.tsx', 'utf8');
+assert.equal(cpkView.includes('GPS-derived'), false);
+assert.equal(cpkView.includes('CPK_DISTANCE_NOTE'), true);
+assert.equal(cpkView.includes('costPerKmHiddenHint'), true);
+const fleetInput = cpkInputFromBook(sampleFleetBook(), { from: '2024-06-01', to: '2024-07-01' });
+assert.equal(JSON.stringify(fleetInput).includes('"lat"'), false);
+assert.equal(fleetInput.vehicles.every((vehicle) => !vehicle.fixes?.length), true);
 
 console.log('brief114-cpk.test.ts ok');
 console.log(

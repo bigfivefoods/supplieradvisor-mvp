@@ -1,6 +1,9 @@
 /**
  * FleetAdvisor® book → cost engine. Trip days come from recorded trips, or from
  * booked job windows when no trips are on file. Planned kilometres are not read.
+ * This adapter passes odometer readings and does not pass a position. The
+ * engine uses completed trip readings when a caller supplies them, otherwise
+ * these odometer pairs.
  */
 import { addDays, computeFleetCpk, type CpkPeriod, type FleetCpkInput, type VehicleCpk } from './cpk';
 import type { FleetBook, FleetJob } from './types';

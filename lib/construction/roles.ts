@@ -2,7 +2,7 @@
  * ConstructionAdvisor® roles. Derived from the company permission matrix.
  * Do not add a parallel role list and do not edit permissions.ts.
  */
-import { canAccess, normalizeTeamRole, type TeamRole } from '../business/permissions';
+import { canAccess, normalizeTeamRole, TEAM_ROLE_OPTIONS, type TeamRole } from '../business/permissions';
 import type { ConstructiongraphStore } from './constructiongraph';
 
 export type ConstructionRole = 'owner' | 'site_manager' | 'office' | 'viewer' | 'none';
@@ -166,6 +166,13 @@ export function capabilitiesForCompanyRole(
   companyRole: string | null | undefined
 ): ConstructionCapabilities {
   return capabilitiesFor(resolveConstructionRole(companyRole));
+}
+
+/** Company roles that can start a diary day, sign it off, or add an addendum. */
+export function diaryWriterLabels(): string[] {
+  return TEAM_ROLE_OPTIONS.filter((option) => capabilitiesForCompanyRole(option.value).canWriteDiary).map(
+    (option) => option.label
+  );
 }
 
 const SITE_MANAGER_COLLECTIONS = new Set<ConstructionCollection>([

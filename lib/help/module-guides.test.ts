@@ -76,12 +76,30 @@ for (const guide of MODULE_GUIDES) {
 }
 
 const construction = getModuleGuide('constructiongraph');
+assert.ok(construction);
 assert.match(JSON.stringify(construction), /no Issue/i);
 assert.match(JSON.stringify(construction), /does not post/);
+const diaryGuide = construction.features.find((feature) => feature.href === '/dashboard/constructiongraph/diary');
+assert.ok(diaryGuide);
+const diaryText = JSON.stringify(diaryGuide);
+assert.match(diaryText, /Add addendum/);
+assert.match(diaryText, /Progress stays locked after sign-off/);
+assert.match(diaryText, /does not change/);
+assert.match(diaryText, /Owner, Admin, Member, and Operations/);
+assert.equal(/no addendum field/i.test(diaryText), false);
 
 const fleet = getModuleGuide('fleetgraph');
+assert.ok(fleet);
 assert.match(JSON.stringify(fleet), /nothing is tracked/i);
 assert.match(JSON.stringify(fleet), /not switched on/i);
+const cpkGuide = fleet.features.find((feature) => feature.href === '/dashboard/fleetgraph/cpk');
+assert.ok(cpkGuide);
+const cpkText = JSON.stringify(cpkGuide);
+assert.match(cpkText, /completed trip readings/);
+assert.match(cpkText, /odometer pairs/);
+assert.equal(/GPS-derived/.test(cpkText), false);
+assert.match(cpkText, /Owner, Admin, and Finance/);
+assert.match(cpkText, /does not receive a position/);
 
 const recover = getModuleGuide('recovergraph');
 assert.match(JSON.stringify(recover), /draft/);
