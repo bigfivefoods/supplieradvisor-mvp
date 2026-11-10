@@ -707,6 +707,32 @@ async function main() {
     assert.equal(db.payments[0].reference, 'onacct:bfg-shop-abc123def');
   });
 
+  await test('order.paid: partial, over and part-paid-invoice amounts: 409 amount_mismatch, nothing booked or marked paid', async () => {
+    const { send, db } = setup();
+    await send(placed());
+    for (const amount of [1, 145000 - 1, 145000 + 1, 0.5 * 145000]) {
+      const r = await send(paid(paidData({ amount_cents: amount }), { key: `order.paid:amt-${amount}` }));
+      assert.equal(r.status, 409, `amount ${amount}`);
+      assert.equal(errOf(r).code, 'amount_mismatch');
+      assert.equal(errOf(r).retryable, false);
+    }
+    assert.equal(db.payments.length, 0);
+    assert.equal(db.settleCalls.length, 0);
+    assert.notEqual(db.invoices[0].status, 'paid');
+    assert.equal(db.invoices[0].paid_at ?? null, null);
+    assert.notEqual(db.orders[0].status, 'paid');
+    assert.ok(db.alerts.filter((a) => a.code === 'amount_mismatch').length >= 4);
+    // A part-paid invoice never accepts a top-up, even for exactly its outstanding balance.
+    db.invoices[0].status = 'partial';
+    db.invoices[0].amount_paid = 500;
+    const top = await send(paid(paidData({ amount_cents: 145000 - 50000 }), { key: 'order.paid:topup' }));
+    assert.equal(top.status, 409);
+    assert.equal(errOf(top).code, 'amount_mismatch');
+    assert.equal(db.payments.length, 0);
+    assert.equal(db.settleCalls.length, 0);
+    assert.notEqual(db.orders[0].status, 'paid');
+  });
+
   await test('order.paid accepted against an overdue invoice', async () => {
     const { send, db } = setup();
     await send(placed());

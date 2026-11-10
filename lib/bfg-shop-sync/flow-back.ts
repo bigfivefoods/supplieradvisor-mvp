@@ -113,6 +113,8 @@ export async function drainFlowBack(limit = 10): Promise<{
  * Called after recordArPayment inserted a ledger row. Never throws.
  * Skips payments created by the sync itself (created_by = 'bfg_shop_sync').
  */
+const FIRST_ATTEMPT_BUDGET_MS = 4000;
+
 export async function afterArPaymentRecorded(payment: RecordedPayment): Promise<void> {
   try {
     const cfg = readSyncConfig();
@@ -155,16 +157,17 @@ export async function afterArPaymentRecorded(payment: RecordedPayment): Promise<
       console.warn('[bfg-shop-sync] flow-back enqueue failed');
       return;
     }
-    // First delivery attempt after the response; the cron route retries the rest.
-    const task = async () => {
-      await drainFlowBack(5);
-    };
-    try {
-      const { scheduleWithAfter } = await import('@/lib/business/schedule-after');
-      scheduleWithAfter(task);
-    } catch {
-      void task().catch(() => undefined);
-    }
+    // First delivery attempt, bounded so it can never hold up the payment path. This module must
+    // not import next/server (after()): ar-ledger is reachable from client/pages module graphs.
+    // Anything not delivered here stays in the outbox and is retried by the cron route.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      drainFlowBack(5).catch(() => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, FIRST_ATTEMPT_BUDGET_MS);
+      }),
+    ]);
+    if (timer) clearTimeout(timer);
   } catch {
     console.warn('[bfg-shop-sync] flow-back hook failed');
   }

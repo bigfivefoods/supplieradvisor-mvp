@@ -510,7 +510,9 @@ export async function handleOrderPaid(ctx: HandlerCtx, d: OrderPaid): Promise<Ha
     if (status === 'draft') {
       throw new SyncError('order_not_synced', 'The invoice is not issued yet.');
     }
-    if (!['sent', 'overdue', 'partial'].includes(status)) {
+    // Contract §4.3: only sent/overdue invoices accept a payment, and only for the exact outstanding
+    // balance. A partially paid or already paid invoice is never topped up or paid twice.
+    if (!['sent', 'overdue'].includes(status)) {
       await alertSoft(ctx, 'amount_mismatch', 'payment does not match the outstanding balance', d.reference);
       throw new SyncError('amount_mismatch', 'Payment does not match the outstanding balance.');
     }
@@ -523,6 +525,9 @@ export async function handleOrderPaid(ctx: HandlerCtx, d: OrderPaid): Promise<Ha
         amount_cents: d.amount_cents,
       });
     }
+  } else if (randsToCents(existingPayment.amount as number) !== d.amount_cents) {
+    await alertSoft(ctx, 'amount_mismatch', 'payment does not match the recorded payment', d.reference);
+    throw new SyncError('amount_mismatch', 'Payment does not match the payment already recorded.');
   }
   const bankAccountId = await resolveBankAccount(ctx);
 
