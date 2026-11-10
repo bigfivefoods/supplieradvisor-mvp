@@ -17,9 +17,7 @@ import { providerTxnId } from '../ingest';
 const DEFAULT_BASE = 'https://api.banklink.co.za/v1';
 
 /** Sample bank rows are for local and preview work. Production never writes them. */
-export function sandboxSamplesAllowed(
-  env: { VERCEL_ENV?: string | undefined } = process.env
-): boolean {
+export function sandboxSamplesAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.VERCEL_ENV !== 'production';
 }
 

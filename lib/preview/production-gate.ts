@@ -4,7 +4,7 @@
  */
 import { notFound } from 'next/navigation';
 
-export function fixtureRoutesOpen(env: { VERCEL_ENV?: string | undefined } = process.env): boolean {
+export function fixtureRoutesOpen(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.VERCEL_ENV !== 'production';
 }
 
