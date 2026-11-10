@@ -8,6 +8,7 @@ import { ConstructionError, ConstructionLoading } from '@/components/constructio
 import { useConstructionDesk } from '@/components/construction/desk';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import { constructionAppRole } from '@/lib/construction/pwa-roles';
+import { fixturePublicHref } from '@/lib/preview/production-gate';
 
 function SignedInApp() {
   const desk = useConstructionDesk();
@@ -60,10 +61,10 @@ export default function WorkConstructionPage() {
           Sign in
         </button>
         <p className="mt-4 text-sm">
-          <Link className="font-bold text-[#0f172a]" href="/preview/constructiongraph/work?role=owner">Open the sample owner app</Link>
+          <Link className="font-bold text-[#0f172a]" href={fixturePublicHref('/preview/constructiongraph/work?role=owner')}>Open the sample owner app</Link>
         </p>
         <p className="mt-2 text-sm">
-          <Link className="font-bold text-[#0f172a]" href="/preview/constructiongraph/work?role=workers">Open the sample workers app</Link>
+          <Link className="font-bold text-[#0f172a]" href={fixturePublicHref('/preview/constructiongraph/work?role=workers')}>Open the sample workers app</Link>
         </p>
       </main>
     );

@@ -19,6 +19,7 @@ import { marketingMetadata } from '@/lib/seo/metadata';
 import { industryShareCard } from '@/lib/seo/share-cards';
 import { CatalogueDownloadButton } from '@/components/catalogues/CatalogueDownloadButton';
 import { catalogueForIndustry } from '@/lib/catalogues';
+import { fixturePublicHref, interactiveDemoHref } from '@/lib/preview/production-gate';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -88,7 +89,7 @@ export default async function IndustryDetailPage({ params }: Props) {
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href="/demo"
+            href={interactiveDemoHref()}
             className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-800"
           >
             Interactive demo
@@ -100,7 +101,7 @@ export default async function IndustryDetailPage({ params }: Props) {
           />
           {trades ? (
             <Link
-              href="/preview/tradegraph"
+              href={fixturePublicHref('/preview/tradegraph')}
               className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-black text-slate-800 shadow-sm"
             >
               Harbour Plumbing sample

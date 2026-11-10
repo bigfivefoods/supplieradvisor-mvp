@@ -118,6 +118,7 @@ import {
   REFERRAL_LEVEL_RATES_PCT,
   REFERRAL_TOTAL_CAP_PCT,
 } from '@/lib/billing/referral-rates';
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
 
 type ModuleBand = 'core' | 'sector' | 'industry' | 'government' | 'nav';
 
@@ -1468,7 +1469,7 @@ export default function HomeBelowFold() {
                       opt.specialist
                         ? opt.id === 'government'
                           ? 'mailto:hello@supplieradvisor.com?subject=Government%20setup%20%E2%80%94%20SupplierAdvisor'
-                          : '/demo'
+                          : interactiveDemoHref()
                         : opt.href
                     }
                     className={`mt-6 inline-flex items-center gap-1.5 text-sm font-bold ${ctaTone}`}

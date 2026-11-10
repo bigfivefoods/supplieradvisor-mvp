@@ -1,3 +1,5 @@
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
+
 export type FooterLink = {
   label: string;
   href: string;
@@ -56,7 +58,7 @@ export const FOOTER_EXPLORE_GROUPS: FooterLinkGroup[] = [
     links: [
       { label: 'Pricing', href: '/pricing' },
       { label: 'ROI calculator', href: '/#roi' },
-      { label: 'Interactive demo', href: '/demo' },
+      { label: 'Interactive demo', href: interactiveDemoHref() },
       { label: 'Start free trial', href: '/onboarding?lane=b2b' },
       { label: 'Join as business', href: '/join' },
       { label: 'Log in', href: '/login' },

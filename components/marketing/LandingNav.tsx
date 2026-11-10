@@ -23,6 +23,7 @@ import {
   realSection,
   revealAndScroll,
 } from '@/lib/marketing/home-section-scroll';
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
 
 /**
  * Links follow the landing story top-to-bottom so the bar never jumps back up.
@@ -104,7 +105,7 @@ const LINKS: NavLink[] = [
     href: '/#industries',
     group: 'pricing',
   },
-  { id: 'demo', labelKey: 'nav.demo', href: '/demo', group: 'try' },
+  { id: 'demo', labelKey: 'nav.demo', href: interactiveDemoHref(), group: 'try' },
 ];
 
 const OVERFLOW_PRIORITY: NavLink['id'][] = [

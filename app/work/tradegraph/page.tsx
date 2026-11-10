@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { TradeBookProvider } from '@/components/trades/TradeBook';
 import { WorkPwa } from '@/components/trades/WorkPwa';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
+import { fixturePublicHref } from '@/lib/preview/production-gate';
 import { tradePwaCapabilities } from '@/lib/trades/pwa-roles';
 
 export default function WorkTradePage() {
@@ -22,7 +23,7 @@ export default function WorkTradePage() {
           Sign in
         </button>
         <p className="mt-4 text-sm">
-          <Link className="font-bold text-[#00b4d8]" href="/preview/tradegraph/work?role=owner">Open the sample owner app</Link>
+          <Link className="font-bold text-[#00b4d8]" href={fixturePublicHref('/preview/tradegraph/work?role=owner')}>Open the sample owner app</Link>
         </p>
       </main>
     );

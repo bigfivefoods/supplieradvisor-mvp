@@ -3,6 +3,7 @@
  * Navigation only — this module does not read or write a database.
  */
 import type { DictKey } from '@/lib/i18n/dict/en';
+import { fixturePublicHref } from '@/lib/preview/production-gate';
 
 export const TOUR_TRIAL_HREF = '/onboarding?lane=b2b';
 export const TOUR_DEMO_HREF = '/#book-demo';
@@ -89,7 +90,7 @@ export function productTourHref(id: ProductTourStepId = 'dashboard', locale?: st
   const step = PRODUCT_TOUR_STEPS.find((item) => item.id === id) ?? PRODUCT_TOUR_STEPS[0];
   const params = new URLSearchParams({ tour: '1', step: step.id });
   if (locale && locale !== 'en') params.set('lang', locale);
-  return `${step.path}?${params.toString()}`;
+  return fixturePublicHref(`${step.path}?${params.toString()}`);
 }
 
 function normalizePath(pathname: string): string {

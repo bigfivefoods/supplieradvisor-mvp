@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowRight, Award, Brain, Sparkles, Users2 } from 'lucide-react';
+import { interactiveDemoHref } from '@/lib/preview/production-gate';
 
 export default function SuperCubeStory() {
   return (
@@ -46,7 +47,7 @@ export default function SuperCubeStory() {
                 Join the network <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="/demo"
+                href={interactiveDemoHref()}
                 className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-white px-6 py-3 text-sm font-bold text-violet-900 hover:border-violet-400"
               >
                 See product demo

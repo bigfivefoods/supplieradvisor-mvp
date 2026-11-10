@@ -5,12 +5,20 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
-import { fixtureRoutesOpen } from './production-gate';
+import { fixturePublicHref, fixtureRoutesOpen, interactiveDemoHref } from './production-gate';
 
 assert.equal(fixtureRoutesOpen({ VERCEL_ENV: 'production' }), false);
 assert.equal(fixtureRoutesOpen({ VERCEL_ENV: 'preview' }), true);
 assert.equal(fixtureRoutesOpen({ VERCEL_ENV: 'development' }), true);
 assert.equal(fixtureRoutesOpen({}), true);
+assert.equal(interactiveDemoHref({ VERCEL_ENV: 'production' }), '/join');
+assert.equal(interactiveDemoHref({ VERCEL_ENV: 'preview' }), '/demo');
+assert.equal(interactiveDemoHref({ VERCEL_ENV: 'development' }), '/demo');
+assert.equal(interactiveDemoHref({}), '/demo');
+assert.equal(fixturePublicHref('/preview/dashboard?tour=1', { VERCEL_ENV: 'production' }), '/join');
+assert.equal(fixturePublicHref('/preview/dashboard?tour=1', { VERCEL_ENV: 'preview' }), '/preview/dashboard?tour=1');
+assert.equal(fixturePublicHref('/preview/dashboard?tour=1', { VERCEL_ENV: 'development' }), '/preview/dashboard?tour=1');
+assert.equal(fixturePublicHref('/preview/dashboard?tour=1', {}), '/preview/dashboard?tour=1');
 
 const root = resolve('.');
 const gate = 'blockFixtureRoutes';
@@ -57,6 +65,27 @@ assert.ok(routes.some((file) => file === 'app/preview/vat201/page.tsx'));
 assert.ok(routes.some((file) => file === 'app/preview/delivery-note/pdf/route.ts'));
 assert.ok(routes.some((file) => file === 'app/demo/page.tsx'));
 assert.ok(routes.length >= 30, `expected the preview tree, saw ${routes.length}`);
+
+const hrefLiteralPattern = /href\s*[:=]\s*['"]\/(?:demo|preview\/)/;
+const hrefGuardAllowPrefixes = [
+  'app/preview/',
+  'app/demo/',
+  'e2e/',
+] as const;
+const hrefGuardScannedRoots = ['app', 'components', 'lib'] as const;
+for (const tree of hrefGuardScannedRoots) {
+  for (const file of walk(resolve(root, tree))) {
+    if (!/\.(ts|tsx)$/.test(file)) continue;
+    const rel = relative(root, file).replaceAll('\\', '/');
+    if (hrefGuardAllowPrefixes.some((prefix) => rel.startsWith(prefix))) continue;
+    const src = readFileSync(file, 'utf8');
+    assert.equal(
+      hrefLiteralPattern.test(src),
+      false,
+      `${rel} contains a literal href to /demo or /preview/ outside allowed trees`
+    );
+  }
+}
 
 async function assertProductionNotFound() {
   const previous = process.env.VERCEL_ENV;

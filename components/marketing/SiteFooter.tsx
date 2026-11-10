@@ -57,6 +57,11 @@ const GROUP_LABEL_KEY_BY_LABEL: Record<string, string> = {
   Group: 'footer.group.group',
 };
 
+function linkLabelKey(link: FooterLink): string | undefined {
+  if (link.label === 'Interactive demo') return 'footer.link.demo';
+  return LINK_KEY_BY_HREF[link.href];
+}
+
 function FooterNav({
   title,
   children,
@@ -74,7 +79,8 @@ function FooterNav({
 
 function FooterLinkItem({ href, label }: FooterLink) {
   const { locale, t } = useLocaleDictionary();
-  const localizedLabel = LINK_KEY_BY_HREF[href] ? t(LINK_KEY_BY_HREF[href]) : label;
+  const labelKey = linkLabelKey({ href, label });
+  const localizedLabel = labelKey ? t(labelKey) : label;
 
   let nextHref = href;
   let hrefLang: string | undefined;
@@ -161,7 +167,7 @@ export default function SiteFooter() {
     return key ? t(key) : label;
   };
   const localizedLabel = (link: FooterLink) => {
-    const key = LINK_KEY_BY_HREF[link.href];
+    const key = linkLabelKey(link);
     return key ? t(key) : link.label;
   };
   return (
