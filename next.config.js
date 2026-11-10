@@ -266,6 +266,16 @@ const nextConfig = {
     // Public company directory retired — permanent redirect to home
     return [
       {
+        source: '/dashboard/help',
+        destination: '/dashboard/guide',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/help/:module',
+        destination: '/dashboard/guide/:module',
+        permanent: true,
+      },
+      {
         source: `/:locale(${localePrefixes.join('|')})/:path((?!${translatedPathPattern}).*)`,
         destination: '/:path',
         permanent: false,

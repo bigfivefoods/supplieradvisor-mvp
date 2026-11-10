@@ -58,6 +58,8 @@ for (const guide of MODULE_GUIDES) {
 assert.equal(guideIdForPath('/dashboard/accounting/vat201'), 'accounting');
 assert.equal(guideIdForPath('/dashboard'), 'home');
 assert.equal(guideIdForPath('/dashboard/help/accounting'), null);
+assert.equal(guideIdForPath('/dashboard/guide'), null);
+assert.equal(guideIdForPath('/dashboard/guide/accounting'), null);
 assert.equal(guideIdForPath('/sales/invoices'), 'sales-portal');
 assert.equal(getModuleGuide('fitgraph')?.name, 'GymAdvisor®');
 assert.equal(getModuleGuide('tradegraph')?.name, 'TradeAdvisor®');

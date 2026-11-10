@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   ChevronDown,
   ArrowLeftRight,
+  BookOpen,
   GripVertical,
   PanelLeftClose,
   PanelLeftOpen,
@@ -32,6 +33,7 @@ import { PortalBrandLogo } from '@/components/brand/PortalBrandLogo';
 import { useAdvisorSkin } from '@/lib/brand/useAdvisorSkin';
 import { recoverSidebarSteps } from '@/lib/recovery/nav';
 import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/company-cookie';
+import { withHowToFirst } from '@/lib/help/guide-route';
 
 const EXPANDED_KEY = 'sa-sidebar-expanded-v1';
 
@@ -172,6 +174,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         return canViewModule(resource);
       })
       .map((mod) => {
+        let next = mod;
         // Schools steps (standalone or folded under Operations)
         if (mod.id === 'schools') {
           const filtered = mod.sub.filter((s) =>
@@ -180,7 +183,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
               programme.role
             )
           );
-          return {
+          next = {
             ...mod,
             name:
               programme.role === 'department'
@@ -190,16 +193,15 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                   : 'Schools · School',
             sub: filtered.length ? filtered : mod.sub,
           };
-        }
-        // Health module: DoH / Facility / SP
-        if (mod.id === 'health') {
+        } else if (mod.id === 'health') {
+          // Health module: DoH / Facility / SP
           const filtered = mod.sub.filter((s) =>
             healthStepVisibleForRole(
               (s as { group?: string }).group,
               healthProgramme.role
             )
           );
-          return {
+          next = {
             ...mod,
             name:
               healthProgramme.role === 'department'
@@ -209,11 +211,10 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                   : 'Health · Facility',
             sub: filtered.length ? filtered : mod.sub,
           };
-        }
-        // Guide: nest only chapters for modules this company has enabled
-        if (mod.id === 'guide') {
+        } else if (mod.id === 'guide') {
+          // Guide: nest only chapters for modules this company has enabled
           const steps = buildGuideNavSteps(isCompanyModuleEnabled);
-          return {
+          next = {
             ...mod,
             sub: steps.map((s) => ({
               name: s.name,
@@ -223,14 +224,14 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
               desc: s.desc,
             })),
           };
-        }
-        if (mod.id === 'recovergraph' && role) {
-          return {
+        } else if (mod.id === 'recovergraph' && role) {
+          next = {
             ...mod,
             sub: recoverSidebarSteps(role, recoverStaff, mod.sub),
           };
         }
-        return mod;
+        // How-to guide is the first item in every module group that has one.
+        return { ...next, sub: withHowToFirst(next.id, next.sub) };
       });
   }, [
     role,
@@ -272,7 +273,14 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
   // Keep the module open for the current section (especially Sales on /sales/*)
   useEffect(() => {
     if (!pathname) return;
-    const active = visibleModules.find((mod) => {
+    const pathOnly = (href: string) => href.split('?')[0] || href;
+    const howToOwner = visibleModules.find((mod) =>
+      mod.sub.some(
+        (step) =>
+          (step as { howTo?: boolean }).howTo && pathOnly(step.href) === pathname
+      )
+    );
+    const active = howToOwner ?? visibleModules.find((mod) => {
       if (mod.href === '/dashboard') return pathname === '/dashboard';
       if (mod.href === '/sales') {
         return pathname === '/sales' || pathname.startsWith('/sales/');
@@ -655,7 +663,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                               e.preventDefault();
                               router.push(sub.href);
                             }}
-                            className={`block px-3 py-1.5 rounded-xl text-xs transition-all touch-manipulation ${
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs transition-all touch-manipulation ${
                               isSubActive(
                                 sub.href,
                                 Boolean((sub as { exact?: boolean }).exact)
@@ -664,6 +672,9 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                                 : 'text-slate-600 [@media(hover:hover)]:hover:text-slate-900 [@media(hover:hover)]:hover:bg-neutral-50'
                             }`}
                           >
+                            {(sub as { howTo?: boolean }).howTo ? (
+                              <BookOpen className="h-3.5 w-3.5 shrink-0 text-[#00b4d8]" aria-hidden />
+                            ) : null}
                             {sub.name}
                           </Link>
                         </div>

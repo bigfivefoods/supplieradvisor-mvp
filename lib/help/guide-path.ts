@@ -4,7 +4,10 @@ import { MODULE_NAV } from '@/lib/chrome/module-nav';
 export function guideIdForPath(pathname: string | null | undefined): string | null {
   if (!pathname) return null;
   const path = pathname.split('?')[0].replace(/\/$/, '') || '/';
-  if (path.startsWith('/dashboard/help')) return null;
+  // The guide itself is not a module screen. Old /help addresses redirect here.
+  if (path.startsWith('/dashboard/help') || path === '/dashboard/guide' || path.startsWith('/dashboard/guide/')) {
+    return null;
+  }
   let bestId: string | null = null;
   let bestLen = -1;
   for (const mod of MODULE_NAV) {

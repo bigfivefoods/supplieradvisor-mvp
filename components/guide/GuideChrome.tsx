@@ -23,18 +23,21 @@ export function GuideHero({
   title,
   titleAccent,
   description,
+  heading = 'h1',
 }: {
   eyebrow: string;
   title: string;
   titleAccent?: string;
   description: string;
+  heading?: 'h1' | 'h2';
 }) {
+  const Title = heading;
   return (
     <header className="mb-8">
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-400 mb-2">
         {eyebrow}
       </p>
-      <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 leading-[1.1]">
+      <Title className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 leading-[1.1]">
         {title}
         {titleAccent ? (
           <>
@@ -42,7 +45,7 @@ export function GuideHero({
             <span className="text-[#00b4d8]">{titleAccent}</span>
           </>
         ) : null}
-      </h1>
+      </Title>
       <p className="mt-3 text-sm sm:text-base text-neutral-600 leading-relaxed max-w-2xl">
         {description}
       </p>
@@ -54,29 +57,44 @@ export function SectionTraining({
   section,
   prev,
   next,
+  embedded = false,
 }: {
   section: GuideSection;
   prev?: { slug: string; title: string };
   next?: { slug: string; title: string };
+  /** Folded under a module how-to. Skips the second page title and the chapter pager. */
+  embedded?: boolean;
 }) {
-  return (
-    <GuideShell>
-      <Link
-        href="/dashboard/guide"
-        className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-[#0077b6] mb-6 group"
-      >
-        <ArrowLeft className="w-4 h-4 text-[#00b4d8] group-hover:-translate-x-0.5 transition-transform" />
-        All modules
-      </Link>
+  const body = (
+    <>
+      {embedded ? (
+        <div className="mt-14 border-t border-neutral-200 pt-10">
+          <h2 className="text-sm font-black uppercase tracking-[0.14em] text-neutral-400 mb-2">
+            Training handbook
+          </h2>
+          <p className="text-lg font-black text-slate-900">{section.title}</p>
+          <p className="mt-2 text-sm text-slate-600 leading-relaxed max-w-2xl">{section.tagline}</p>
+        </div>
+      ) : (
+        <>
+          <Link
+            href="/dashboard/guide"
+            className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-[#0077b6] mb-6 group"
+          >
+            <ArrowLeft className="w-4 h-4 text-[#00b4d8] group-hover:-translate-x-0.5 transition-transform" />
+            All modules
+          </Link>
 
-      <GuideHero
-        eyebrow="Training module"
-        title={section.title}
-        titleAccent="how-to"
-        description={section.tagline}
-      />
+          <GuideHero
+            eyebrow="Training module"
+            title={section.title}
+            titleAccent="how-to"
+            description={section.tagline}
+          />
+        </>
+      )}
 
-      <div className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-sky-50/80 to-cyan-50 p-5 sm:p-6 mb-8 shadow-sm">
+      <div className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-sky-50/80 to-cyan-50 p-5 sm:p-6 mb-8 shadow-sm mt-6">
         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0077b6] mb-2">
           Why this module exists
         </p>
@@ -235,6 +253,7 @@ export function SectionTraining({
         </div>
       )}
 
+      {embedded ? null : (
       <nav className="flex flex-col sm:flex-row gap-3 justify-between">
         {prev ? (
           <Link
@@ -277,6 +296,9 @@ export function SectionTraining({
           </Link>
         )}
       </nav>
-    </GuideShell>
+      )}
+    </>
   );
+  if (embedded) return body;
+  return <GuideShell>{body}</GuideShell>;
 }

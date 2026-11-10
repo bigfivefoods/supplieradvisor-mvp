@@ -144,6 +144,14 @@ const ExpandCtx = createContext<ExpandState>({
   toggle: () => {},
 });
 
+/** Module how-to path. Feature links are `${guideHref}#guide-${anchor}`. */
+const GuideHrefCtx = createContext('');
+
+function featureHref(anchor: string, guideHref: string): string {
+  const hash = `#guide-${anchor}`;
+  return guideHref ? `${guideHref}${hash}` : hash;
+}
+
 function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -243,6 +251,7 @@ function NodeDetail({
   const branches = node.kind === 'decision' ? branchDetails(node, edges, nodes) : [];
   const does = node.does || node.hint;
   const who = node.who || node.lane;
+  const guideHref = useContext(GuideHrefCtx);
   return (
     <div id={detailId} className="sa-flow-detail space-y-1.5 border-t border-cyan-100 px-3 py-2 text-[11px] leading-snug text-slate-700">
       {does ? (
@@ -291,7 +300,7 @@ function NodeDetail({
       ) : null}
       {node.anchor ? (
         <a
-          href={`#guide-${node.anchor}`}
+          href={featureHref(node.anchor, guideHref)}
           className={`inline-flex font-bold text-[#0077b6] underline-offset-2 hover:underline ${FOCUS}`}
           onClick={(event) => {
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -325,6 +334,7 @@ function Hit({
 }) {
   const label = ariaLabel(node, number, edges, byId);
   const expand = useContext(ExpandCtx);
+  const guideHref = useContext(GuideHrefCtx);
   if (expand.expandable) {
     const open = expand.open.has(node.id);
     const detailId = `flow-detail-${node.id}`;
@@ -351,7 +361,7 @@ function Hit({
   }
   return (
     <a
-      href={`#guide-${node.anchor}`}
+      href={featureHref(node.anchor, guideHref)}
       className={className}
       style={style}
       aria-label={label}
@@ -800,12 +810,15 @@ export function ProcessDiagram({
   nodes,
   edges,
   initialOpenNodes = [],
+  guideHref = '',
 }: {
   title?: string;
   nodes: GuideNode[];
   edges?: GuideEdge[];
   /** Nodes expanded on the first paint. Used so the detail is in the server HTML. */
   initialOpenNodes?: string[];
+  /** Module guide path. Feature links keep their #guide- anchor on this path. */
+  guideHref?: string;
 }) {
   const staged = needsFlowStages(nodes);
   const stages = useMemo(() => flowStages(nodes), [nodes]);
@@ -819,17 +832,15 @@ export function ProcessDiagram({
     }),
     [staged, openNodes]
   );
-  if (!staged) {
-    return (
-      <ExpandCtx.Provider value={expand}>
-        <DiagramCanvas title={title} nodes={nodes} edges={edges} />
-      </ExpandCtx.Provider>
-    );
-  }
+  const canvas = !staged ? (
+    <DiagramCanvas title={title} nodes={nodes} edges={edges} />
+  ) : (
+    <StagedDiagram title={title} nodes={nodes} edges={edges} stages={stages} openStages={openStages} setOpenStages={setOpenStages} />
+  );
   return (
-    <ExpandCtx.Provider value={expand}>
-      <StagedDiagram title={title} nodes={nodes} edges={edges} stages={stages} openStages={openStages} setOpenStages={setOpenStages} />
-    </ExpandCtx.Provider>
+    <GuideHrefCtx.Provider value={guideHref}>
+      <ExpandCtx.Provider value={expand}>{canvas}</ExpandCtx.Provider>
+    </GuideHrefCtx.Provider>
   );
 }
 
