@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { MODULE_NAV } from '@/lib/chrome/module-nav';
 import { guideIdForPath } from './guide-path';
+import { flowErrors } from './flow-model';
 import { MODULE_GUIDES, getModuleGuide } from './module-guides';
 
 assert.equal(MODULE_GUIDES.length, MODULE_NAV.length);
@@ -108,5 +109,16 @@ assert.equal(JSON.stringify(recover).includes('Harbour'), false);
 
 const schools = getModuleGuide('schools');
 assert.match(JSON.stringify(schools), /does not post the ledger|does not insert an accounting journal|does not post a journal/i);
+
+for (const guide of MODULE_GUIDES) {
+  const errors = flowErrors(guide);
+  assert.deepEqual(errors, [], `${guide.id}: ${errors.join('; ')}`);
+}
+
+const financeFlow = flowErrors(getModuleGuide('accounting') as NonNullable<ReturnType<typeof getModuleGuide>>, {
+  requireAnchor: true,
+  requireIcon: true,
+});
+assert.deepEqual(financeFlow, [], financeFlow.join('; '));
 
 console.log(`module-guides.test.ts ok (${MODULE_GUIDES.length} modules)`);

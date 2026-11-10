@@ -35,9 +35,9 @@ import { SCHOOLS_GUIDE } from '@/lib/help/guides/schools';
 import { SHEQ_GUIDE } from '@/lib/help/guides/sheq';
 import { SUPPLIERS_GUIDE } from '@/lib/help/guides/suppliers';
 import { TRADE_GUIDE } from '@/lib/help/guides/trade';
-import type { GuideError, GuideFaq, GuideFeature, GuideNode, ModuleGuide } from '@/lib/help/types';
+import type { GuideEdge, GuideError, GuideFaq, GuideFeature, GuideNode, ModuleGuide } from '@/lib/help/types';
 
-export type { GuideError, GuideFaq, GuideFeature, GuideNode, ModuleGuide };
+export type { GuideEdge, GuideError, GuideFaq, GuideFeature, GuideNode, ModuleGuide };
 
 const HAND: Record<string, ModuleGuide> = {
   home: HOME_GUIDE,

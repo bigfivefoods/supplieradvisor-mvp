@@ -11,10 +11,52 @@ export type GuideFaq = {
   a: string;
 };
 
+/** Lucide icon names already used by the app. */
+export type GuideFlowIcon =
+  | 'book-open'
+  | 'file-pen'
+  | 'scale'
+  | 'send'
+  | 'wallet'
+  | 'rotate-ccw'
+  | 'receipt'
+  | 'ban'
+  | 'landmark'
+  | 'arrow-left-right'
+  | 'link-2'
+  | 'eye-off'
+  | 'percent'
+  | 'clipboard-list'
+  | 'lock'
+  | 'stamp'
+  | 'circle-minus'
+  | 'chart-column'
+  | 'files'
+  | 'git-branch';
+
 export type GuideNode = {
   id: string;
   label: string;
   hint?: string;
+  /** Lucide icon drawn in the node. Decisions may omit it. */
+  icon?: GuideFlowIcon;
+  /**
+   * Role that performs the step.
+   * Swimlanes render only when a flow uses two or more lanes.
+   */
+  lane?: string;
+  /** What the books or the system do at this step. */
+  books?: string;
+  /** Feature id. The node scrolls to `#guide-{anchor}`. */
+  anchor?: string;
+  kind?: 'step' | 'decision';
+};
+
+export type GuideEdge = {
+  from: string;
+  to: string;
+  /** Branch label drawn on the connector. */
+  label?: string;
 };
 
 export type GuideFeature = {
@@ -41,5 +83,10 @@ export type ModuleGuide = {
   features: GuideFeature[];
   faqs: GuideFaq[];
   flow: GuideNode[];
+  /**
+   * Connectors. When omitted, the nodes run in array order.
+   * A decision needs two or more outgoing edges.
+   */
+  edges?: GuideEdge[];
   outcome: string;
 };
