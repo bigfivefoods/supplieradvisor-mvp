@@ -9,8 +9,9 @@ export const maxDuration = 60;
 /**
  * GET/POST /api/cron/bfg-shop-callbacks
  * Retries the payment notices SupplierAdvisor® owes the shop (contract section 7).
- * Auth: CRON_SECRET. A no-op while BFG_SYNC_ENABLED is not "true".
- * Not scheduled in vercel.json: adding a schedule is a separate approval.
+ * Auth: CRON_SECRET (Vercel Cron sends Authorization: Bearer $CRON_SECRET).
+ * A no-op while BFG_SYNC_ENABLED is not "true", or when the outbox is empty.
+ * Scheduled every 5 minutes in vercel.json, matching the shop's sa-sync cron.
  */
 async function run(request: NextRequest) {
   const gate = assertCronSecret(request);

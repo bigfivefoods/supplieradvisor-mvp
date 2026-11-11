@@ -47,9 +47,9 @@ A paid invoice is never voided (`409 void_after_paid`, permanent).
 
 `recordArPayment` calls `afterArPaymentRecorded` (only when the flag is on). Payments created by
 `bfg_shop_sync` are skipped (loop guard). Failed deliveries retry from an outbox via
-`/api/cron/bfg-shop-callbacks` (cron-secret protected). That route is **not** scheduled in `vercel.json`.
+`/api/cron/bfg-shop-callbacks` (cron-secret protected), scheduled every 5 minutes in `vercel.json`.
 
 ## Rollout order
 
 1. Review + merge. 2. Apply the schema migration. 3. Review and apply the product map. 4. Set the env vars.
-5. Schedule the callbacks cron if wanted. 6. Send a `dry_run` event from the shop. 7. Turn the flag on.
+5. The callbacks cron is scheduled every 5 minutes. 6. Send a `dry_run` event from the shop. 7. Turn the flag on.
