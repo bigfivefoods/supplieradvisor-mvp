@@ -120,6 +120,7 @@ console.log(
 
 const sleepJobs: Promise<void>[] = [];
 const sleepStarted = performance.now();
+let collectorDone = false;
 await collectInsights(
   beacon({ 'x-forwarded-for': '203.0.113.77' }, pageview('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa04')),
   {
@@ -129,15 +130,18 @@ await collectInsights(
     lookup: async () => ({}),
     fetchImpl: async () => {
       await new Promise((resolveSleep) => setTimeout(resolveSleep, 200));
+      collectorDone = true;
       return new Response(null, { status: 204 });
     },
   }
 );
 const sleepResponseMs = performance.now() - sleepStarted;
 assert.ok(sleepResponseMs < 100, `slept response ${sleepResponseMs.toFixed(1)} ms`);
+assert.equal(collectorDone, false);
 await Promise.all(sleepJobs);
+assert.equal(collectorDone, true);
 const sleepTotalMs = performance.now() - sleepStarted;
-assert.ok(sleepTotalMs >= 200, `forward ${sleepTotalMs.toFixed(1)} ms`);
+assert.ok(sleepTotalMs >= sleepResponseMs, `forward ${sleepTotalMs.toFixed(1)} ms`);
 console.log(
   `collect defer timing: response ${sleepResponseMs.toFixed(1)} ms while a 200 ms collector was in flight (done at ${sleepTotalMs.toFixed(1)} ms)`
 );
