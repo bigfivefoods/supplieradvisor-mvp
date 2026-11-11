@@ -21,6 +21,15 @@ and the environment variables below are set.
 `x-bfg-signature: v1=hex(HMAC_SHA256(secret, "bfg-shop-sync.v1." + ts + "." + rawBody))`, compared in
 constant time. The signature is verified before the ±300 s timestamp window is checked.
 
+## Fulfilment status aliases
+
+Shop order stages added after contract v1.0 are accepted on `order.status`:
+
+- `dispatching` → `processing` (packed, being handed to the courier; not yet shipped)
+- `completed` → `shipped`, and `metadata.delivered_at` is set as for `delivered`
+- `out_for_delivery` → `shipped` (already in v1.0)
+- `on_hold` and `delayed` leave `sales_orders.status` unchanged; `expected_delivery_date` still updates `promised_date`
+
 ## Write paths
 
 No ad-hoc ledger writes. The receiver uses CRM customers, `syncCrmInvoiceToBooks` (including its
