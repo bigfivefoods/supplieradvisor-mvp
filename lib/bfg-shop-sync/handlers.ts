@@ -700,11 +700,17 @@ export function mapFulfilmentStatus(current: string, fulfilment: string): string
       // Never move an invoiced / paid (or further along) order backwards.
       return ['invoiced', 'paid', 'processing', 'shipped'].includes(current) ? current : 'confirmed';
     case 'processing':
+    case 'dispatching': // shop "Dispatching": packed, being handed to the courier; not yet shipped
       return current === 'shipped' ? current : 'processing';
     case 'dispatched':
     case 'out_for_delivery':
     case 'delivered':
+    case 'completed': // shop "Completed": the order is done
       return 'shipped';
+    case 'on_hold':
+    case 'delayed':
+      // Shop exceptions: leave sales_orders.status as it is; promised_date still updates.
+      return current;
     default:
       return current;
   }
@@ -736,7 +742,7 @@ export async function handleOrderStatus(ctx: HandlerCtx, d: OrderStatus): Promis
   const nextMeta: Row = { ...meta, shop_status_state_version: ctx.envelope.state_version };
   if (d.courier) nextMeta.courier = d.courier;
   if (d.tracking_reference) nextMeta.tracking = d.tracking_reference;
-  if (d.fulfilment_status === 'delivered') {
+  if (d.fulfilment_status === 'delivered' || d.fulfilment_status === 'completed') {
     nextMeta.delivered_at = d.delivered_at || ctx.envelope.state_version;
   }
   const metaChanged = JSON.stringify(nextMeta) !== JSON.stringify(meta);

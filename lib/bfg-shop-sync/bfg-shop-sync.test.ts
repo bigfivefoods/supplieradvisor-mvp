@@ -871,6 +871,14 @@ async function main() {
     assert.equal(db.orders[0].status, 'shipped');
     assert.equal((db.orders[0].metadata as Row).delivered_at, '2026-11-13T11:55:00.000Z');
     assert.equal(del.status, 200);
+    // shop aliases: exceptions must not move a shipped order backwards, but ETA still updates
+    const hold = await send(status('on_hold', '2026-11-13T13:00:00.000Z', { expected_delivery_date: '2026-11-18' }));
+    assert.equal(hold.body.result, 'updated');
+    assert.equal(db.orders[0].status, 'shipped', 'on_hold must not move a shipped order backwards');
+    assert.equal(db.orders[0].promised_date, '2026-11-18');
+    const delayed = await send(status('delayed', '2026-11-13T14:00:00.000Z', { expected_delivery_date: '2026-11-20' }));
+    assert.equal(db.orders[0].status, 'shipped', 'delayed must not change sales_orders.status');
+    assert.equal(db.orders[0].promised_date, '2026-11-20');
     // an older state_version is stale and writes nothing
     const old = await send(status('processing', '2026-11-10T16:00:00.000Z'));
     assert.equal(old.body.result, 'stale');
@@ -884,6 +892,24 @@ async function main() {
     await send(paid());
     await send({ event: 'order.status', key: 'order.status:bfg-shop-abc123def:v9', state: '2026-11-10T20:00:00.000Z', data: { reference: 'bfg-shop-abc123def', fulfilment_status: 'confirmed', payment_status: 'paid' } });
     assert.equal(db.orders[0].status, 'paid');
+  });
+
+  await test('order.status: shop aliases dispatching, completed, on_hold and delayed', async () => {
+    const { send, db } = setup();
+    await send(placed());
+    const status = (s: string, v: string, extra: Row = {}): Env => ({
+      event: 'order.status',
+      key: `order.status:bfg-shop-abc123def:${v}`,
+      state: v,
+      data: { reference: 'bfg-shop-abc123def', fulfilment_status: s, payment_status: 'paid', courier: '', tracking_reference: '', expected_delivery_date: null, delivered_at: null, ...extra },
+    });
+    const disp = await send(status('dispatching', '2026-11-11T09:00:00.000Z'));
+    assert.equal(disp.body.result, 'updated');
+    assert.equal(db.orders[0].status, 'processing', 'dispatching maps to processing');
+    const done = await send(status('completed', '2026-11-14T10:00:00.000Z', { delivered_at: '2026-11-14T09:50:00.000Z' }));
+    assert.equal(db.orders[0].status, 'shipped', 'completed maps to shipped');
+    assert.equal((db.orders[0].metadata as Row).delivered_at, '2026-11-14T09:50:00.000Z');
+    assert.equal(done.status, 200);
   });
 
   // ── order.refund ──────────────────────────────────────────────────────────
