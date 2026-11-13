@@ -42,7 +42,7 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
       icon: 'git-branch',
       needs: sales,
       to: target('app', '/sales/pipeline', 'Pipeline', sales),
-      sources: ['app/sales/pipeline/page.tsx'],
+      sources: ['app/sales/(portal)/pipeline/page.tsx'],
     }),
     flowStep({
       id: 'diary',
@@ -54,7 +54,7 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
       icon: 'calendar-days',
       needs: sales,
       to: target('app', '/sales/tasks', 'Diary', sales),
-      sources: ['app/sales/tasks/page.tsx'],
+      sources: ['app/sales/(portal)/tasks/page.tsx'],
     }),
     flowStep({
       id: 'quote',
@@ -66,7 +66,7 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
       icon: 'clipboard-list',
       needs: sales,
       to: target('app', '/sales/quotes', 'Quotes', sales),
-      sources: ['app/sales/quotes/page.tsx', 'components/customers/DocumentWorkspace.tsx'],
+      sources: ['app/sales/(portal)/quotes/page.tsx', 'components/customers/DocumentWorkspace.tsx'],
     }),
     flowStep({
       id: 'order',
@@ -78,7 +78,7 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
       icon: 'package',
       needs: sales,
       to: target('app', '/sales/orders', 'Orders', sales),
-      sources: ['app/sales/orders/page.tsx'],
+      sources: ['app/sales/(portal)/orders/page.tsx'],
     }),
     flowStep({
       id: 'invoice',
@@ -90,7 +90,7 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
       icon: 'receipt',
       needs: sales,
       to: target('app', '/sales/invoices', 'Invoices', sales),
-      sources: ['app/sales/invoices/page.tsx'],
+      sources: ['app/sales/(portal)/invoices/page.tsx'],
     }),
     flowStep({
       id: 'earnings',
@@ -103,7 +103,7 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
       needs: sales,
       to: target('app', '/sales/earnings', 'Earnings', sales),
       secondary: [target('app', '/sales/forecast', 'Forecast', sales)],
-      sources: ['app/sales/earnings/page.tsx', 'app/sales/forecast/page.tsx'],
+      sources: ['app/sales/(portal)/earnings/page.tsx', 'app/sales/(portal)/forecast/page.tsx'],
     }),
     flowStep({
       id: 'subscribe',
@@ -115,7 +115,7 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
       icon: 'wallet',
       needs: sales,
       to: target('app', '/sales/subscribe', 'Subscribe', sales),
-      sources: ['app/sales/subscribe/page.tsx', 'app/api/sales/subscription/route.ts'],
+      sources: ['app/sales/(portal)/subscribe/page.tsx', 'app/api/sales/subscription/route.ts'],
     }),
   ],
   guardrails: [
@@ -132,12 +132,12 @@ export const SALES_PORTAL_FLOW: AdvisorFlowDef = {
     {
       title: 'No rate on this picture',
       body: 'Earnings show projected, earned and paid commission from the portal. This picture does not state a rate.',
-      source: 'app/sales/earnings/page.tsx',
+      source: 'app/sales/(portal)/earnings/page.tsx',
     },
     {
       title: 'Same document desk',
       body: 'Quote, order and invoice on this portal open the document desk in the sales portal.',
-      source: 'app/sales/quotes/page.tsx',
+      source: 'app/sales/(portal)/quotes/page.tsx',
     },
   ],
   outcome: 'The agreement is signed when the role needs it, the sale is quoted and invoiced, and earnings are on the screen.',

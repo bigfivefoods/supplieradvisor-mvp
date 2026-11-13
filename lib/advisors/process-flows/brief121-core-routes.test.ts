@@ -51,7 +51,18 @@ const SAME_PAGE: Record<string, string[][]> = {
 function pageFor(flow: AdvisorFlowDef, target: FlowTarget): string {
   const raw = target.scope === 'app' ? target.path : `${flow.hrefRoot.replace(/\/$/, '')}/${target.path.replace(/^\//, '')}`;
   const path = raw.split('?')[0].replace(/\/$/, '');
-  return `app${path}/page.tsx`;
+  const plain = `app${path}/page.tsx`;
+  if (existsSync(plain)) return plain;
+  // /sales URLs are unchanged. The portal pages live in a route group so
+  // /sales/agreement does not inherit the Privy layout.
+  if (path === '/sales' || path.startsWith('/sales/')) {
+    const grouped =
+      path === '/sales'
+        ? 'app/sales/(portal)/page.tsx'
+        : `app/sales/(portal)${path.slice('/sales'.length)}/page.tsx`;
+    if (existsSync(grouped)) return grouped;
+  }
+  return plain;
 }
 
 assert.equal(

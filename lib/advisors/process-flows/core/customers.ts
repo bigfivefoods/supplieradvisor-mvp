@@ -68,7 +68,7 @@ export const CUSTOMERS_FLOW: AdvisorFlowDef = {
       icon: 'calendar-days',
       needs: sales,
       to: target('app', '/sales/tasks', 'Diary', sales),
-      sources: ['app/sales/tasks/page.tsx'],
+      sources: ['app/sales/(portal)/tasks/page.tsx'],
     }),
     flowStep({
       id: 'quote',
